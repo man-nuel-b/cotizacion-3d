@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configurador y Cotizador 3D - Contenedores Habilitados</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Three.js y OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    #canvas-container { width: 100%; height: 100%; min-height: 450px; position: relative; }
+    canvas { display: block; width: 100%; height: 100%; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    
+    @media print {
+      body * { visibility: hidden; }
+      #printable-quote, #printable-quote * { visibility: visible; }
+      #printable-quote { position: absolute; left: 0; top: 0; width: 100%; display: block !important; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 h-screen flex flex-col overflow-hidden">
+
+  <!-- Header / Navbar -->
+  <header class="bg-slate-900 text-white px-6 py-3 flex justify-between items-center shadow-md z-10 no-print">
+    <div class="flex items-center space-x-3">
+      <div class="bg-amber-500 text-slate-900 p-2 rounded-lg font-bold text-xl">
+        <i class="fa-solid fa-cubes-stacked"></i>
+      </div>
+      <div>
+        <h1 class="font-bold text-lg leading-tight">ModularBox 3D</h1>
+        <p class="text-xs text-slate-400">Diseñador y Cotizador en Tiempo Real</p>
+      </div>
+    </div>
+
+    <!-- Quick Controls -->
+    <div class="flex items-center space-x-4 text-sm">
+      <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 flex items-center space-x-2">
+        <span class="text-slate-400 text-xs">Moneda:</span>
+        <select id="currency-select" class="bg-transparent font-semibold text-amber-400 focus:outline-none cursor-pointer">
+          <option value="CLP" class="bg-slate-800 text-white">CLP ($)</option>
+          <option value="UF" class="bg-slate-800 text-white">UF</option>
+          <option value="USD" class="bg-slate-800 text-white">USD ($)</option>
+        </select>
+      </div>
+
+      <button onclick="toggleModal('margin-modal')" class="bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 transition">
+        <i class="fa-solid fa-percent text-amber-400 mr-1"></i> Margen: <span id="margin-display-head">25%</span>
+      </button>
+
+      <button onclick="openQuoteModal()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold px-4 py-1.5 rounded-lg transition shadow-sm flex items-center space-x-1.5">
+        <i class="fa-solid fa-file-invoice-dollar"></i>
+        <span>Ver Cotización</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Work Area -->
+  <div class="flex-1 flex overflow-hidden no-print">
+
+    <!-- Left Controls Panel -->
+    <aside class="w-96 bg-white border-r border-slate-200 flex flex-col shadow-lg z-10">
+      
+      <!-- Navigation Tabs -->
+      <div class="flex border-b border-slate-200 bg-slate-50">
+        <button onclick="switchTab('config')" id="tab-btn-config" class="flex-1 py-3 px-2 text-xs font-semibold text-amber-600 border-b-2 border-amber-500 flex items-center justify-center space-x-1">
+          <i class="fa-solid fa-sliders"></i> <span>Módulo</span>
+        </button>
+        <button onclick="switchTab('additions')" id="tab-btn-additions" class="flex-1 py-3 px-2 text-xs font-semibold text-slate-500 hover:text-slate-700 flex items-center justify-center space-x-1">
+          <i class="fa-solid fa-plus-circle"></i> <span>Añadir</span>
+        </button>
+        <button onclick="switchTab('finishes')" id="tab-btn-finishes" class="flex-1 py-3 px-2 text-xs font-semibold text-slate-500 hover:text-slate-700 flex items-center justify-center space-x-1">
+          <i class="fa-solid fa-paint-roller"></i> <span>Terminaciones</span>
+        </button>
+        <button onclick="switchTab('bom')" id="tab-btn-bom" class="flex-1 py-3 px-2 text-xs font-semibold text-slate-500 hover:text-slate-700 flex items-center justify-center space-x-1">
+          <i class="fa-solid fa-list-check"></i> <span>Materiales</span>
+        </button>
+      </div>
+
+      <!-- Tab Content Area -->
+      <div class="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-6">
+
+        <!-- TAB 1: CONFIGURACION BASE Y TIPOLOGIA -->
+        <div id="tab-config" class="space-y-5">
+          
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">1. Tipología Preconfigurada</label>
+            <div class="grid grid-cols-1 gap-2">
+              <button onclick="applyPreset('oficina')" class="preset-btn text-left p-2.5 rounded-lg border border-slate-200 hover:border-amber-500 hover:bg-amber-50 transition flex items-center justify-between group">
+                <div>
+                  <div class="font-semibold text-sm text-slate-800 group-hover:text-amber-700">Oficina Estándar</div>
+                  <div class="text-xs text-slate-500">2 Ventanas, 1 Puerta exterior, Piso vinílico</div>
+                </div>
+                <i class="fa-solid fa-briefcase text-slate-400 group-hover:text-amber-500"></i>
+              </button>
+              
+              <button onclick="applyPreset('oficina_bano')" class="preset-btn text-left p-2.5 rounded-lg border border-slate-200 hover:border-amber-500 hover:bg-amber-50 transition flex items-center justify-between group">
+                <div>
+                  <div class="font-semibold text-sm text-slate-800 group-hover:text-amber-700">Oficina con Baño Privado</div>
+                  <div class="text-xs text-slate-500">Oficina + Tabique + 1 Baño completo (WC/Lav)</div>
+                </div>
+                <i class="fa-solid fa-restroom text-slate-400 group-hover:text-amber-500"></i>
+              </button>
+
+              <button onclick="applyPreset('bateria_banos')" class="preset-btn text-left p-2.5 rounded-lg border border-slate-200 hover:border-amber-500 hover:bg-amber-50 transition flex items-center justify-between group">
+                <div>
+                  <div class="font-semibold text-sm text-slate-800 group-hover:text-amber-700">Batería de Baños (Comercial/Obra)</div>
+                  <div class="text-xs text-slate-500">3 WC, 2 Lavamanos, 1 Urinario, Piso Fibrocemento</div>
+                </div>
+                <i class="fa-solid fa-toilet text-slate-400 group-hover:text-amber-500"></i>
+              </button>
+
+              <button onclick="applyPreset('bodega')" class="preset-btn text-left p-2.5 rounded-lg border border-slate-200 hover:border-amber-500 hover:bg-amber-50 transition flex items-center justify-between group">
+                <div>
+                  <div class="font-semibold text-sm text-slate-800 group-hover:text-amber-700">Bodega / Depósito Seguro</div>
+                  <div class="text-xs text-slate-500">Piso Diamantado, Luz LED, Puerta Portón Original</div>
+                </div>
+                <i class="fa-solid fa-warehouse text-slate-400 group-hover:text-amber-500"></i>
+              </button>
+            </div>
+          </div>
+
+          <hr class="border-slate-200">
+
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">2. Estructura de Contenedor</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button onclick="setContainerType('20std')" id="btn-20std" class="type-btn active p-2 border-2 border-amber-500 bg-amber-50 rounded-lg text-center transition">
+                <div class="font-bold text-xs">20 FT STD</div>
+                <div class="text-[10px] text-slate-500">6.0 x 2.4 x 2.6m</div>
+              </button>
+              <button onclick="setContainerType('20hc')" id="btn-20hc" class="type-btn p-2 border-2 border-slate-200 rounded-lg text-center transition hover:border-slate-300">
+                <div class="font-bold text-xs">20 FT HC</div>
+                <div class="text-[10px] text-slate-500">6.0 x 2.4 x 2.9m</div>
+              </button>
+              <button onclick="setContainerType('40hc')" id="btn-40hc" class="type-btn p-2 border-2 border-slate-200 rounded-lg text-center transition hover:border-slate-300">
+                <div class="font-bold text-xs">40 FT HC</div>
+                <div class="text-[10px] text-slate-500">12.0 x 2.4 x 2.9m</div>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Color Pintura Exterior (RAL)</label>
+            <div class="flex items-center space-x-2">
+              <button onclick="setExteriorColor('#1e3a8a')" class="w-8 h-8 rounded-full bg-blue-900 border-2 border-white shadow hover:scale-110 transition" title="Azul Industrial RAL 5010"></button>
+              <button onclick="setExteriorColor('#374151')" class="w-8 h-8 rounded-full bg-gray-700 border-2 border-white shadow hover:scale-110 transition" title="Gris Grafito RAL 7016"></button>
+              <button onclick="setExteriorColor('#14532d')" class="w-8 h-8 rounded-full bg-green-900 border-2 border-white shadow hover:scale-110 transition" title="Verde RAL 6005"></button>
+              <button onclick="setExteriorColor('#f8fafc')" class="w-8 h-8 rounded-full bg-slate-50 border-2 border-slate-300 shadow hover:scale-110 transition" title="Blanco RAL 9010"></button>
+              <button onclick="setExteriorColor('#ca8a04')" class="w-8 h-8 rounded-full bg-yellow-600 border-2 border-white shadow hover:scale-110 transition" title="Amarillo RAL 1023"></button>
+              <button onclick="setExteriorColor('#991b1b')" class="w-8 h-8 rounded-full bg-red-800 border-2 border-white shadow hover:scale-110 transition" title="Rojo RAL 3020"></button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- TAB 2: AÑADIR ELEMENTOS -->
+        <div id="tab-additions" class="space-y-4 hidden">
+          <p class="text-xs text-slate-500">Agrega o quita elementos al proyecto en tiempo real. El costo y los materiales se calcularán automáticamente.</p>
+          
+          <div class="space-y-3">
+            
+            <!-- Ventana Termopanel -->
+            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <div>
+                <div class="font-semibold text-sm">Ventana Termopanel (100x100)</div>
+                <div class="text-xs text-slate-500">Aluminio Neogras / DVH</div>
+              </div>
+              <div class="flex items-center space-x-2">
+                <button onclick="updateQty('windows', -1)" class="w-7 h-7 bg-slate-200 rounded font-bold hover:bg-slate-300">-</button>
+                <span id="qty-windows" class="font-bold w-6 text-center">2</span>
+                <button onclick="updateQty('windows', 1)" class="w-7 h-7 bg-amber-500 text-white rounded font-bold hover:bg-amber-600">+</button>
+              </div>
+            </div>
+
+            <!-- Puerta Exterior Peatonal -->
+            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <div>
+                <div class="font-semibold text-sm">Puerta Peatonal Exterior</div>
+                <div class="text-xs text-slate-500">Aislada, con cerradura de seguridad</div>
+              </div>
+              <div class="flex items-center space-x-2">
+                <button onclick="updateQty('extDoors', -1)" class="w-7 h-7 bg-slate-200 rounded font-bold hover:bg-slate-300">-</button>
+                <span id="qty-extDoors" class="font-bold w-6 text-center">1</span>
+                <button onclick="updateQty('extDoors', 1)" class="w-7 h-7 bg-amber-500 text-white rounded font-bold hover:bg-amber-600">+</button>
+              </div>
+            </div>
+
+            <!-- Ventana Proyectante Baño -->
+            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <div>
+                <div class="font-semibold text-sm">Ventana Baño / Vano (50x30)</div>
+                <div class="text-xs text-slate-500">Proyectante de ventilación</div>
+              </div>
+              <div class="flex items-center space-x-2">
+                <button onclick="updateQty('bathWindows', -1)" class="w-7 h-7 bg-slate-200 rounded font-bold hover:bg-slate-300">-</button>
+                <span id="qty-bathWindows" class="font-bold w-6 text-center">0</span>
+                <button onclick="updateQty('bathWindows', 1)" class="w-7 h-7 bg-amber-500 text-white rounded font-bold hover:bg-amber-600">+</button>
+              </div>
+            </div>
+
+            <!-- Tabiques / Divisiones Interiores -->
+            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <div>
+                <div class="font-semibold text-sm">Tabique Interior con Puerta</div>
+                <div class="text-xs text-slate-500">Metalcon + Revestimiento doble</div>
+              </div>
+              <div class="flex items-center space-x-2">
+                <button onclick="updateQty('partitions', -1)" class="w-7 h-7 bg-slate-200 rounded font-bold hover:bg-slate-300">-</button>
+                <span id="qty-partitions" class="font-bold w-6 text-center">0</span>
+                <button onclick="updateQty('partitions', 1)" class="w-7 h-7 bg-amber-500 text-white rounded font-bold hover:bg-amber-600">+</button>
+              </div>
+            </div>
+
+            <!-- Artefacto WC -->
+            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <div>
+                <div class="font-semibold text-sm">Baño WC Completo</div>
+                <div class="text-xs text-slate-500">Inodoro con descarga + Fitting PPR</div>
+              </div>
+              <div class="flex items-center space-x-2">
+                <button onclick="updateQty('wc', -1)" class="w-7 h-7 bg-slate-200 rounded font-bold hover:bg-slate-300">-</button>
+                <span id="qty-wc" class="font-bold w-6 text-center">0</span>
+                <button onclick="updateQty('wc', 1)" class="w-7 h-7 bg-amber-500 text-white rounded font-bold hover:bg-amber-600">+</button>
+              </div>
+            </div>
+
+            <!-- Lavamanos -->
+            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <div>
+                <div class="font-semibold text-sm">Lavamanos con Pedestal/Mueble</div>
+                <div class="text-xs text-slate-500">Grifería monomando + conexión</div>
+              </div>
+              <div class="flex items-center space-x-2">
+                <button onclick="updateQty('sink', -1)" class="w-7 h-7 bg-slate-200 rounded font-bold hover:bg-slate-300">-</button>
+                <span id="qty-sink" class="font-bold w-6 text-center">0</span>
+                <button onclick="updateQty('sink', 1)" class="w-7 h-7 bg-amber-500 text-white rounded font-bold hover:bg-amber-600">+</button>
+              </div>
+            </div>
+
+            <!-- Aire Acondicionado -->
+            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <div>
+                <div class="font-semibold text-sm">Aire Acondicionado Split</div>
+                <div class="text-xs text-slate-500">9.000 / 12.000 BTU Inverter</div>
+              </div>
+              <div class="flex items-center space-x-2">
+                <button onclick="updateQty('ac', -1)" class="w-7 h-7 bg-slate-200 rounded font-bold hover:bg-slate-300">-</button>
+                <span id="qty-ac" class="font-bold w-6 text-center">1</span>
+                <button onclick="updateQty('ac', 1)" class="w-7 h-7 bg-amber-500 text-white rounded font-bold hover:bg-amber-600">+</button>
+              </div>
+            </div>
+
+            <!-- Iluminación LED Extra -->
+            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <div>
+                <div class="font-semibold text-sm">Paneles LED de Cielo (Puntos)</div>
+                <div class="text-xs text-slate-500">Panel embutido 18W/24W</div>
+              </div>
+              <div class="flex items-center space-x-2">
+                <button onclick="updateQty('lights', -1)" class="w-7 h-7 bg-slate-200 rounded font-bold hover:bg-slate-300">-</button>
+                <span id="qty-lights" class="font-bold w-6 text-center">4</span>
+                <button onclick="updateQty('lights', 1)" class="w-7 h-7 bg-amber-500 text-white rounded font-bold hover:bg-amber-600">+</button>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- TAB 3: TERMINACIONES Y MATERIALES -->
+        <div id="tab-finishes" class="space-y-4 hidden">
+          
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Aislamiento Térmico</label>
+            <select id="select-insulation" onchange="updateFinishConfig()" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-amber-500">
+              <option value="eps">Aislapol EPS Poliestireno Expandido 50mm</option>
+              <option value="rockwool" selected>Lana de Roca 50mm (Aislante Térmico y Acústico)</option>
+              <option value="pu">Poliuretano Proyectado 30mm (Alta Densidad)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Revestimiento de Paredes/Cielo</label>
+            <select id="select-lining" onchange="updateFinishConfig()" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-amber-500">
+              <option value="mdf" selected>MDF Ranurado / Terciado Formaleta 9mm</option>
+              <option value="pvc">PVC Lavable Alto Tráfico (Ideal Sanitario/Comedor)</option>
+              <option value="gypsum">Yeso Cartón 12.5mm + Pintura Esmalte al Agua</option>
+              <option value="fibrocement">Fibrocemento 6mm Impermeabilizado</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Revestimiento de Piso</label>
+            <select id="select-flooring" onchange="updateFinishConfig()" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-amber-500">
+              <option value="vinilico" selected>Piso Vinílico LVT Alto Tráfico (Espesor 3mm)</option>
+              <option value="flotante">Piso Flotante Fotolaminado 8mm</option>
+              <option value="diamantado">Plancha Acero Diamantada / Pintura Epóxica (Bodega)</option>
+              <option value="linoleo">Linóleo Industrial Continuo / Alto Tráfico</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Red Eléctrica e Iluminación</label>
+            <select id="select-electrical" onchange="updateFinishConfig()" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-amber-500">
+              <option value="standard" selected>Monofásica Básica (Tablero 16A + Enchufes Dobles)</option>
+              <option value="reinforced">Reforzada Oficina (Tablero 25A + Automáticos Clima)</option>
+              <option value="trifasica">Trifásica Industrial (Equipos Pesados)</option>
+            </select>
+          </div>
+
+        </div>
+
+        <!-- TAB 4: BOM (LISTADO DE MATERIALES) -->
+        <div id="tab-bom" class="space-y-4 hidden">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-sm text-slate-700">Listado de Materiales (Taller)</h3>
+            <button onclick="window.print()" class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 px-2 py-1 rounded">
+              <i class="fa-solid fa-print mr-1"></i> Imprimir BOM
+            </button>
+          </div>
+          <p class="text-xs text-slate-500">Cálculo cubicado aproximado de insumos requeridos para armado en fábrica:</p>
+
+          <div id="bom-list-container" class="space-y-2 text-xs">
+            <!-- Render dinámico del BOM -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Total & Action Footer -->
+      <div class="p-4 border-t border-slate-200 bg-slate-50">
+        <div class="flex justify-between items-baseline mb-1">
+          <span class="text-xs font-bold text-slate-500 uppercase">Subtotal Neto:</span>
+          <span id="price-net" class="font-semibold text-slate-700 text-sm">$ 0</span>
+        </div>
+        <div class="flex justify-between items-baseline mb-2">
+          <span class="text-xs font-bold text-slate-500 uppercase">IVA (19%):</span>
+          <span id="price-tax" class="text-xs text-slate-500">$ 0</span>
+        </div>
+        <div class="flex justify-between items-baseline pt-2 border-t border-slate-200">
+          <span class="text-sm font-bold text-slate-900 uppercase">Total Final:</span>
+          <span id="price-total" class="font-extrabold text-xl text-amber-600">$ 0</span>
+        </div>
+
+        <button onclick="openQuoteModal()" class="w-full mt-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-lg transition shadow-md flex items-center justify-center space-x-2">
+          <i class="fa-solid fa-file-pdf"></i>
+          <span>Generar Cotización Cliente</span>
+        </button>
+      </div>
+
+    </aside>
+
+    <!-- Center 3D Canvas viewport -->
+    <main class="flex-1 relative bg-slate-900">
+      
+      <!-- 3D Canvas -->
+      <div id="canvas-container"></div>
+
+      <!-- Visual Floating Overlay Controls -->
+      <div class="absolute top-4 right-4 bg-slate-900/80 backdrop-blur-md text-white p-2 rounded-lg border border-slate-700/50 flex space-x-2 text-xs">
+        <button onclick="resetCamera()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded flex items-center space-x-1">
+          <i class="fa-solid fa-arrows-to-dot"></i>
+          <span>Centrar Cámara</span>
+        </button>
+        <button onclick="toggleRoofTransparency()" id="btn-roof-toggle" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded flex items-center space-x-1">
+          <i class="fa-solid fa-eye"></i>
+          <span>Transparencia Techo/Paredes</span>
+        </button>
+      </div>
+
+      <!-- Instructions hint -->
+      <div class="absolute bottom-4 left-4 bg-slate-900/70 backdrop-blur text-slate-300 text-xs px-3 py-2 rounded-md border border-slate-800 pointer-events-none flex items-center space-x-3">
+        <span><i class="fa-solid fa-mouse text-amber-400 mr-1"></i> Rotar: Clic Izquierdo + Arrastrar</span>
+        <span><i class="fa-solid fa-up-down-left-right text-amber-400 mr-1"></i> Desplazar: Clic Derecho + Arrastrar</span>
+        <span><i class="fa-solid fa-magnifying-glass text-amber-400 mr-1"></i> Zoom: Rueda Mouse</span>
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- MODAL: AJUSTE DE PRECIOS Y MARGEN -->
+  <div id="margin-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="font-bold text-lg text-slate-800">Parámetros de Costo y Margen</h3>
+        <button onclick="toggleModal('margin-modal')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <div class="space-y-4 text-sm">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Margen de Ganancia Comercial (%)</label>
+          <input type="number" id="input-margin-percent" value="25" min="0" max="100" class="w-full p-2 border border-slate-300 rounded-md font-semibold text-amber-600 focus:ring-2 focus:ring-amber-500">
+          <p class="text-[11px] text-slate-400 mt-1">Este porcentaje se suma sobre el costo directo de materiales y mano de obra.</p>
+        </div>
+
+        <hr>
+
+        <h4 class="font-bold text-xs text-slate-500 uppercase">Valores Base de Insumos (CLP Neto)</h4>
+        
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <label class="block text-slate-600 mb-1">Contenedor 20ft Base</label>
+            <input type="number" id="price-base-20" value="2200000" class="w-full p-1.5 border border-slate-300 rounded">
+          </div>
+          <div>
+            <label class="block text-slate-600 mb-1">Contenedor 40ft Base</label>
+            <input type="number" id="price-base-40" value="3800000" class="w-full p-1.5 border border-slate-300 rounded">
+          </div>
+          <div>
+            <label class="block text-slate-600 mb-1">Ventana Termopanel c/u</label>
+            <input type="number" id="price-item-window" value="180000" class="w-full p-1.5 border border-slate-300 rounded">
+          </div>
+          <div>
+            <label class="block text-slate-600 mb-1">Puerta Peatonal c/u</label>
+            <input type="number" id="price-item-door" value="250000" class="w-full p-1.5 border border-slate-300 rounded">
+          </div>
+          <div>
+            <label class="block text-slate-600 mb-1">Habilitación Baño c/u</label>
+            <input type="number" id="price-item-wc" value="420000" class="w-full p-1.5 border border-slate-300 rounded">
+          </div>
+          <div>
+            <label class="block text-slate-600 mb-1">Aire Acondicionado c/u</label>
+            <input type="number" id="price-item-ac" value="380000" class="w-full p-1.5 border border-slate-300 rounded">
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 flex justify-end space-x-2">
+        <button onclick="toggleModal('margin-modal')" class="px-4 py-2 bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg hover:bg-slate-300">Cancelar</button>
+        <button onclick="saveMarginSettings()" class="px-4 py-2 bg-amber-500 text-slate-950 font-bold text-xs rounded-lg hover:bg-amber-400">Guardar Cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL / VISTA DE COTIZACION IMPRESA FORMAL -->
+  <div id="quote-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+      
+      <!-- Modal Toolbar -->
+      <div class="bg-slate-800 text-white px-6 py-3 flex justify-between items-center no-print">
+        <h3 class="font-bold text-sm flex items-center space-x-2">
+          <i class="fa-solid fa-file-pdf text-amber-400"></i>
+          <span>Vista Previa de Cotización Formal</span>
+        </h3>
+        <div class="flex items-center space-x-2">
+          <button onclick="window.print()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-3 py-1.5 rounded flex items-center space-x-1">
+            <i class="fa-solid fa-print"></i>
+            <span>Imprimir / PDF</span>
+          </button>
+          <button onclick="toggleModal('quote-modal')" class="text-slate-400 hover:text-white px-2 py-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+      </div>
+
+      <!-- Document PDF Printable Body -->
+      <div id="printable-quote" class="p-8 overflow-y-auto custom-scrollbar flex-1 bg-white text-slate-800 space-y-6">
+        
+        <!-- Header Cotizacion -->
+        <div class="flex justify-between items-start border-b border-slate-200 pb-4">
+          <div>
+            <h2 class="text-2xl font-black text-slate-900 uppercase tracking-wide">MODULARBOX CHILE</h2>
+            <p class="text-xs text-slate-500">Fabricación y Habilitación de Contenedores Modulares</p>
+            <p class="text-xs text-slate-500">Contacto: ventas@modularbox.cl | +56 9 1234 5678</p>
+          </div>
+          <div class="text-right">
+            <span class="inline-block bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded">PRESUPUESTO FORMAL</span>
+            <p class="text-xs text-slate-500 mt-2">N° Cotización: <span id="quote-number-val" class="font-bold text-slate-800">MB-2026-894</span></p>
+            <p class="text-xs text-slate-500">Fecha: <span id="quote-date-val">21/10/2026</span></p>
+          </div>
+        </div>
+
+        <!-- Cliente Form Editable -->
+        <div class="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg text-xs border border-slate-200 no-print">
+          <div>
+            <label class="font-bold text-slate-600 block mb-1">Nombre Cliente / Empresa:</label>
+            <input type="text" id="cust-name" value="Constructora e Inversiones RLA SpA" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+          </div>
+          <div>
+            <label class="font-bold text-slate-600 block mb-1">RUT Cliente:</label>
+            <input type="text" id="cust-rut" value="77.458.920-K" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+          </div>
+          <div>
+            <label class="font-bold text-slate-600 block mb-1">Proyecto / Lugar Entrega:</label>
+            <input type="text" id="cust-project" value="Oficina de Obra - Temuco" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+          </div>
+          <div>
+            <label class="font-bold text-slate-600 block mb-1">Validez Oferta:</label>
+            <input type="text" id="cust-validity" value="15 Días Hábiles" class="w-full p-1.5 border border-slate-300 rounded bg-white">
+          </div>
+        </div>
+
+        <!-- Version de impresion de datos cliente -->
+        <div class="hidden print:grid grid-cols-2 gap-4 text-xs">
+          <div>
+            <p><strong>Cliente:</strong> <span id="print-cust-name"></span></p>
+            <p><strong>RUT:</strong> <span id="print-cust-rut"></span></p>
+          </div>
+          <div>
+            <p><strong>Proyecto:</strong> <span id="print-cust-project"></span></p>
+            <p><strong>Validez Oferta:</strong> <span id="print-cust-validity"></span></p>
+          </div>
+        </div>
+
+        <!-- Detalle de la Solución -->
+        <div>
+          <h4 class="font-bold text-sm text-slate-800 uppercase tracking-wide mb-2">1. Resumen de Especificaciones Técnicas</h4>
+          <table class="w-full text-xs text-left border-collapse border border-slate-200">
+            <thead>
+              <tr class="bg-slate-100 border-b border-slate-200 text-slate-700">
+                <th class="p-2 border border-slate-200">Componente / Ítem</th>
+                <th class="p-2 border border-slate-200">Especificación Técnica</th>
+                <th class="p-2 border border-slate-200 text-center">Cant.</th>
+              </tr>
+            </thead>
+            <tbody id="quote-specs-table" class="divide-y divide-slate-200">
+              <!-- Render dinamico -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Desglose Económico -->
+        <div>
+          <h4 class="font-bold text-sm text-slate-800 uppercase tracking-wide mb-2">2. Desglose Económico</h4>
+          <table class="w-full text-xs text-left border-collapse border border-slate-200">
+            <thead>
+              <tr class="bg-slate-100 border-b border-slate-200 text-slate-700">
+                <th class="p-2 border border-slate-200">Descripción del Módulo</th>
+                <th class="p-2 border border-slate-200 text-right">Monto</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="p-2 border border-slate-200 font-medium text-slate-800" id="quote-description-title">
+                  Contenedor Habilitado 20 FT con Terminaciones Completas
+                </td>
+                <td class="p-2 border border-slate-200 text-right font-semibold" id="quote-net-amount">
+                  $ 0
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="flex justify-end mt-4">
+            <div class="w-64 space-y-1.5 text-xs">
+              <div class="flex justify-between text-slate-600">
+                <span>Subtotal Neto:</span>
+                <span id="quote-subtotal" class="font-semibold">$ 0</span>
+              </div>
+              <div class="flex justify-between text-slate-600">
+                <span>IVA (19%):</span>
+                <span id="quote-tax">$ 0</span>
+              </div>
+              <div class="flex justify-between font-bold text-sm text-slate-900 border-t border-slate-300 pt-2">
+                <span>TOTAL COTIZADO:</span>
+                <span id="quote-total" class="text-amber-600">$ 0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Condiciones Comerciales -->
+        <div class="border-t border-slate-200 pt-4 text-[11px] text-slate-500 space-y-1">
+          <p class="font-bold text-slate-700">Condiciones Comerciales y Términos:</p>
+          <ul class="list-disc pl-4 space-y-0.5">
+            <li>Forma de Pago: 50% al momento de aceptar la orden de compra y 50% contra entrega en taller.</li>
+            <li>Plazo de Fabricación: 7 a 12 días hábiles a contar de la recepción del anticipo.</li>
+            <li>Garantía: 12 meses sobre filtraciones de estructura y 6 meses en instalaciones eléctricas/sanitarias.</li>
+            <li>Flete y descarga en obra no incluidos salvo indicación explícita en esta cotización.</li>
+          </ul>
+        </div>
+
+        <!-- Firmas -->
+        <div class="pt-12 flex justify-between text-xs text-slate-500">
+          <div class="text-center w-48 border-t border-slate-300 pt-2">
+            <p class="font-bold text-slate-700">MODULARBOX CHILE</p>
+            <p>Depto. Ventas y Proyectos</p>
+          </div>
+          <div class="text-center w-48 border-t border-slate-300 pt-2">
+            <p class="font-bold text-slate-700">Aceptado por Cliente</p>
+            <p>Firma y Timbre Orden de Compra</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT LOGIC & THREE.JS ENGINE -->
+  <script>
+    // --- ESTADO GLOBAL DE LA APLICACION ---
+    const state = {
+      containerType: '20std', // '20std', '20hc', '40hc'
+      exteriorColor: '#1e3a8a',
+      transparentRoof: false,
+      currency: 'CLP', // 'CLP', 'UF', 'USD'
+      exchangeRates: { CLP: 1, UF: 0.000026, USD: 0.00105 }, // Equivalencias aprox.
+      marginPercent: 25,
+      items: {
+        windows: 2,
+        bathWindows: 0,
+        extDoors: 1,
+        partitions: 0,
+        wc: 0,
+        sink: 0,
+        ac: 1,
+        lights: 4
+      },
+      finishes: {
+        insulation: 'rockwool',
+        lining: 'mdf',
+        flooring: 'vinilico',
+        electrical: 'standard'
+      },
+      prices: {
+        base20: 2200000,
+        base40: 3800000,
+        window: 180000,
+        bathWindow: 95000,
+        door: 250000,
+        partition: 180000,
+        wc: 420000,
+        sink: 160000,
+        ac: 380000,
+        light: 22000
+      }
+    };
+
+    // --- THREE.JS SCENE SETUP ---
+    let scene, camera, renderer, controls;
+    let containerGroup;
+    let containerMesh, roofMesh;
+
+    function init3D() {
+      const container = document.getElementById('canvas-container');
+      
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0f172a); // Tailwind slate-900
+
+      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+      camera.position.set(10, 7, 12);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.maxPolarAngle = Math.PI / 2 - 0.02; // No traspasar suelo
+
+      // Luces
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+      scene.add(ambientLight);
+
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(15, 25, 15);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 2048;
+      dirLight.shadow.mapSize.height = 2048;
+      scene.add(dirLight);
+
+      const fillLight = new THREE.DirectionalLight(0x93c5fd, 0.3);
+      fillLight.position.set(-10, 10, -10);
+      scene.add(fillLight);
+
+      // Suelo / Piso Taller
+      const gridHelper = new THREE.GridHelper(30, 30, 0x334155, 0x1e293b);
+      gridHelper.position.y = -0.01;
+      scene.add(gridHelper);
+
+      const planeGeo = new THREE.PlaneGeometry(50, 50);
+      const planeMat = new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 0.9 });
+      const floorPlane = new THREE.Mesh(planeGeo, planeMat);
+      floorPlane.rotation.x = -Math.PI / 2;
+      floorPlane.position.y = -0.02;
+      floorPlane.receiveShadow = true;
+      scene.add(floorPlane);
+
+      // Grupo del Contenedor
+      containerGroup = new THREE.Group();
+      scene.add(containerGroup);
+
+      // Listener Resize
+      window.addEventListener('resize', onWindowResize);
+
+      // Primer Renderizado 3D
+      rebuild3DModel();
+      animate();
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    function onWindowResize() {
+      const container = document.getElementById('canvas-container');
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    }
+
+    // --- RECONSTRUCCION DEL MODELO 3D DINAMICO ---
+    function rebuild3DModel() {
+      // Limpiar grupo anterior
+      while(containerGroup.children.length > 0){ 
+        const obj = containerGroup.children[0];
+        containerGroup.remove(obj); 
+      }
+
+      // Dimensiones según tipo
+      let length = 6.0;
+      let height = 2.6;
+      let width = 2.44;
+
+      if (state.containerType === '20hc') { height = 2.9; }
+      if (state.containerType === '40hc') { length = 12.0; height = 2.9; }
+
+      // Materiales
+      const extColor = new THREE.Color(state.exteriorColor);
+      const wallMat = new THREE.MeshStandardMaterial({ color: extColor, roughness: 0.4, metalness: 0.3 });
+      const interiorWallMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.8 }); // Blanco interior
+      const frameMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 });
+      const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.4, roughness: 0.1, transmission: 0.9 });
+      
+      // Color de Piso interior segun acabado
+      let floorColor = 0xc0a080; // Vinilo Madera
+      if (state.finishes.flooring === 'diamantado') floorColor = 0x64748b;
+      if (state.finishes.flooring === 'flotante') floorColor = 0x9a3412;
+      const floorMat = new THREE.MeshStandardMaterial({ color: floorColor, roughness: 0.6 });
+
+      const wallThick = 0.08;
+
+      // 1. Piso Base
+      const floorGeo = new THREE.BoxGeometry(length, 0.15, width);
+      const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+      floorMesh.position.y = 0.075;
+      floorMesh.receiveShadow = true;
+      floorMesh.castShadow = true;
+      containerGroup.add(floorMesh);
+
+      // 2. Paredes
+      // Pared Trasera (Larga)
+      const backWallGeo = new THREE.BoxGeometry(length, height, wallThick);
+      const backWall = new THREE.Mesh(backWallGeo, wallMat);
+      backWall.position.set(0, height/2 + 0.15, -width/2 + wallThick/2);
+      backWall.castShadow = true;
+      containerGroup.add(backWall);
+
+      // Pared Frontal (Larga - con transparencia opcional)
+      const frontWallGeo = new THREE.BoxGeometry(length, height, wallThick);
+      const frontWallMat = state.transparentRoof ? 
+        new THREE.MeshStandardMaterial({ color: extColor, transparent: true, opacity: 0.25 }) : wallMat;
+      const frontWall = new THREE.Mesh(frontWallGeo, frontWallMat);
+      frontWall.position.set(0, height/2 + 0.15, width/2 - wallThick/2);
+      frontWall.castShadow = !state.transparentRoof;
+      containerGroup.add(frontWall);
+
+      // Pared Izquierda (Corta)
+      const sideLeftGeo = new THREE.BoxGeometry(wallThick, height, width);
+      const sideLeft = new THREE.Mesh(sideLeftGeo, wallMat);
+      sideLeft.position.set(-length/2 + wallThick/2, height/2 + 0.15, 0);
+      sideLeft.castShadow = true;
+      containerGroup.add(sideLeft);
+
+      // Pared Derecha (Corta - Puerta de Contenedor)
+      const sideRightGeo = new THREE.BoxGeometry(wallThick, height, width);
+      const sideRight = new THREE.Mesh(sideRightGeo, wallMat);
+      sideRight.position.set(length/2 - wallThick/2, height/2 + 0.15, 0);
+      sideRight.castShadow = true;
+      containerGroup.add(sideRight);
+
+      // 3. Techo
+      const roofGeo = new THREE.BoxGeometry(length, wallThick, width);
+      const roofMat = state.transparentRoof ? 
+        new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 }) : wallMat;
+      roofMesh = new THREE.Mesh(roofGeo, roofMat);
+      roofMesh.position.set(0, height + 0.15, 0);
+      containerGroup.add(roofMesh);
+
+      // 4. ELEMENTOS AÑADIDOS DINAMICOS
+
+      // A. Ventanas Principales (Pared frontal)
+      const winQty = state.items.windows;
+      const winWidth = 1.2;
+      const winHeight = 1.0;
+      const stepX = length / (winQty + 1);
+
+      for (let i = 0; i < winQty; i++) {
+        const posX = -length/2 + stepX * (i + 1);
+        
+        // Marco Ventana
+        const frameGeo = new THREE.BoxGeometry(winWidth, winHeight, wallThick + 0.04);
+        const frame = new THREE.Mesh(frameGeo, frameMat);
+        frame.position.set(posX, height/2 + 0.2, width/2);
+        containerGroup.add(frame);
+
+        // Vidrio
+        const glassGeo = new THREE.BoxGeometry(winWidth - 0.1, winHeight - 0.1, 0.02);
+        const glass = new THREE.Mesh(glassGeo, glassMat);
+        glass.position.set(posX, height/2 + 0.2, width/2);
+        containerGroup.add(glass);
+      }
+
+      // B. Puerta Exterior Peatonal
+      if (state.items.extDoors > 0) {
+        const doorWidth = 0.9;
+        const doorHeight = 2.0;
+        const doorPosX = length/2 - 1.2;
+
+        const doorFrameGeo = new THREE.BoxGeometry(doorWidth, doorHeight, wallThick + 0.05);
+        const doorFrame = new THREE.Mesh(doorFrameGeo, frameMat);
+        doorFrame.position.set(doorPosX, doorHeight/2 + 0.15, width/2);
+        containerGroup.add(doorFrame);
+      }
+
+      // C. Tabiques Interiores
+      if (state.items.partitions > 0) {
+        for (let i = 0; i < state.items.partitions; i++) {
+          const partX = -length/4 + (i * 2.5);
+          const partGeo = new THREE.BoxGeometry(wallThick, height - 0.1, width - 0.1);
+          const partMesh = new THREE.Mesh(partGeo, interiorWallMat);
+          partMesh.position.set(partX, height/2 + 0.15, 0);
+          containerGroup.add(partMesh);
+        }
+      }
+
+      // D. Equipos Sanitarios (WC / Lavamanos) - Representación 3D simplificada
+      if (state.items.wc > 0) {
+        for (let i = 0; i < state.items.wc; i++) {
+          const wcGroup = new THREE.Group();
+          
+          // Base Taza WC
+          const wcBaseGeo = new THREE.BoxGeometry(0.4, 0.45, 0.5);
+          const wcMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1 });
+          const wcMesh = new THREE.Mesh(wcBaseGeo, wcMat);
+          wcMesh.position.set(0, 0.225, 0);
+          wcGroup.add(wcMesh);
+
+          // Estanque
+          const tankGeo = new THREE.BoxGeometry(0.4, 0.4, 0.2);
+          const tankMesh = new THREE.Mesh(tankGeo, wcMat);
+          tankMesh.position.set(0, 0.55, -0.15);
+          wcGroup.add(tankMesh);
+
+          // Posicionamiento en el contenedor
+          wcGroup.position.set(-length/2 + 0.6 + (i * 0.8), 0.15, -width/2 + 0.5);
+          containerGroup.add(wcGroup);
+        }
+      }
+
+      // E. Aire Acondicionado (Split Interior)
+      if (state.items.ac > 0) {
+        const acGeo = new THREE.BoxGeometry(0.8, 0.28, 0.2);
+        const acMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.3 });
+        const acMesh = new THREE.Mesh(acGeo, acMat);
+        acMesh.position.set(0, height - 0.25, -width/2 + 0.15);
+        containerGroup.add(acMesh);
+      }
+
+      // F. Iluminación Interior (Paneles LED en cielo)
+      if (state.items.lights > 0) {
+        const lightStep = length / (state.items.lights + 1);
+        for (let i = 0; i < state.items.lights; i++) {
+          const ledGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.02, 16);
+          const ledMat = new THREE.MeshBasicMaterial({ color: 0xfffbeb });
+          const ledMesh = new THREE.Mesh(ledGeo, ledMat);
+          ledMesh.position.set(-length/2 + lightStep * (i + 1), height + 0.1, 0);
+          containerGroup.add(ledMesh);
+
+          // Luz puntual real de Three.js
+          const pointLight = new THREE.PointLight(0xfffbeb, 0.4, 4);
+          pointLight.position.set(-length/2 + lightStep * (i + 1), height - 0.2, 0);
+          containerGroup.add(pointLight);
+        }
+      }
+
+      // Reajustar cámara para centrar el modelo según el largo
+      controls.target.set(0, height/2, 0);
+    }
+
+    // --- CONTROLES Y EVENTOS DE INTERFAZ ---
+
+    function switchTab(tabName) {
+      const tabs = ['config', 'additions', 'finishes', 'bom'];
+      tabs.forEach(t => {
+        document.getElementById(`tab-${t}`).classList.add('hidden');
+        const btn = document.getElementById(`tab-btn-${t}`);
+        btn.classList.remove('text-amber-600', 'border-b-2', 'border-amber-500');
+        btn.classList.add('text-slate-500');
+      });
+
+      document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+      const activeBtn = document.getElementById(`tab-btn-${tabName}`);
+      activeBtn.classList.add('text-amber-600', 'border-b-2', 'border-amber-500');
+      activeBtn.classList.remove('text-slate-500');
+
+      if (tabName === 'bom') {
+        renderBOM();
+      }
+    }
+
+    function setContainerType(type) {
+      state.containerType = type;
+      document.querySelectorAll('.type-btn').forEach(btn => {
+        btn.classList.remove('active', 'border-amber-500', 'bg-amber-50');
+        btn.classList.add('border-slate-200');
+      });
+      const activeBtn = document.getElementById(`btn-${type}`);
+      activeBtn.classList.add('active', 'border-amber-500', 'bg-amber-50');
+
+      rebuild3DModel();
+      calculateTotals();
+    }
+
+    function setExteriorColor(hexColor) {
+      state.exteriorColor = hexColor;
+      rebuild3DModel();
+    }
+
+    function toggleRoofTransparency() {
+      state.transparentRoof = !state.transparentRoof;
+      const btn = document.getElementById('btn-roof-toggle');
+      if(state.transparentRoof) {
+        btn.classList.remove('bg-amber-600');
+        btn.classList.add('bg-slate-700');
+      } else {
+        btn.classList.add('bg-amber-600');
+        btn.classList.remove('bg-slate-700');
+      }
+      rebuild3DModel();
+    }
+
+    function resetCamera() {
+      camera.position.set(10, 7, 12);
+      controls.target.set(0, 1.3, 0);
+    }
+
+    function updateQty(itemKey, delta) {
+      if (state.items[itemKey] + delta < 0) return;
+      state.items[itemKey] += delta;
+      document.getElementById(`qty-${itemKey}`).innerText = state.items[itemKey];
+      rebuild3DModel();
+      calculateTotals();
+    }
+
+    function updateFinishConfig() {
+      state.finishes.insulation = document.getElementById('select-insulation').value;
+      state.finishes.lining = document.getElementById('select-lining').value;
+      state.finishes.flooring = document.getElementById('select-flooring').value;
+      state.finishes.electrical = document.getElementById('select-electrical').value;
+
+      rebuild3DModel();
+      calculateTotals();
+    }
+
+    function applyPreset(presetType) {
+      if (presetType === 'oficina') {
+        state.containerType = '20std';
+        state.items = { windows: 2, bathWindows: 0, extDoors: 1, partitions: 0, wc: 0, sink: 0, ac: 1, lights: 4 };
+        state.finishes = { insulation: 'rockwool', lining: 'mdf', flooring: 'vinilico', electrical: 'standard' };
+      } 
+      else if (presetType === 'oficina_bano') {
+        state.containerType = '20std';
+        state.items = { windows: 2, bathWindows: 1, extDoors: 1, partitions: 1, wc: 1, sink: 1, ac: 1, lights: 4 };
+        state.finishes = { insulation: 'rockwool', lining: 'mdf', flooring: 'vinilico', electrical: 'standard' };
+      }
+      else if (presetType === 'bateria_banos') {
+        state.containerType = '20std';
+        state.items = { windows: 0, bathWindows: 2, extDoors: 1, partitions: 2, wc: 3, sink: 2, ac: 0, lights: 4 };
+        state.finishes = { insulation: 'eps', lining: 'pvc', flooring: 'diamantado', electrical: 'standard' };
+      }
+      else if (presetType === 'bodega') {
+        state.containerType = '20std';
+        state.items = { windows: 0, bathWindows: 0, extDoors: 0, partitions: 0, wc: 0, sink: 0, ac: 0, lights: 2 };
+        state.finishes = { insulation: 'eps', lining: 'fibrocement', flooring: 'diamantado', electrical: 'standard' };
+      }
+
+      // Sincronizar selectores e interfaz UI
+      syncUIWithState();
+      rebuild3DModel();
+      calculateTotals();
+    }
+
+    function syncUIWithState() {
+      setContainerType(state.containerType);
+      Object.keys(state.items).forEach(k => {
+        const el = document.getElementById(`qty-${k}`);
+        if(el) el.innerText = state.items[k];
+      });
+      document.getElementById('select-insulation').value = state.finishes.insulation;
+      document.getElementById('select-lining').value = state.finishes.lining;
+      document.getElementById('select-flooring').value = state.finishes.flooring;
+      document.getElementById('select-electrical').value = state.finishes.electrical;
+    }
+
+    // --- CALCULO FINANCIERO Y MONEDA ---
+
+    function calculateTotals() {
+      // Costos directos base
+      let baseCost = (state.containerType === '40hc') ? state.prices.base40 : state.prices.base20;
+      
+      let additionsCost = 
+        (state.items.windows * state.prices.window) +
+        (state.items.bathWindows * state.prices.bathWindow) +
+        (state.items.extDoors * state.prices.door) +
+        (state.items.partitions * state.prices.partition) +
+        (state.items.wc * state.prices.wc) +
+        (state.items.sink * state.prices.sink) +
+        (state.items.ac * state.prices.ac) +
+        (state.items.lights * state.prices.light);
+
+      let directCostTotal = baseCost + additionsCost;
+      
+      // Aplicar Margen
+      let marginFactor = 1 + (state.marginPercent / 100);
+      let netTotalCLP = directCostTotal * marginFactor;
+
+      let taxCLP = netTotalCLP * 0.19;
+      let grandTotalCLP = netTotalCLP + taxCLP;
+
+      // Renderizar valores según moneda seleccionada
+      const rate = state.exchangeRates[state.currency];
+      const symbol = state.currency === 'CLP' ? '$' : (state.currency === 'UF' ? 'UF ' : 'USD $');
+
+      document.getElementById('price-net').innerText = formatMoney(netTotalCLP * rate, symbol);
+      document.getElementById('price-tax').innerText = formatMoney(taxCLP * rate, symbol);
+      document.getElementById('price-total').innerText = formatMoney(grandTotalCLP * rate, symbol);
+    }
+
+    function formatMoney(amount, symbol) {
+      if (state.currency === 'UF') {
+        return `${symbol}${amount.toFixed(2)}`;
+      }
+      return `${symbol} ${Math.round(amount).toLocaleString('es-CL')}`;
+    }
+
+    document.getElementById('currency-select').addEventListener('change', (e) => {
+      state.currency = e.target.value;
+      calculateTotals();
+    });
+
+    // --- MODALES & MARGEN ---
+
+    function toggleModal(modalId) {
+      const modal = document.getElementById(modalId);
+      modal.classList.toggle('hidden');
+    }
+
+    function saveMarginSettings() {
+      state.marginPercent = parseFloat(document.getElementById('input-margin-percent').value) || 25;
+      state.prices.base20 = parseFloat(document.getElementById('price-base-20').value) || 2200000;
+      state.prices.base40 = parseFloat(document.getElementById('price-base-40').value) || 3800000;
+      state.prices.window = parseFloat(document.getElementById('price-item-window').value) || 180000;
+      state.prices.door = parseFloat(document.getElementById('price-item-door').value) || 250000;
+      state.prices.wc = parseFloat(document.getElementById('price-item-wc').value) || 420000;
+      state.prices.ac = parseFloat(document.getElementById('price-item-ac').value) || 380000;
+
+      document.getElementById('margin-display-head').innerText = `${state.marginPercent}%`;
+      
+      toggleModal('margin-modal');
+      calculateTotals();
+    }
+
+    // --- GENERADOR DE CUBICACION / BOM (LISTA DE MATERIALES TALLER) ---
+
+    function renderBOM() {
+      const container = document.getElementById('bom-list-container');
+      container.innerHTML = '';
+
+      const is40ft = state.containerType === '40hc';
+      const m2Walls = is40ft ? 72 : 36;
+      const m2Floor = is40ft ? 28.8 : 14.4;
+
+      const bomItems = [
+        { name: 'Estructura Contenedor Marítimo Usado Grado A', qty: 1, unit: 'Unidad' },
+        { name: 'Perfiles Metalcon / Montantes 60x38x0.85mm', qty: is40ft ? 48 : 26, unit: 'Tiras (6m)' },
+        { name: 'Aislamiento Térmico seleccionable (Rollos/Planchas)', qty: Math.ceil(m2Walls / 10), unit: 'Paquetes' },
+        { name: 'Planchas Revestimiento Interior Paredes/Cielo', qty: Math.ceil(m2Walls / 2.88), unit: 'Planchas (1.22x2.44m)' },
+        { name: 'Piso Revestimiento LVT / Vinílico o Flotante', qty: Math.ceil(m2Floor * 1.08), unit: 'm²' },
+        { name: 'Cable Eléctrico EVA / THHN 2.5mm / 1.5mm', qty: is40ft ? 120 : 70, unit: 'Metros' },
+        { name: 'Tablero Eléctrico Embutido + Automáticos Breaker', qty: 1, unit: 'Kit' },
+        { name: 'Pintura Esmalte Sintético Anticorrosivo RAL', qty: is40ft ? 3 : 2, unit: 'Galones' },
+      ];
+
+      // Añadir insumos por adicion
+      if (state.items.windows > 0) bomItems.push({ name: 'Ventanas Termopanel 100x100cm Aluminio', qty: state.items.windows, unit: 'Unidades' });
+      if (state.items.extDoors > 0) bomItems.push({ name: 'Puerta Peatonal Aislada 90x200cm', qty: state.items.extDoors, unit: 'Unidades' });
+      if (state.items.wc > 0) {
+        bomItems.push({ name: 'Taza Inodoro WC + Fitting Descarga 110mm', qty: state.items.wc, unit: 'Kits' });
+        bomItems.push({ name: 'Tubería y Piezas PPR Agua Fría/Caliente', qty: 1, unit: 'Global Taller' });
+      }
+      if (state.items.ac > 0) bomItems.push({ name: 'Equipo Aire Acondicionado Split Inverter + Pasamuros', qty: state.items.ac, unit: 'Equipos' });
+
+      bomItems.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'flex justify-between items-center p-2 bg-slate-50 border border-slate-200 rounded';
+        row.innerHTML = `
+          <span class="font-medium text-slate-700">${item.name}</span>
+          <span class="font-bold bg-slate-200 text-slate-800 px-2 py-0.5 rounded text-[11px]">${item.qty} ${item.unit}</span>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    // --- COTIZACIÓN FORMAL (MODAL PDF) ---
+
+    function openQuoteModal() {
+      // Transferir datos de la vista a la cotizacion
+      const rate = state.exchangeRates[state.currency];
+      const symbol = state.currency === 'CLP' ? '$' : (state.currency === 'UF' ? 'UF ' : 'USD $');
+
+      // Fechas y folio
+      document.getElementById('quote-number-val').innerText = `MB-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      document.getElementById('quote-date-val').innerText = new Date().toLocaleDateString('es-CL');
+
+      // Sincronizar inputs de impresió visual
+      document.getElementById('print-cust-name').innerText = document.getElementById('cust-name').value;
+      document.getElementById('print-cust-rut').innerText = document.getElementById('cust-rut').value;
+      document.getElementById('print-cust-project').innerText = document.getElementById('cust-project').value;
+      document.getElementById('print-cust-validity').innerText = document.getElementById('cust-validity').value;
+
+      // Tabla de especificaciones
+      const specTable = document.getElementById('quote-specs-table');
+      specTable.innerHTML = '';
+
+      const specs = [
+        { item: 'Módulo Base', desc: `Contenedor Marítimo ${state.containerType.toUpperCase()} Estructura Corten Steel`, qty: 1 },
+        { item: 'Terminación Paredes', desc: `Revestimiento ${state.finishes.lining.toUpperCase()} + Aislamiento ${state.finishes.insulation.toUpperCase()}`, qty: 'Completo' },
+        { item: 'Piso', desc: `Revestimiento de Piso ${state.finishes.flooring.toUpperCase()}`, qty: 'Completo' },
+        { item: 'Ventanas Termopanel', desc: 'Ventanas de Aluminio 100x100 cm DVH', qty: state.items.windows },
+        { item: 'Puertas Exteriores', desc: 'Puertas Peatonales Metálicas Aisladas', qty: state.items.extDoors },
+        { item: 'Tabiques Interiores', desc: 'Divisiones con Puerta de Pasillo Interior', qty: state.items.partitions },
+        { item: 'Artefactos WC / Baño', desc: 'Inodoros Sanitarios con Conexiones PPR', qty: state.items.wc },
+        { item: 'Climatización', desc: 'Equipos Aire Acondicionado Inverter', qty: state.items.ac },
+        { item: 'Instalación Eléctrica', desc: 'Red Embutida en PVC con Iluminación LED', qty: '1 Kit' }
+      ];
+
+      specs.forEach(s => {
+        if (s.qty !== 0) {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td class="p-2 border border-slate-200 font-semibold text-slate-800">${s.item}</td>
+            <td class="p-2 border border-slate-200 text-slate-600">${s.desc}</td>
+            <td class="p-2 border border-slate-200 text-center font-bold">${s.qty}</td>
+          `;
+          specTable.appendChild(row);
+        }
+      });
+
+      // Valores económicos
+      const netText = document.getElementById('price-net').innerText;
+      const taxText = document.getElementById('price-tax').innerText;
+      const totalText = document.getElementById('price-total').innerText;
+
+      document.getElementById('quote-description-title').innerText = `Habilitación Completa de Módulo Contenedor ${state.containerType.toUpperCase()} según Especificaciones Técnicas`;
+      document.getElementById('quote-net-amount').innerText = netText;
+      document.getElementById('quote-subtotal').innerText = netText;
+      document.getElementById('quote-tax').innerText = taxText;
+      document.getElementById('quote-total').innerText = totalText;
+
+      toggleModal('quote-modal');
+    }
+
+    // Inicializar al cargar pagina
+    window.onload = () => {
+      init3D();
+      calculateTotals();
+    };
+  </script>
+</body>
+</html>
