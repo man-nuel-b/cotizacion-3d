@@ -29,9 +29,16 @@ function ensureInteriorSystem(){
   ['A','B','C','D','E','F'].forEach(face=>{
     if(typeof state.interiorSystem.faces[face]!=='boolean') state.interiorSystem.faces[face]=true;
   });
-  // Compatibility with the previous ceiling toggle.
   state.interiorSystem.ceiling=state.interiorSystem.faces.E;
   return state.interiorSystem;
+}
+
+function syncInteriorPreset(finishKey){
+  const preset=DATA.finishes[finishKey];
+  if(!preset) return;
+  ensureInteriorSystem();
+  state.interiorSystem.lining=preset.lining;
+  state.interiorSystem.insulation=preset.insulation;
 }
 
 function selectedInteriorFaces(){
@@ -76,15 +83,27 @@ function toggleInteriorOption(key){
   renderAll();
 }
 
-const selectFinishBeforeInteriorSystem=selectFinish;
+// Keep finish preset and the detailed interior system synchronized in one render.
 selectFinish=function(key){
-  selectFinishBeforeInteriorSystem(key);
-  const preset=DATA.finishes[key];
+  if(!DATA.finishes[key]) return;
+  pushHistory();
+  state.finish=key;
+  syncInteriorPreset(key);
+  renderAll();
+};
+
+// Applying a solution used to change state.finish without updating a previously
+// initialized interiorSystem. Rebuild both states together to avoid stale 3D/BOM.
+applySolution=function(key){
+  const preset=DATA.solutions[key];
   if(!preset) return;
-  ensureInteriorSystem();
-  state.interiorSystem.lining=preset.lining;
-  state.interiorSystem.insulation=preset.insulation;
-  renderInteriorSystemUI();
+  pushHistory();
+  state.solution=key;
+  state.container=preset.container;
+  state.counts={...preset.counts};
+  state.finish=preset.finish;
+  syncInteriorPreset(preset.finish);
+  renderAll();
 };
 
 function interiorSystemMaterial(){
@@ -103,14 +122,12 @@ function addInteriorCladdingVisuals(){
   g.name='interior-cladding-system';
   const inset=.082,th=.018;
 
-  // A/B = long walls, C/D = end walls, E = ceiling, F = floor.
   if(s.faces.B) g.add(box(L-.30,H-.30,th,lining,0,H/2,-W/2+inset));
   if(s.faces.A&&!state.cutaway) g.add(box(L-.30,H-.30,th,lining,0,H/2,W/2-inset));
   if(s.faces.D) g.add(box(th,H-.30,W-.30,lining,-L/2+.095,H/2,0));
   if(s.faces.C) g.add(box(th,H-.30,W-.30,lining,L/2-.095,H/2,0));
   if(s.faces.E&&!state.cutaway) g.add(box(L-.30,th,W-.30,lining,0,H-.085,0));
 
-  // F uses the selected floor finish rather than wall lining.
   if(s.faces.F){
     const floorFinish=createFloorMaterial();
     g.add(box(L-.30,th,W-.30,floorFinish,0,.095,0));
