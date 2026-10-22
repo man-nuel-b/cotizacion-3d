@@ -6,7 +6,8 @@
   const OPENING_TYPES=['opening','openingFrame'];
   const APERTURE_TYPES=['window','door','opening','openingFrame'];
   const CORNER_POST_WIDTH=.13;
-  const CORNER_CLEARANCE=CORNER_POST_WIDTH/2; // exact inner edge of each corner post
+  const CORNER_CLEARANCE=CORNER_POST_WIDTH/2;
+  const OPENING_VERTICAL_CLEARANCE=.08;
 
   DATA.extras.opening={name:'Vano',icon:'fa-vector-square',max:8};
   DATA.extras.openingFrame={name:'Vano con marco metálico',icon:'fa-border-all',max:8};
@@ -16,25 +17,27 @@
   MOUNTED_FACE_TYPES.opening={defaultFace:'A',gap:1.00,padding:CORNER_CLEARANCE,height:'opening',label:'Vano'};
   MOUNTED_FACE_TYPES.openingFrame={defaultFace:'A',gap:1.00,padding:CORNER_CLEARANCE,height:'opening',label:'Vano con marco metálico'};
 
-  // The schema ceiling only prevents absurd values. The actual width limit is dynamic
-  // and is calculated from container face + current opening center + corner posts.
   OBJECT_DIMENSIONS.opening={
     fields:[
       {key:'width',label:'Ancho',min:.50,max:12.10,step:.05},
-      {key:'height',label:'Alto',min:.50,max:2.60,step:.05}
+      {key:'height',label:'Alto',min:.50,max:2.80,step:.05}
     ],
     defaults:()=>({width:.90,height:2.10,depth:.20})
   };
   OBJECT_DIMENSIONS.openingFrame={
     fields:[
       {key:'width',label:'Ancho',min:.50,max:12.10,step:.05},
-      {key:'height',label:'Alto',min:.50,max:2.60,step:.05}
+      {key:'height',label:'Alto',min:.50,max:2.80,step:.05}
     ],
     defaults:()=>({width:.90,height:2.10,depth:.20})
   };
 
   function openingFaceLength(face,c=DATA.containers[state.container]){
     return (face==='A'||face==='B')?c.length:c.width;
+  }
+
+  function openingMaxHeight(c=DATA.containers[state.container]){
+    return Math.max(.50,Math.min(2.80,c.height-(OPENING_VERTICAL_CLEARANCE*2)));
   }
 
   function openingMaxWidthAt(type,index,layoutOverride=null){
@@ -90,11 +93,10 @@
 
   const validCandidateBeforeOpenings=validCandidate;
   validCandidate=function(type,index,candidate){
-    // Openings use the exact structural corner-post boundary instead of the generic
-    // mounted-object .08 m inset used by windows/doors.
     if(OPENING_TYPES.includes(type)){
       const dims=objectDimensions(type,index);
       if(!openingFitsCornerPosts(type,index,candidate,dims)) return false;
+      if((Number(dims.height)||0)>openingMaxHeight()+.001) return false;
       return apertureCollisionAllowed(type,index,candidate,dims);
     }
     if(!validCandidateBeforeOpenings(type,index,candidate)) return false;
@@ -104,14 +106,26 @@
   const dimensionChangeAllowedBeforeOpenings=dimensionChangeAllowed;
   dimensionChangeAllowed=function(type,index,next){
     if(OPENING_TYPES.includes(type)){
-      const c=DATA.containers[state.container],p=actualLayout(type,index);
-      if((Number(next.height)||0)>c.height-.10) return false;
+      const p=actualLayout(type,index);
+      if((Number(next.height)||0)>openingMaxHeight()+.001) return false;
       if(!openingFitsCornerPosts(type,index,p,next)) return false;
       return apertureCollisionAllowed(type,index,p,next);
     }
     if(!dimensionChangeAllowedBeforeOpenings(type,index,next)) return false;
     if(!APERTURE_TYPES.includes(type)) return true;
     return apertureCollisionAllowed(type,index,actualLayout(type,index),next);
+  };
+
+  const updateSelectedDimensionBeforeOpeningLimits=updateSelectedDimension;
+  updateSelectedDimension=function(key,value){
+    if(selectedEditable&&OPENING_TYPES.includes(selectedEditable.type)){
+      const parsed=Number(value);
+      if(Number.isFinite(parsed)){
+        if(key==='width') value=Math.min(parsed,openingMaxWidthAt(selectedEditable.type,selectedEditable.index));
+        if(key==='height') value=Math.min(parsed,openingMaxHeight());
+      }
+    }
+    return updateSelectedDimensionBeforeOpeningLimits(key,value);
   };
 
   const renderDimensionEditorBeforeOpeningLimits=renderDimensionEditor;
@@ -121,19 +135,22 @@
     if(!OPENING_TYPES.includes(type)) return;
     const editor=document.getElementById('dimension-editor');
     if(!editor||editor.classList.contains('hidden')) return;
-    const widthInput=[...editor.querySelectorAll('input[type="number"]')].find(input=>{
-      const label=input.closest('label');
-      return (label?.textContent||'').includes('Ancho');
-    });
-    const max=openingMaxWidthAt(type,index);
+    const inputs=[...editor.querySelectorAll('input[type="number"]')];
+    const widthInput=inputs.find(input=>(input.closest('label')?.textContent||'').includes('Ancho'));
+    const heightInput=inputs.find(input=>(input.closest('label')?.textContent||'').includes('Alto'));
+    const maxWidth=openingMaxWidthAt(type,index),maxHeight=openingMaxHeight();
     if(widthInput){
-      widthInput.max=max.toFixed(2);
-      widthInput.title=`Máximo entre corner posts: ${max.toFixed(2)} m`;
+      widthInput.max=maxWidth.toFixed(2);
+      widthInput.title=`Máximo entre corner posts: ${maxWidth.toFixed(2)} m`;
+    }
+    if(heightInput){
+      heightInput.max=maxHeight.toFixed(2);
+      heightInput.title=`Altura máxima disponible: ${maxHeight.toFixed(2)} m`;
     }
     const note=document.createElement('div');
     note.id='opening-corner-limit-note';
     note.className='mt-2 text-[9px] text-sky-300 font-bold';
-    note.textContent=`Ancho máximo en esta posición: ${max.toFixed(2)} m · hasta el borde interior de los corner posts`;
+    note.textContent=`Máximo actual: ${maxWidth.toFixed(2)} m ancho × ${maxHeight.toFixed(2)} m alto · respetando estructura del contenedor`;
     editor.appendChild(note);
   };
 
@@ -144,9 +161,10 @@
   };
 
   function openingVerticalBounds(c,dims){
-    const bottom=.08;
-    const top=clamp(bottom+(Number(dims.height)||2.10),bottom+.30,c.height-.08);
-    return {bottom,top,centerY:(bottom+top)/2,height:top-bottom};
+    const bottom=OPENING_VERTICAL_CLEARANCE;
+    const height=Math.min(Number(dims.height)||2.10,openingMaxHeight(c));
+    const top=bottom+height;
+    return {bottom,top,centerY:(bottom+top)/2,height};
   }
 
   const windowsForFaceBeforeOpenings=windowsForFace;
@@ -172,7 +190,7 @@
 
   function createOpeningObject(type,index){
     const dims=objectDimensions(type,index),g=new THREE.Group();
-    const width=Number(dims.width)||.90,height=Number(dims.height)||2.10,depth=.20;
+    const width=Number(dims.width)||.90,height=Math.min(Number(dims.height)||2.10,openingMaxHeight()),depth=.20;
     if(type==='openingFrame'){
       const steel=mat(0x64748b,{roughness:.30,metalness:.78});
       const t=.055;
@@ -234,7 +252,7 @@
       for(const openingType of OPENING_TYPES){
         for(let i=0;i<(state.counts[openingType]||0);i++){
           const p=actualLayout(openingType,i),d=objectDimensions(openingType,i);
-          if(faces.includes(p.face)) area+=(Number(d.width)||.90)*(Number(d.height)||2.10);
+          if(faces.includes(p.face)) area+=(Number(d.width)||.90)*Math.min(Number(d.height)||2.10,openingMaxHeight());
         }
       }
       return area;
