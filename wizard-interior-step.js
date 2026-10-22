@@ -4,14 +4,38 @@
 (function(){
   let installed=false;
 
+  function loadPartitionDuplicateLayer(){
+    if(document.querySelector('script[data-partition-duplicate]')) return;
+    const script=document.createElement('script');
+    script.src=(typeof finalVersionedAsset==='function'?finalVersionedAsset('partition-duplicate.js'):'partition-duplicate.js?v=20261022-9');
+    script.dataset.partitionDuplicate='true';
+    document.body.appendChild(script);
+  }
+
+  function loadOpeningExtrasLayer(){
+    if(document.querySelector('script[data-opening-extras]')){
+      setTimeout(loadPartitionDuplicateLayer,20);
+      return;
+    }
+    const script=document.createElement('script');
+    script.src=(typeof finalVersionedAsset==='function'?finalVersionedAsset('openings-extras.js'):'openings-extras.js?v=20261022-9');
+    script.dataset.openingExtras='true';
+    script.addEventListener('load',()=>setTimeout(loadPartitionDuplicateLayer,20),{once:true});
+    document.body.appendChild(script);
+  }
+
   function installFiveStepNavigation(){
-    if(installed) return true;
+    if(installed){
+      setTimeout(loadOpeningExtrasLayer,20);
+      return true;
+    }
 
     const panel=document.querySelector('.config-panel');
     const existingChips=panel?[...panel.querySelectorAll('.step-chip')]:[];
     const existingInterior=panel?.querySelector('.wizard-step[data-step="3"] h2');
     if(existingChips.length===5&&(existingInterior?.textContent||'').includes('Terminación interior')){
       installed=true;
+      setTimeout(loadOpeningExtrasLayer,20);
       return true;
     }
 
@@ -76,7 +100,7 @@
     const extrasEyebrow=extras.querySelector('.text-amber-600');
     if(extrasEyebrow) extrasEyebrow.textContent='Paso 4';
     const extrasDescription=extras.querySelector('p');
-    if(extrasDescription) extrasDescription.textContent='Agrega puertas, ventanas, divisiones, climatización y equipamiento al diseño.';
+    if(extrasDescription) extrasDescription.textContent='Agrega puertas, ventanas, vanos, divisiones, climatización y equipamiento al diseño.';
     const extrasActions=[...extras.querySelectorAll('div')].find(el=>el.classList.contains('flex')&&el.classList.contains('gap-2')&&el.classList.contains('mt-5'));
     if(extrasActions){
       extrasActions.innerHTML=`
@@ -122,6 +146,7 @@
     }
 
     goStep(state.step>=1&&state.step<=5?state.step:1);
+    setTimeout(loadOpeningExtrasLayer,20);
     return true;
   }
 
