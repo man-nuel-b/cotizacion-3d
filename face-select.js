@@ -1,0 +1,214 @@
+// Direct face selection for bat-kubiqueitor.
+// Replaces the A/B/C/D popup with compact letter markers placed on the 3D container.
+
+let faceTagObjects=[];
+let faceSelectionActive=false;
+let faceSelectionRaycaster=null;
+let faceSelectionPointer=null;
+
+function createFaceLetterSprite(face,active=false){
+  const canvas=document.createElement('canvas');
+  canvas.width=256;
+  canvas.height=256;
+  const ctx=canvas.getContext('2d');
+  const color=CONTAINER_FACES[face]?.color||'#f59e0b';
+
+  ctx.clearRect(0,0,256,256);
+  ctx.beginPath();
+  ctx.arc(128,128,active?92:78,0,Math.PI*2);
+  ctx.fillStyle=active?'rgba(15,23,42,.96)':'rgba(15,23,42,.86)';
+  ctx.fill();
+  ctx.lineWidth=active?16:11;
+  ctx.strokeStyle=color;
+  ctx.stroke();
+
+  ctx.fillStyle='#ffffff';
+  ctx.font=`900 ${active?118:104}px Inter, Arial`;
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.fillText(face,128,134);
+
+  const texture=new THREE.CanvasTexture(canvas);
+  if('encoding' in texture) texture.encoding=THREE.sRGBEncoding;
+  texture.needsUpdate=true;
+
+  const material=new THREE.SpriteMaterial({
+    map:texture,
+    transparent:true,
+    depthTest:true,
+    depthWrite:false,
+    opacity:active?1:.92
+  });
+  const sprite=new THREE.Sprite(material);
+  const scale=active?.78:.56;
+  sprite.scale.set(scale,scale,1);
+  sprite.renderOrder=700;
+  sprite.userData.containerFace=face;
+  sprite.userData.faceTag=true;
+  sprite.userData.faceSelectable=active;
+  return sprite;
+}
+
+function placeFaceLetter(sprite,face,c){
+  const y=Math.min(c.height*.83,c.height-.32);
+  const offset=.18;
+  if(face==='A') sprite.position.set(0,y,c.width/2+offset);
+  else if(face==='B') sprite.position.set(0,y,-c.width/2-offset);
+  else if(face==='C') sprite.position.set(c.length/2+offset,y,0);
+  else sprite.position.set(-c.length/2-offset,y,0);
+}
+
+// Override the legacy paint/label renderer: letters only, no painted faces and no descriptions.
+addFaceLabels=function(parent,c){
+  faceTagObjects=[];
+  if(!faceLabelsVisible) return;
+  ['A','B','C','D'].forEach(face=>{
+    const sprite=createFaceLetterSprite(face,faceSelectionActive);
+    placeFaceLetter(sprite,face,c);
+    parent.add(sprite);
+    faceTagObjects.push(sprite);
+  });
+};
+
+function removeFacePickerModals(){
+  document.getElementById('mounted-face-modal')?.remove();
+  document.getElementById('window-face-modal')?.remove();
+}
+
+// Preserve the existing UI setup, then immediately remove modal selectors.
+const installFaceUIBeforeDirectLabels=installFaceUI;
+installFaceUI=function(){
+  installFaceUIBeforeDirectLabels();
+  removeFacePickerModals();
+  const btn=document.getElementById('face-label-toggle');
+  if(btn){
+    btn.innerHTML='<i class="fa-solid fa-font mr-1"></i> Etiquetas A-D';
+    btn.title='Mostrar u ocultar las letras de orientación';
+  }
+};
+
+toggleFaceLabels=function(){
+  faceLabelsVisible=!faceLabelsVisible;
+  rebuild3D();
+  const btn=document.getElementById('face-label-toggle');
+  if(btn){
+    btn.classList.toggle('opacity-50',!faceLabelsVisible);
+    btn.innerHTML='<i class="fa-solid fa-font mr-1"></i> Etiquetas A-D';
+    btn.title=faceLabelsVisible?'Ocultar letras A-D':'Mostrar letras A-D';
+  }
+};
+
+function beginDirectFaceSelection(type){
+  pendingMountedType=type;
+  faceSelectionActive=true;
+  faceLabelsVisible=true;
+  removeFacePickerModals();
+
+  // Adding an object is an editing action, so leave Explore mode automatically.
+  if(typeof interactionMode!=='undefined'&&interactionMode==='explore'&&typeof setInteractionMode==='function'){
+    setInteractionMode('edit');
+  }
+
+  if(state.cutaway){
+    state.cutaway=false;
+    currentView='exterior';
+  }
+  rebuild3D();
+  toast(`Selecciona A, B, C o D en el modelo para ubicar ${typeLabel(type).toLowerCase()}`);
+}
+
+openMountedFacePicker=function(type){
+  if(!isMountedFaceType(type)) return;
+  beginDirectFaceSelection(type);
+};
+
+closeMountedFacePicker=function(){
+  pendingMountedType=null;
+  faceSelectionActive=false;
+  removeFacePickerModals();
+  rebuild3D();
+};
+
+addMountedToFace=function(face){
+  const type=pendingMountedType;
+  if(!type||!isMountedFaceType(type)) return;
+  const max=DATA.extras[type].max;
+  if((state.counts[type]||0)>=max){
+    pendingMountedType=null;
+    faceSelectionActive=false;
+    rebuild3D();
+    return toast(`Llegaste al máximo de ${typeLabel(type).toLowerCase()}`);
+  }
+
+  const offset=findAvailableMountedOffset(type,face);
+  if(offset===null) return toast(`No queda espacio suficiente en la cara ${face}`);
+
+  pushHistory();
+  ensureLayoutState();
+  const index=state.counts[type]||0;
+  state.counts[type]=index+1;
+  state.layout[type][index]={face,x:offset};
+  pendingMountedType=null;
+  faceSelectionActive=false;
+  renderAll();
+  focusFace(face);
+  toast(`${typeLabel(type)} agregado en cara ${face}`);
+};
+
+function hitFaceTag(event){
+  if(!renderer?.domElement||!camera||!faceTagObjects.length) return null;
+  const rect=renderer.domElement.getBoundingClientRect();
+  faceSelectionPointer.x=((event.clientX-rect.left)/rect.width)*2-1;
+  faceSelectionPointer.y=-((event.clientY-rect.top)/rect.height)*2+1;
+  faceSelectionRaycaster.setFromCamera(faceSelectionPointer,camera);
+  const hits=faceSelectionRaycaster.intersectObjects(faceTagObjects,false);
+  return hits[0]?.object||null;
+}
+
+function onDirectFacePointerDown(event){
+  if(!faceSelectionActive||!pendingMountedType) return;
+  const tag=hitFaceTag(event);
+  if(!tag) return;
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation?.();
+  addMountedToFace(tag.userData.containerFace);
+}
+
+function onDirectFacePointerMove(event){
+  const canvas=renderer?.domElement;
+  if(!canvas||!faceSelectionActive) return;
+  const tag=hitFaceTag(event);
+  canvas.style.cursor=tag?'pointer':'grab';
+}
+
+function installDirectFaceSelection(){
+  faceSelectionRaycaster=new THREE.Raycaster();
+  faceSelectionPointer=new THREE.Vector2();
+  installFaceUI();
+  removeFacePickerModals();
+
+  const canvas=renderer?.domElement;
+  if(canvas){
+    canvas.addEventListener('pointerdown',onDirectFacePointerDown,true);
+    canvas.addEventListener('pointermove',onDirectFacePointerMove,true);
+  }
+
+  window.addEventListener('keydown',event=>{
+    if(event.key==='Escape'&&faceSelectionActive){
+      event.preventDefault();
+      closeMountedFacePicker();
+      toast('Selección de cara cancelada');
+    }
+  });
+
+  const btn=document.getElementById('face-label-toggle');
+  if(btn){
+    btn.innerHTML='<i class="fa-solid fa-font mr-1"></i> Etiquetas A-D';
+    btn.title='Mostrar u ocultar las letras de orientación';
+  }
+
+  rebuild3D();
+}
+
+window.addEventListener('DOMContentLoaded',()=>setTimeout(installDirectFaceSelection,80));
