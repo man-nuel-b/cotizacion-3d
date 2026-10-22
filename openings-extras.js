@@ -5,19 +5,19 @@
 (function(){
   const OPENING_TYPES=['opening','openingFrame'];
   const APERTURE_TYPES=['window','door','opening','openingFrame'];
-  const CORNER_CLEARANCE=.075; // inner limit of the structural corner posts
+  const CORNER_POST_WIDTH=.13;
+  const CORNER_CLEARANCE=CORNER_POST_WIDTH/2; // exact inner edge of each corner post
 
   DATA.extras.opening={name:'Vano',icon:'fa-vector-square',max:8};
   DATA.extras.openingFrame={name:'Vano con marco metálico',icon:'fa-border-all',max:8};
   if(!Number.isFinite(Number(state.counts.opening))) state.counts.opening=0;
   if(!Number.isFinite(Number(state.counts.openingFrame))) state.counts.openingFrame=0;
 
-  // Openings may move right up to the structural corner-post limit.
   MOUNTED_FACE_TYPES.opening={defaultFace:'A',gap:1.00,padding:CORNER_CLEARANCE,height:'opening',label:'Vano'};
   MOUNTED_FACE_TYPES.openingFrame={defaultFace:'A',gap:1.00,padding:CORNER_CLEARANCE,height:'opening',label:'Vano con marco metálico'};
 
-  // Width is intentionally given a global upper ceiling here; the real maximum
-  // is calculated dynamically from container size, selected face and position.
+  // The schema ceiling only prevents absurd values. The actual width limit is dynamic
+  // and is calculated from container face + current opening center + corner posts.
   OBJECT_DIMENSIONS.opening={
     fields:[
       {key:'width',label:'Ancho',min:.50,max:12.10,step:.05},
@@ -44,9 +44,13 @@
     const faceLength=openingFaceLength(face,c);
     const center=Math.abs(Number(p?.x)||0);
     const halfClear=Math.max(.25,faceLength/2-CORNER_CLEARANCE);
-    // Width grows symmetrically from its current center, so the nearest corner
-    // is the governing structural limit.
     return Math.max(.50,Math.min(faceLength-(CORNER_CLEARANCE*2),2*(halfClear-center)));
+  }
+
+  function openingFitsCornerPosts(type,index,candidate,dims=null){
+    const d=dims||objectDimensions(type,index);
+    const maxWidth=openingMaxWidthAt(type,index,candidate);
+    return (Number(d.width)||.90)<=maxWidth+.001;
   }
 
   const ensureLayoutStateBeforeOpenings=ensureLayoutState;
@@ -62,16 +66,16 @@
     return typeLabelBeforeOpenings(type);
   };
 
-  function apertureHalfWidth(type,index){
+  function apertureHalfWidth(type,index,dimsOverride=null){
     if(type==='electrical') return .085;
-    const d=objectDimensions(type,index);
+    const d=dimsOverride||objectDimensions(type,index);
     return Math.max(.10,(Number(d.width)||.20)/2);
   }
 
-  function apertureCollisionAllowed(type,index,candidate){
+  function apertureCollisionAllowed(type,index,candidate,dimsOverride=null){
     if(!APERTURE_TYPES.includes(type)) return true;
     const face=candidate.face||mountedFace(type,index);
-    const half=apertureHalfWidth(type,index);
+    const half=apertureHalfWidth(type,index,dimsOverride);
     for(const otherType of APERTURE_TYPES){
       for(let i=0;i<(state.counts[otherType]||0);i++){
         if(otherType===type&&i===index) continue;
@@ -86,42 +90,37 @@
 
   const validCandidateBeforeOpenings=validCandidate;
   validCandidate=function(type,index,candidate){
-    if(!validCandidateBeforeOpenings(type,index,candidate)) return false;
+    // Openings use the exact structural corner-post boundary instead of the generic
+    // mounted-object .08 m inset used by windows/doors.
     if(OPENING_TYPES.includes(type)){
       const dims=objectDimensions(type,index);
-      const maxWidth=openingMaxWidthAt(type,index,candidate);
-      if((Number(dims.width)||.90)>maxWidth+.001) return false;
+      if(!openingFitsCornerPosts(type,index,candidate,dims)) return false;
+      return apertureCollisionAllowed(type,index,candidate,dims);
     }
+    if(!validCandidateBeforeOpenings(type,index,candidate)) return false;
     return apertureCollisionAllowed(type,index,candidate);
   };
 
   const dimensionChangeAllowedBeforeOpenings=dimensionChangeAllowed;
   dimensionChangeAllowed=function(type,index,next){
+    if(OPENING_TYPES.includes(type)){
+      const c=DATA.containers[state.container],p=actualLayout(type,index);
+      if((Number(next.height)||0)>c.height-.10) return false;
+      if(!openingFitsCornerPosts(type,index,p,next)) return false;
+      return apertureCollisionAllowed(type,index,p,next);
+    }
     if(!dimensionChangeAllowedBeforeOpenings(type,index,next)) return false;
     if(!APERTURE_TYPES.includes(type)) return true;
-    const p=actualLayout(type,index),half=Math.max(.10,(Number(next.width)||.20)/2);
-    if(OPENING_TYPES.includes(type)){
-      const maxWidth=openingMaxWidthAt(type,index,p);
-      if((Number(next.width)||.20)>maxWidth+.001) return false;
-    }
-    for(const otherType of APERTURE_TYPES){
-      for(let i=0;i<(state.counts[otherType]||0);i++){
-        if(otherType===type&&i===index) continue;
-        const other=actualLayout(otherType,i);
-        if(other.face!==p.face) continue;
-        if(Math.abs((Number(other.x)||0)-(Number(p.x)||0))<half+apertureHalfWidth(otherType,i)+.08) return false;
-      }
-    }
-    return true;
+    return apertureCollisionAllowed(type,index,actualLayout(type,index),next);
   };
 
   const renderDimensionEditorBeforeOpeningLimits=renderDimensionEditor;
   renderDimensionEditor=function(type,index){
     renderDimensionEditorBeforeOpeningLimits(type,index);
+    document.getElementById('opening-corner-limit-note')?.remove();
     if(!OPENING_TYPES.includes(type)) return;
     const editor=document.getElementById('dimension-editor');
     if(!editor||editor.classList.contains('hidden')) return;
-    const widthField=OBJECT_DIMENSIONS[type]?.fields?.find(field=>field.key==='width');
     const widthInput=[...editor.querySelectorAll('input[type="number"]')].find(input=>{
       const label=input.closest('label');
       return (label?.textContent||'').includes('Ancho');
@@ -131,15 +130,11 @@
       widthInput.max=max.toFixed(2);
       widthInput.title=`Máximo entre corner posts: ${max.toFixed(2)} m`;
     }
-    let note=document.getElementById('opening-corner-limit-note');
-    if(!note){
-      note=document.createElement('div');
-      note.id='opening-corner-limit-note';
-      note.className='mt-2 text-[9px] text-sky-300 font-bold';
-      editor.appendChild(note);
-    }
-    note.textContent=`Ancho máximo en esta posición: ${max.toFixed(2)} m · límite estructural: corner posts`;
-    if(widthField) widthField.max=Math.max(widthField.max,max);
+    const note=document.createElement('div');
+    note.id='opening-corner-limit-note';
+    note.className='mt-2 text-[9px] text-sky-300 font-bold';
+    note.textContent=`Ancho máximo en esta posición: ${max.toFixed(2)} m · hasta el borde interior de los corner posts`;
+    editor.appendChild(note);
   };
 
   const hideEditorPanelBeforeOpeningLimits=hideEditorPanel;
