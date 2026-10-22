@@ -1,5 +1,9 @@
 // Direct face selection for bat-kubiqueitor.
-// Replaces popup explanations with compact A/B/C/D markers placed on the 3D container.
+// Compact A/B/C/D wall markers plus E=ceiling and F=floor markers.
+
+// Extend the face convention without changing wall-mounted element behavior.
+CONTAINER_FACES.E={label:'Cara E',description:'Techo del contenedor',color:'#f43f5e'};
+CONTAINER_FACES.F={label:'Cara F',description:'Piso del contenedor',color:'#14b8a6'};
 
 let faceTagObjects=[];
 let faceSelectionActive=false;
@@ -55,17 +59,20 @@ function placeFaceLetter(sprite,face,c){
   if(face==='A') sprite.position.set(0,y,c.width/2+offset);
   else if(face==='B') sprite.position.set(0,y,-c.width/2-offset);
   else if(face==='C') sprite.position.set(c.length/2+offset,y,0);
-  else sprite.position.set(-c.length/2-offset,y,0);
+  else if(face==='D') sprite.position.set(-c.length/2-offset,y,0);
+  else if(face==='E') sprite.position.set(0,c.height+offset,0);
+  else sprite.position.set(0,.16,0); // F = piso, visible desde interior/planta.
 }
 
-// Letters A/B/C/D are the only visible orientation aid.
+// A-F are always visible. Only A-D are selectable for wall-mounted elements.
 addFaceLabels=function(parent,c){
   faceTagObjects=[];
-  ['A','B','C','D'].forEach(face=>{
-    const sprite=createFaceLetterSprite(face,faceSelectionActive);
+  ['A','B','C','D','E','F'].forEach(face=>{
+    const selectable=faceSelectionActive&&['A','B','C','D'].includes(face);
+    const sprite=createFaceLetterSprite(face,selectable);
     placeFaceLetter(sprite,face,c);
     parent.add(sprite);
-    faceTagObjects.push(sprite);
+    if(['A','B','C','D'].includes(face)) faceTagObjects.push(sprite);
   });
 };
 
@@ -105,7 +112,7 @@ installFaceUI=function(){
   removeObjectMovementButtons();
 };
 
-// Kept only for compatibility with older calls. The A/B/C/D markers stay visible.
+// Kept only for compatibility with older calls. Face markers stay visible.
 toggleFaceLabels=function(){
   faceLabelsVisible=true;
   removeOrientationToolbarButton();
@@ -148,7 +155,7 @@ closeMountedFacePicker=function(){
 
 addMountedToFace=function(face){
   const type=pendingMountedType;
-  if(!type||!isMountedFaceType(type)) return;
+  if(!type||!isMountedFaceType(type)||!['A','B','C','D'].includes(face)) return;
   const max=DATA.extras[type].max;
   if((state.counts[type]||0)>=max){
     pendingMountedType=null;
@@ -179,7 +186,7 @@ function hitFaceTag(event){
   faceSelectionPointer.y=-((event.clientY-rect.top)/rect.height)*2+1;
   faceSelectionRaycaster.setFromCamera(faceSelectionPointer,camera);
   const hits=faceSelectionRaycaster.intersectObjects(faceTagObjects,false);
-  return hits[0]?.object||null;
+  return hits.find(hit=>hit.object?.userData?.faceSelectable)?.object||null;
 }
 
 function onDirectFacePointerDown(event){
