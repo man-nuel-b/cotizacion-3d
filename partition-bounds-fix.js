@@ -82,14 +82,26 @@ changePartitionOrientation=function(orientation){
   }
 };
 
-const FINAL_ASSET_VERSION=(typeof APP_ASSET_VERSION!=='undefined'?APP_ASSET_VERSION:'20261022-5');
+const FINAL_ASSET_VERSION=(typeof APP_ASSET_VERSION!=='undefined'?APP_ASSET_VERSION:'20261022-6');
 function finalVersionedAsset(name){ return `${name}?v=${FINAL_ASSET_VERSION}`; }
 
+function loadInteriorWizardLayer(){
+  if(document.querySelector('script[data-interior-wizard]')) return;
+  const script=document.createElement('script');
+  script.src=finalVersionedAsset('wizard-interior-step.js');
+  script.dataset.interiorWizard='true';
+  document.body.appendChild(script);
+}
+
 function loadInteriorSystemsLayer(){
-  if(document.querySelector('script[data-interior-systems]')) return;
+  if(document.querySelector('script[data-interior-systems]')){
+    setTimeout(loadInteriorWizardLayer,20);
+    return;
+  }
   const script=document.createElement('script');
   script.src=finalVersionedAsset('interior-systems.js');
   script.dataset.interiorSystems='true';
+  script.addEventListener('load',()=>setTimeout(loadInteriorWizardLayer,20),{once:true});
   document.body.appendChild(script);
 }
 
