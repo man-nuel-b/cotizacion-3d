@@ -135,16 +135,26 @@ function installInteractionModeControls(){
   updateInteractionModeUI();
 }
 
+function loadDimensionsLayer(){
+  if(document.querySelector('script[data-dimensions]')) return;
+  const script=document.createElement('script');
+  script.src='dimensions.js';
+  script.dataset.dimensions='true';
+  document.body.appendChild(script);
+}
+
 function bootOrientationUI(){
   simplifyOrientationCopy();
   installInteractionModeControls();
 
-  // Load the direct 3D A/B/C/D selector after all base editor layers are ready.
   if(!document.querySelector('script[data-face-select]')){
     const script=document.createElement('script');
     script.src='face-select.js';
     script.dataset.faceSelect='true';
+    script.addEventListener('load',()=>setTimeout(loadDimensionsLayer,20),{once:true});
     document.body.appendChild(script);
+  }else{
+    setTimeout(loadDimensionsLayer,20);
   }
 }
 
