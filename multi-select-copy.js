@@ -3,6 +3,7 @@
 
 (function(){
   const COPY_STEP=.30;
+  const SEARCH_STEPS=28;
   let multiSelection=[];
   let clipboard=[];
   let pasteCount=0;
@@ -50,7 +51,8 @@
     panel.innerHTML=`
       <div class="flex items-center justify-between gap-2"><div><div class="text-[9px] uppercase tracking-widest font-black text-sky-400">Selección múltiple</div><div class="text-sm font-black mt-0.5">${multiSelection.length} objeto${multiSelection.length===1?'':'s'}</div></div><button onclick="clearMultiSelection()" class="w-7 h-7 rounded-lg bg-white/10"><i class="fa-solid fa-xmark"></i></button></div>
       <div class="grid grid-cols-2 gap-2 mt-3"><button onclick="copyMultiSelection()" class="rounded-lg bg-sky-500 text-slate-950 py-2 text-xs font-black"><i class="fa-solid fa-copy mr-1"></i> Copiar</button><button onclick="duplicateMultiSelection()" class="rounded-lg bg-white/10 py-2 text-xs font-bold">Duplicar</button></div>
-      <div class="text-[9px] text-slate-400 mt-2 text-center">Shift + clic para sumar/quitar · Ctrl+C / Ctrl+V</div>`;
+      <button onclick="deleteMultiSelection()" class="mt-2 w-full rounded-lg bg-red-500/15 border border-red-400/20 text-red-200 py-2 text-xs font-bold"><i class="fa-solid fa-trash mr-1"></i> Eliminar selección</button>
+      <div class="text-[9px] text-slate-400 mt-2 text-center">Clic primero · Shift + clic para sumar/quitar · Ctrl+C / Ctrl+V</div>`;
   }
 
   window.clearMultiSelection=function(){
@@ -75,43 +77,92 @@
     return {type:meta.type,layout,dimensions,extra};
   }
 
+  function withProvisionalDimensions(type,index,dims,fn){
+    if(!dims||typeof ensureDimensionState!=='function'||typeof supportsDimensions!=='function'||!supportsDimensions(type)) return fn();
+    ensureDimensionState();
+    if(!Array.isArray(state.dimensions[type])) state.dimensions[type]=[];
+    const arr=state.dimensions[type],oldLength=arr.length,previous=arr[index],had=index<oldLength;
+    arr[index]=clone(dims);
+    try{return fn();}
+    finally{
+      if(had) arr[index]=previous;
+      arr.length=oldLength;
+    }
+  }
+
+  function partitionCoordinateFree(orientation,value){
+    for(let i=0;i<(state.counts.partition||0);i++){
+      const p=actualLayout('partition',i);
+      if(p.orientation!==orientation) continue;
+      const other=orientation===PARTITION_ORIENTATION.LONG?(Number(p.z)||0):(Number(p.x)||0);
+      if(Math.abs(other-value)<.18) return false;
+    }
+    return true;
+  }
+
   function candidateFor(snapshot,attempt){
-    const type=snapshot.type,c=DATA.containers[state.container],layout=clone(snapshot.layout||{}),distance=COPY_STEP*attempt;
+    const type=snapshot.type,c=DATA.containers[state.container],layout=clone(snapshot.layout||{});
+    const start=Math.max(1,attempt);
+
     if(type==='partition'){
-      const orientation=layout.orientation||actualLayout('partition',0)?.orientation||PARTITION_ORIENTATION.CROSS;
+      const orientation=layout.orientation||PARTITION_ORIENTATION.CROSS;
       layout.orientation=orientation;
       const dims=snapshot.dimensions||{};
       const bounds=typeof perpendicularPositionBounds==='function'?perpendicularPositionBounds(orientation,dims.thickness||.075):null;
       const base=orientation===PARTITION_ORIENTATION.LONG?(Number(layout.z)||0):(Number(layout.x)||0);
-      for(const sign of [1,-1]){
-        const value=Math.round((base+distance*sign)*20)/20;
-        if(bounds&&(value<bounds.min||value>bounds.max)) continue;
-        const candidate={...layout};
-        if(orientation===PARTITION_ORIENTATION.LONG) candidate.z=value; else candidate.x=value;
-        return candidate;
+      for(let step=start;step<start+SEARCH_STEPS;step++){
+        const distance=COPY_STEP*step;
+        for(const sign of [1,-1]){
+          const value=Math.round((base+distance*sign)*20)/20;
+          if(bounds&&(value<bounds.min||value>bounds.max)) continue;
+          if(!partitionCoordinateFree(orientation,value)) continue;
+          const candidate={...layout,joints:[]};
+          if(orientation===PARTITION_ORIENTATION.LONG) candidate.z=value; else candidate.x=value;
+          return candidate;
+        }
       }
       return null;
     }
+
     if(typeof isMountedFaceType==='function'&&isMountedFaceType(type)){
       const face=layout.face||MOUNTED_FACE_TYPES[type]?.defaultFace||'A';
-      for(const sign of [1,-1]){
-        const candidate={...layout,face,x:Math.round(((Number(layout.x)||0)+distance*sign)*20)/20};
-        const fakeIndex=state.counts[type]||0;
-        if(typeof validCandidate!=='function'||validCandidate(type,fakeIndex,candidate)) return candidate;
-      }
-      return null;
-    }
-    if(['wc','sink','shower'].includes(type)){
-      const variants=[
-        {...layout,x:(Number(layout.x)||0)+distance,z:Number(layout.z)||0},
-        {...layout,x:(Number(layout.x)||0)-distance,z:Number(layout.z)||0},
-        {...layout,x:Number(layout.x)||0,z:(Number(layout.z)||0)+distance},
-        {...layout,x:Number(layout.x)||0,z:(Number(layout.z)||0)-distance}
-      ];
       const fakeIndex=state.counts[type]||0;
-      return variants.find(candidate=>typeof validCandidate!=='function'||validCandidate(type,fakeIndex,candidate))||null;
+      return withProvisionalDimensions(type,fakeIndex,snapshot.dimensions,()=>{
+        for(let step=start;step<start+SEARCH_STEPS;step++){
+          const distance=COPY_STEP*step;
+          for(const sign of [1,-1]){
+            const candidate={...layout,face,x:Math.round(((Number(layout.x)||0)+distance*sign)*20)/20};
+            if(typeof validCandidate!=='function'||validCandidate(type,fakeIndex,candidate)) return candidate;
+          }
+        }
+        return null;
+      });
     }
-    return {...layout,x:clamp((Number(layout.x)||0)+distance,-c.length/2+.15,c.length/2-.15)};
+
+    if(['wc','sink','shower'].includes(type)){
+      const fakeIndex=state.counts[type]||0;
+      return withProvisionalDimensions(type,fakeIndex,snapshot.dimensions,()=>{
+        for(let step=start;step<start+SEARCH_STEPS;step++){
+          const distance=COPY_STEP*step;
+          const variants=[
+            {...layout,x:(Number(layout.x)||0)+distance,z:Number(layout.z)||0},
+            {...layout,x:(Number(layout.x)||0)-distance,z:Number(layout.z)||0},
+            {...layout,x:Number(layout.x)||0,z:(Number(layout.z)||0)+distance},
+            {...layout,x:Number(layout.x)||0,z:(Number(layout.z)||0)-distance}
+          ];
+          const found=variants.find(candidate=>typeof validCandidate!=='function'||validCandidate(type,fakeIndex,candidate));
+          if(found) return found;
+        }
+        return null;
+      });
+    }
+
+    for(let step=start;step<start+SEARCH_STEPS;step++){
+      const distance=COPY_STEP*step;
+      const candidate={...layout,x:clamp((Number(layout.x)||0)+distance,-c.length/2+.15,c.length/2-.15)};
+      if(typeof validCandidate!=='function'||validCandidate(type,state.counts[type]||0,candidate)) return candidate;
+    }
+    return null;
   }
 
   function insertSnapshot(snapshot,attempt){
@@ -145,14 +196,21 @@
 
   window.pasteMultiSelection=function(){
     if(!clipboard.length) return toast('Primero copia uno o más objetos');
+    const before=clone(state),historyLength=history.length,futureBefore=clone(future);
     pasteCount++;
     pushHistory();
     const created=[];
-    clipboard.forEach((snapshot,idx)=>{
-      const item=insertSnapshot(snapshot,pasteCount+Math.floor(idx/4));
+    clipboard.forEach(snapshot=>{
+      const item=insertSnapshot(snapshot,pasteCount);
       if(item) created.push(item);
     });
-    if(!created.length){ history.pop(); return toast('No hay espacio para pegar la selección'); }
+    if(created.length!==clipboard.length){
+      state=before;
+      history=history.slice(0,historyLength);
+      future=futureBefore;
+      renderAll();
+      return toast('No hay espacio suficiente para pegar el grupo completo');
+    }
     multiSelection=created;
     selectedEditable=created[created.length-1];
     renderAll();
@@ -165,6 +223,33 @@
     pasteMultiSelection();
   };
 
+  window.deleteMultiSelection=function(){
+    if(!multiSelection.length) return;
+    pushHistory();
+    const grouped={};
+    multiSelection.forEach(meta=>{ (grouped[meta.type]||(grouped[meta.type]=[])).push(meta.index); });
+    Object.entries(grouped).forEach(([type,indexes])=>{
+      indexes.sort((a,b)=>b-a).forEach(index=>{
+        state.layout?.[type]?.splice(index,1);
+        state.dimensions?.[type]?.splice?.(index,1);
+        if(type==='partition'&&Array.isArray(state.interiorDoors)) state.interiorDoors.splice(index,1);
+      });
+      state.counts[type]=Math.max(0,(state.counts[type]||0)-indexes.length);
+    });
+    selectedEditable=null;
+    multiSelection=[];
+    hideEditorPanel();
+    renderAll();
+    toast('Selección eliminada');
+  };
+
+  const deleteSelectedObjectBeforeMulti=deleteSelectedObject;
+  deleteSelectedObject=function(){
+    if(multiSelection.length>1) return deleteMultiSelection();
+    multiSelection=[];
+    return deleteSelectedObjectBeforeMulti();
+  };
+
   const pointerDownBeforeMulti=onEditorPointerDown;
   onEditorPointerDown=function(event){
     if(event.button!==0||isPresentation) return;
@@ -172,6 +257,9 @@
       const root=hitEditable(event);
       if(!root) return;
       const meta=root.userData.editor;
+      if(!multiSelection.length&&selectedEditable&&keyOf(selectedEditable)!==keyOf(meta)){
+        multiSelection.push({type:selectedEditable.type,index:selectedEditable.index});
+      }
       toggleMeta(meta);
       selectedEditable={type:meta.type,index:meta.index};
       showEditorPanel(root);
@@ -180,7 +268,6 @@
       event.stopPropagation();
       return;
     }
-    const root=hitEditable(event);
     clearMultiSelection();
     return pointerDownBeforeMulti(event);
   };
@@ -202,12 +289,13 @@
   document.addEventListener('keydown',event=>{
     const target=event.target;
     if(target?.closest?.('input,textarea,select,[contenteditable="true"]')) return;
-    if(!(event.ctrlKey||event.metaKey)) return;
     const key=event.key.toLowerCase();
-    if(key==='c'&&multiSelection.length>1){
+    if((event.ctrlKey||event.metaKey)&&key==='c'&&(multiSelection.length||selectedEditable)){
       event.preventDefault(); event.stopImmediatePropagation(); copyMultiSelection();
-    }else if(key==='v'&&clipboard.length){
+    }else if((event.ctrlKey||event.metaKey)&&key==='v'&&clipboard.length){
       event.preventDefault(); event.stopImmediatePropagation(); pasteMultiSelection();
+    }else if((key==='delete'||key==='backspace')&&multiSelection.length>1){
+      event.preventDefault(); event.stopImmediatePropagation(); deleteMultiSelection();
     }
   },true);
 
