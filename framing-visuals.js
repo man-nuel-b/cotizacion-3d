@@ -85,20 +85,13 @@
     const span=c.length-.30,height=c.height-.30,yCenter=c.height/2;
     const z=face==='A'?c.width/2-.112:-c.width/2+.112;
     const opens=apertures(face,c);
-
-    // Soleras superior e inferior.
     group.add(box(span,size.face,size.depth,material,0,.17,z));
     group.add(box(span,size.face,size.depth,material,0,c.height-.17,z));
-
     spacedPositions(c.length).forEach(x=>{
       if(blockedAt(x,opens,size.face)) return;
       group.add(box(size.face,height,size.depth,material,x,yCenter,z));
     });
-
-    // Cadenetas horizontales entre montantes, cortadas alrededor de las aberturas.
     addLongWallNoggins(group,c,material,size,z,opens);
-
-    // Refuerzos visibles alrededor de vanos/puertas/ventanas.
     opens.forEach(open=>{
       const center=Number(open.center)||0,width=Math.max(.10,Number(open.width)||0),bottom=Math.max(.12,Number(open.bottom)||.12),top=Math.min(c.height-.12,Number(open.top)||c.height-.12);
       const left=center-width/2-size.face/2,right=center+width/2+size.face/2;
@@ -113,18 +106,13 @@
     const span=c.width-.30,height=c.height-.30,yCenter=c.height/2;
     const x=face==='C'?c.length/2-.122:-c.length/2+.122;
     const opens=apertures(face,c);
-
     group.add(box(size.depth,size.face,span,material,x,.17,0));
     group.add(box(size.depth,size.face,span,material,x,c.height-.17,0));
-
     spacedPositions(c.width).forEach(z=>{
       if(blockedAt(z,opens,size.face)) return;
       group.add(box(size.depth,height,size.face,material,x,yCenter,z));
     });
-
-    // Cadenetas horizontales entre montantes, cortadas alrededor de las aberturas.
     addEndWallNoggins(group,c,material,size,x,opens);
-
     opens.forEach(open=>{
       const center=Number(open.center)||0,width=Math.max(.10,Number(open.width)||0),bottom=Math.max(.12,Number(open.bottom)||.12),top=Math.min(c.height-.12,Number(open.top)||c.height-.12);
       const left=center-width/2-size.face/2,right=center+width/2+size.face/2;
@@ -137,19 +125,58 @@
 
   function addCeilingFrame(group,c,material,size){
     const y=c.height-.125,spanX=c.length-.30,spanZ=c.width-.30;
-    // Perímetro.
     group.add(box(spanX,size.depth,size.face,material,0,y,-spanZ/2));
     group.add(box(spanX,size.depth,size.face,material,0,y,spanZ/2));
     group.add(box(size.face,size.depth,spanZ,material,-spanX/2,y,0));
     group.add(box(size.face,size.depth,spanZ,material,spanX/2,y,0));
-    // Vigas/omegas a 60 cm, atravesando el ancho.
     const members=spacedPositions(c.length);
     members.forEach(x=>group.add(box(size.face,size.depth,spanZ,material,x,y,0)));
-    // Cadeneta central del cielo, segmentada entre perfiles principales.
     for(let i=0;i<members.length-1;i++){
       const a=members[i]+size.face/2,b=members[i+1]-size.face/2;
       if(b-a>.075) group.add(box(b-a,size.depth,size.face,material,(a+b)/2,y,0));
     }
+  }
+
+  function wallNogginLinear(face,c,size){
+    const span=face==='A'||face==='B'?c.length:c.width;
+    const rowY=c.height/2,opens=apertures(face,c),studs=spacedPositions(span);
+    let total=0;
+    for(let i=0;i<studs.length-1;i++){
+      const start=studs[i]+size.face/2,end=studs[i+1]-size.face/2;
+      subtractOpenings(start,end,rowY,opens,size.face/2).forEach(([a,b])=>total+=b-a);
+    }
+    return total;
+  }
+
+  function framingNogginLinearMeters(){
+    const s=ensureInteriorSystem(),c=DATA.containers[state.container],size=memberSize();
+    let total=0;
+    ['A','B','C','D'].forEach(face=>{if(s.framingFaces[face]) total+=wallNogginLinear(face,c,size);});
+    if(s.framingFaces.E){
+      const members=spacedPositions(c.length);
+      for(let i=0;i<members.length-1;i++) total+=Math.max(0,members[i+1]-members[i]-size.face);
+    }
+    return Math.round(total*100)/100;
+  }
+
+  function installBomAdjustment(){
+    if(typeof buildBOM!=='function'||window.BAT_KUBIQUEITOR_NOGGIN_BOM) return;
+    const buildBOMBeforeNoggins=buildBOM;
+    buildBOM=function(){
+      const items=buildBOMBeforeNoggins();
+      const extraLinear=framingNogginLinearMeters();
+      if(extraLinear<=0) return items;
+      const s=ensureInteriorSystem();
+      if(s.framing==='wood'){
+        const item=items.find(x=>x.key==='woodFrame');
+        if(item){item.qty=Math.ceil((Number(item.qty||0)+extraLinear)*100)/100;item.subtotal=item.qty*item.unitCost;}
+      }else{
+        const item=items.find(x=>x.key==='stud');
+        if(item){item.qty+=Math.ceil(extraLinear/3);item.subtotal=item.qty*item.unitCost;}
+      }
+      return items;
+    };
+    window.BAT_KUBIQUEITOR_NOGGIN_BOM=true;
   }
 
   function addInteriorFramingVisuals(){
@@ -158,26 +185,25 @@
     const group=new THREE.Group();
     group.name='interior-framing-visuals';
     group.userData.system='framing';
-
     if(s.framingFaces.A) addLongWallFrame(group,'A',c,material,size);
     if(s.framingFaces.B) addLongWallFrame(group,'B',c,material,size);
     if(s.framingFaces.C) addEndWallFrame(group,'C',c,material,size);
     if(s.framingFaces.D) addEndWallFrame(group,'D',c,material,size);
     if(s.framingFaces.E) addCeilingFrame(group,c,material,size);
-
     containerGroup.add(group);
   }
 
   function install(){
     if(!ready()) return false;
+    installBomAdjustment();
     const rebuildBeforeFramingVisuals=rebuild3D;
     rebuild3D=function(){
       rebuildBeforeFramingVisuals();
       addInteriorFramingVisuals();
     };
     window.addInteriorFramingVisuals=addInteriorFramingVisuals;
+    window.framingNogginLinearMeters=framingNogginLinearMeters;
     window.BAT_KUBIQUEITOR_FRAMING_VISUALS=true;
-    // Refresca una vez para que una selección ya existente aparezca inmediatamente.
     rebuild3D();
     return true;
   }
