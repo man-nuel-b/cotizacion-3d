@@ -82,11 +82,23 @@ changePartitionOrientation=function(orientation){
   }
 };
 
+function loadPartitionWallSnapLayer(){
+  if(document.querySelector('script[data-partition-wall-snap]')) return;
+  const script=document.createElement('script');
+  script.src='partition-wall-snap.js';
+  script.dataset.partitionWallSnap='true';
+  document.body.appendChild(script);
+}
+
 function loadPartitionTransformLayer(){
-  if(document.querySelector('script[data-partition-transform]')) return;
+  if(document.querySelector('script[data-partition-transform]')){
+    setTimeout(loadPartitionWallSnapLayer,20);
+    return;
+  }
   const script=document.createElement('script');
   script.src='partition-transform.js';
   script.dataset.partitionTransform='true';
+  script.addEventListener('load',()=>setTimeout(loadPartitionWallSnapLayer,20),{once:true});
   document.body.appendChild(script);
 }
 
