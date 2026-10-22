@@ -1,89 +1,5 @@
-// Visual orientation and interaction modes for bat-kubiqueitor.
-// A/B/C/D remain available internally, while customer-facing guidance stays simple.
-
-function createPaintedFace(face,c){
-  const group=new THREE.Group();
-  const color=new THREE.Color(CONTAINER_FACES[face].color);
-  const isLong=face==='A'||face==='B';
-  const width=(isLong?c.length:c.width)*.965;
-  const height=c.height*.82;
-
-  const fillMaterial=new THREE.MeshBasicMaterial({
-    color,
-    transparent:true,
-    opacity:.16,
-    side:THREE.DoubleSide,
-    depthWrite:false,
-    polygonOffset:true,
-    polygonOffsetFactor:-2,
-    polygonOffsetUnits:-2
-  });
-
-  const geometry=new THREE.PlaneGeometry(width,height);
-  const fill=new THREE.Mesh(geometry,fillMaterial);
-  fill.renderOrder=105;
-  fill.userData.facePaint=true;
-  fill.userData.containerFace=face;
-
-  const edges=new THREE.LineSegments(
-    new THREE.EdgesGeometry(geometry),
-    new THREE.LineBasicMaterial({
-      color,
-      transparent:true,
-      opacity:.56,
-      depthTest:true
-    })
-  );
-  edges.renderOrder=106;
-  edges.userData.facePaint=true;
-  edges.userData.containerFace=face;
-
-  group.add(fill,edges);
-  group.userData.facePaint=true;
-  group.userData.containerFace=face;
-
-  const y=c.height*.51;
-  const offset=.088;
-  if(face==='A'){
-    group.position.set(0,y,c.width/2+offset);
-    group.rotation.y=Math.PI;
-  }else if(face==='B'){
-    group.position.set(0,y,-c.width/2-offset);
-  }else if(face==='C'){
-    group.position.set(c.length/2+offset,y,0);
-    group.rotation.y=-Math.PI/2;
-  }else{
-    group.position.set(-c.length/2-offset,y,0);
-    group.rotation.y=Math.PI/2;
-  }
-
-  return group;
-}
-
-// Keep the legacy function name used by editor.js and faces-mounted.js,
-// but render only subtle painted surfaces instead of floating labels.
-addFaceLabels=function(parent,c){
-  if(!faceLabelsVisible) return;
-  ['A','B','C','D'].forEach(face=>parent.add(createPaintedFace(face,c)));
-};
-
-toggleFaceLabels=function(){
-  faceLabelsVisible=!faceLabelsVisible;
-  rebuild3D();
-  const btn=document.getElementById('face-label-toggle');
-  if(btn){
-    btn.classList.toggle('opacity-50',!faceLabelsVisible);
-    btn.innerHTML='<i class="fa-solid fa-compass mr-1"></i> Orientación';
-    btn.title=faceLabelsVisible?'Ocultar guía visual':'Mostrar guía visual';
-  }
-};
-
-function refreshOrientationButton(){
-  const btn=document.getElementById('face-label-toggle');
-  if(!btn) return;
-  btn.innerHTML='<i class="fa-solid fa-compass mr-1"></i> Orientación';
-  btn.title='Mostrar u ocultar una guía visual de orientación';
-}
+// Customer-facing orientation cleanup + Explore/Edit controls for bat-kubiqueitor.
+// The actual A/B/C/D markers and direct selection live in face-select.js.
 
 function simplifyOrientationCopy(){
   document.querySelectorAll('span').forEach(el=>{
@@ -99,32 +15,23 @@ function simplifyOrientationCopy(){
     }
   });
 
-  // Remove the visible legend explaining what A/B/C/D mean.
   document.querySelectorAll('.bg-amber-50').forEach(el=>{
     const text=(el.textContent||'').replace(/\s+/g,' ').trim();
     if(text.includes('A = persona')&&text.includes('C = puertas originales')) el.remove();
   });
 
   const help=document.querySelector('.viewer-help .text-slate-400');
-  if(help&&help.textContent.includes('Caras A-D')){
-    help.textContent='Arrastra el fondo para girar · usa + / − para acercar y alejar.';
-  }
+  if(help) help.textContent='Arrastra el fondo para girar · usa + / − para acercar y alejar.';
 
   document.querySelectorAll('.summary-panel .bg-emerald-50').forEach(el=>{
     const text=(el.textContent||'').replace(/\s+/g,' ').trim();
     if(text.includes('Ubicación por cara')) el.remove();
   });
 
-  // Keep A/B/C/D as the actual selector, but remove the teaching paragraph beneath it.
-  document.querySelectorAll('#window-face-modal div, #mounted-face-modal div').forEach(el=>{
-    const text=(el.textContent||'').replace(/\s+/g,' ').trim();
-    if(el.children.length===0&&text.startsWith('Convención:')&&text.includes('puertas originales')) el.remove();
-  });
+  document.getElementById('mounted-face-modal')?.remove();
+  document.getElementById('window-face-modal')?.remove();
 }
 
-// ----------------------
-// Explore / Edit modes
-// ----------------------
 let interactionMode='edit';
 
 function editorCanvas(){
@@ -143,7 +50,6 @@ function detachEditorPointerEvents(){
 function attachEditorPointerEvents(){
   const canvas=editorCanvas();
   if(!canvas) return;
-  // Remove first so repeated mode changes can never duplicate handlers.
   detachEditorPointerEvents();
   canvas.addEventListener('pointerdown',onEditorPointerDown);
   canvas.addEventListener('pointermove',onEditorPointerMove);
@@ -157,14 +63,11 @@ function updateInteractionModeUI(){
   const badge=document.querySelector('.scene-badge span:first-child');
   const exploring=interactionMode==='explore';
 
-  if(exploreBtn){
-    exploreBtn.classList.toggle('interaction-active',exploring);
-    exploreBtn.setAttribute('aria-pressed',String(exploring));
-  }
-  if(editBtn){
-    editBtn.classList.toggle('interaction-active',!exploring);
-    editBtn.setAttribute('aria-pressed',String(!exploring));
-  }
+  exploreBtn?.classList.toggle('interaction-active',exploring);
+  editBtn?.classList.toggle('interaction-active',!exploring);
+  exploreBtn?.setAttribute('aria-pressed',String(exploring));
+  editBtn?.setAttribute('aria-pressed',String(!exploring));
+
   if(badge){
     badge.innerHTML=exploring
       ? '<i class="fa-solid fa-eye text-sky-400"></i> Explorando'
@@ -187,14 +90,13 @@ function setInteractionMode(mode){
     dragMoved=false;
     if(controls) controls.enabled=true;
     if(typeof selectEditable==='function') selectEditable(null);
-    else if(typeof hideEditorPanel==='function') hideEditorPanel();
+    else hideEditorPanel?.();
     toast('Modo Explorar: objetos bloqueados');
   }else{
     attachEditorPointerEvents();
     if(controls) controls.enabled=true;
     toast('Edición reanudada');
   }
-
   updateInteractionModeUI();
 }
 
@@ -206,10 +108,10 @@ function installInteractionModeControls(){
   group.id='interaction-mode-controls';
   group.className='interaction-mode-controls';
   group.innerHTML=`
-    <button id="explore-mode-btn" type="button" class="interaction-mode-btn" onclick="setInteractionMode('explore')" title="Bloquea objetos y permite recorrer el diseño" aria-pressed="false">
+    <button id="explore-mode-btn" type="button" class="interaction-mode-btn" onclick="setInteractionMode('explore')" aria-pressed="false" title="Bloquea los objetos para recorrer el diseño">
       <i class="fa-solid fa-eye mr-1"></i> Explorar
     </button>
-    <button id="edit-mode-btn" type="button" class="interaction-mode-btn interaction-active" onclick="setInteractionMode('edit')" title="Permite volver a seleccionar y mover objetos" aria-pressed="true">
+    <button id="edit-mode-btn" type="button" class="interaction-mode-btn interaction-active" onclick="setInteractionMode('edit')" aria-pressed="true" title="Vuelve a permitir seleccionar y mover objetos">
       <i class="fa-solid fa-pen-ruler mr-1"></i> Reanudar edición
     </button>`;
 
@@ -229,14 +131,25 @@ function installInteractionModeControls(){
     `;
     document.head.appendChild(style);
   }
+
   updateInteractionModeUI();
 }
 
-window.addEventListener('DOMContentLoaded',()=>{
-  setTimeout(()=>{
-    simplifyOrientationCopy();
-    refreshOrientationButton();
-    installInteractionModeControls();
-    if(typeof rebuild3D==='function') rebuild3D();
-  },40);
-});
+function bootOrientationUI(){
+  simplifyOrientationCopy();
+  installInteractionModeControls();
+
+  // Load the direct 3D A/B/C/D selector after all base editor layers are ready.
+  if(!document.querySelector('script[data-face-select]')){
+    const script=document.createElement('script');
+    script.src='face-select.js';
+    script.dataset.faceSelect='true';
+    document.body.appendChild(script);
+  }
+}
+
+if(document.readyState==='loading'){
+  window.addEventListener('DOMContentLoaded',()=>setTimeout(bootOrientationUI,40));
+}else{
+  setTimeout(bootOrientationUI,40);
+}
