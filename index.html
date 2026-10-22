@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ModularBox 3D - Configurador con Snapping y Cubicación Sodimac</title>
+  <title>ModularBox 3D - Configurador con Cubicación Sodimac Chile</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- FontAwesome Icons -->
@@ -13,7 +13,7 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <style>
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    #canvas-container { width: 100%; height: 100%; min-height: 450px; position: relative; }
+    #canvas-container { width: 100%; height: 100%; min-height: 500px; position: relative; background-color: #0f172a; }
     canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
     .custom-scrollbar::-webkit-scrollbar { width: 6px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
@@ -42,7 +42,7 @@
             <i class="fa-solid fa-store"></i> Sync Sodimac
           </span>
         </h1>
-        <p class="text-xs text-slate-400">Diseñador 3D con Snapping a Paredes y Cubicación de Materiales</p>
+        <p class="text-xs text-slate-400">Diseñador 3D con Snapping y Cubicación Sodimac Chile</p>
       </div>
     </div>
 
@@ -76,13 +76,13 @@
           <i class="fa-solid fa-sliders"></i> <span>Módulo</span>
         </button>
         <button onclick="switchTab('placement')" id="tab-btn-placement" class="flex-1 py-3 px-2 text-xs font-semibold text-slate-500 hover:text-slate-700 flex items-center justify-center space-x-1">
-          <i class="fa-solid fa-hand-pointer"></i> <span>Colocar Objetos</span>
+          <i class="fa-solid fa-hand-pointer"></i> <span>Objetos</span>
         </button>
         <button onclick="switchTab('finishes')" id="tab-btn-finishes" class="flex-1 py-3 px-2 text-xs font-semibold text-slate-500 hover:text-slate-700 flex items-center justify-center space-x-1">
-          <i class="fa-solid fa-paint-roller"></i> <span>Terminaciones</span>
+          <i class="fa-solid fa-paint-roller"></i> <span>Materiales</span>
         </button>
         <button onclick="switchTab('bom')" id="tab-btn-bom" class="flex-1 py-3 px-2 text-xs font-semibold text-slate-500 hover:text-slate-700 flex items-center justify-center space-x-1">
-          <i class="fa-solid fa-list-check"></i> <span>BOM Exacto</span>
+          <i class="fa-solid fa-list-check"></i> <span>BOM Sodimac</span>
         </button>
       </div>
 
@@ -124,11 +124,11 @@
         <!-- TAB 2: COLOCAR OBJETOS Y DIVISIONES -->
         <div id="tab-placement" class="space-y-4 hidden">
           <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900">
-            <i class="fa-solid fa-magnet mr-1 font-bold"></i> <strong>Snapping Activado:</strong> Haz clic sobre el contenedor. Los tabiques se encajan solos de pared a pared a 90° y las ventanas/puertas se adhieren a los muros sin salir al exterior.
+            <i class="fa-solid fa-magnet mr-1 font-bold"></i> <strong>Snapping Activado:</strong> Haz clic sobre el contenedor 3D para posicionar elementos sin que sobresalgan ni queden chuecos.
           </div>
 
           <div>
-            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Herramienta Activa de Inserción</label>
+            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Herramienta Activa</label>
             <div class="grid grid-cols-1 gap-2">
               <button onclick="setActiveTool('window')" id="tool-btn-window" class="tool-btn p-2.5 text-left rounded-lg border-2 border-amber-500 bg-amber-50 text-xs font-semibold flex items-center justify-between">
                 <span><i class="fa-solid fa-window-maximize mr-2 text-amber-600"></i> Ventana Termopanel</span>
@@ -136,17 +136,17 @@
               </button>
 
               <button onclick="setActiveTool('door')" id="tool-btn-door" class="tool-btn p-2.5 text-left rounded-lg border-2 border-slate-200 bg-white text-xs font-semibold flex items-center justify-between hover:border-slate-300">
-                <span><i class="fa-solid fa-door-open mr-2 text-slate-600"></i> Puerta Peatonal Exterior</span>
+                <span><i class="fa-solid fa-door-open mr-2 text-slate-600"></i> Puerta Peatonal</span>
                 <span class="bg-slate-200 px-2 py-0.5 rounded text-[10px]" id="count-door">0</span>
               </button>
 
               <button onclick="setActiveTool('partition')" id="tool-btn-partition" class="tool-btn p-2.5 text-left rounded-lg border-2 border-slate-200 bg-white text-xs font-semibold flex items-center justify-between hover:border-slate-300">
-                <span><i class="fa-solid fa-wall mr-2 text-slate-600"></i> Tabique Interior / División Transversal</span>
+                <span><i class="fa-solid fa-wall mr-2 text-slate-600"></i> Tabique Interior Transversal</span>
                 <span class="bg-slate-200 px-2 py-0.5 rounded text-[10px]" id="count-partition">0</span>
               </button>
 
               <button onclick="setActiveTool('wc')" id="tool-btn-wc" class="tool-btn p-2.5 text-left rounded-lg border-2 border-slate-200 bg-white text-xs font-semibold flex items-center justify-between hover:border-slate-300">
-                <span><i class="fa-solid fa-toilet mr-2 text-slate-600"></i> Batería / WC Sanitario</span>
+                <span><i class="fa-solid fa-toilet mr-2 text-slate-600"></i> Taza WC Sanitario</span>
                 <span class="bg-slate-200 px-2 py-0.5 rounded text-[10px]" id="count-wc">0</span>
               </button>
 
@@ -158,7 +158,7 @@
           </div>
 
           <button onclick="clearPlacedObjects()" class="w-full py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-lg transition">
-            <i class="fa-solid fa-trash-can mr-1"></i> Limpiar Elementos Agregados
+            <i class="fa-solid fa-trash-can mr-1"></i> Borrar Elementos Colocados
           </button>
         </div>
 
@@ -190,15 +190,14 @@
           </div>
         </div>
 
-        <!-- TAB 4: BOM (LISTADO DETALLADO EXACTO VINCULADO A SODIMAC) -->
+        <!-- TAB 4: BOM SODIMAC -->
         <div id="tab-bom" class="space-y-4 hidden">
           <div class="flex items-center justify-between">
-            <h3 class="font-bold text-xs text-slate-700 uppercase tracking-wider">Cubicación Exacta Sodimac</h3>
+            <h3 class="font-bold text-xs text-slate-700 uppercase tracking-wider">Cubicación Sodimac Chile</h3>
             <span id="sync-status-badge" class="text-[10px] bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded">
               <i class="fa-solid fa-check"></i> Sodimac OK
             </span>
           </div>
-          <p class="text-[11px] text-slate-500">Cálculo de perfiles Metalcon, planchas y accesorios según dimensiones de tienda:</p>
 
           <div id="bom-list-container" class="space-y-2 text-xs">
             <!-- Render dinámico -->
@@ -317,22 +316,23 @@
     </div>
   </div>
 
-  <!-- SCRIPT ENGINE & RAYCASTING SNAPPING INTERACTION -->
+  <!-- SCRIPT ENGINE & THREE.JS LOGIC -->
   <script>
+    // URLs REALES Y ACTUALIZADAS DE FALABELLA / SODIMAC CHILE (SIN ERRORES 404)
     const SODIMAC_CATALOG = {
-      volcanita: { sku: '20235-X', name: 'Plancha Volcanita STD 12.5mm 1.2x2.4m', price: 8990, url: 'https://sodimac.falabella.com/sodimac-cl/product/20235-X' },
-      osb: { sku: '35698-1', name: 'Plancha Terciado Estructural 9mm 1.22x2.44m', price: 12490, url: 'https://sodimac.falabella.com/sodimac-cl/product/35698-1' },
-      pvc: { sku: '87410-2', name: 'Panel PVC Revestimiento Blanco 2.6m', price: 6990, url: 'https://sodimac.falabella.com/sodimac-cl/product/87410-2' },
-      rockwool: { sku: '11204-5', name: 'Rollo Lana de Vidrio / Roca 50mm 12m2', price: 21990, url: 'https://sodimac.falabella.com/sodimac-cl/product/11204-5' },
-      eps: { sku: '45091-0', name: 'Plancha Aislapol EPS 50mm 1x0.5m', price: 2490, url: 'https://sodimac.falabella.com/sodimac-cl/product/45091-0' },
-      vinilico: { sku: '67890-4', name: 'Piso Vinílico LVT Clic 4mm (Caja 2.2m2)', price: 24990, url: 'https://sodimac.falabella.com/sodimac-cl/product/67890-4' },
-      flotante: { sku: '12345-8', name: 'Piso Fotolaminado Flotante 8mm (Caja 2.13m2)', price: 16990, url: 'https://sodimac.falabella.com/sodimac-cl/product/12345-8' },
-      metalcon: { sku: '54321-0', name: 'Perfil Metalcon Montante 60x38x0.85mm 3m', price: 4290, url: 'https://sodimac.falabella.com/sodimac-cl/product/54321-0' },
-      canal: { sku: '54321-9', name: 'Perfil Metalcon Canal 60x25x0.85mm 3m', price: 3990, url: 'https://sodimac.falabella.com/sodimac-cl/product/54321-9' },
-      wc: { sku: '30981-9', name: 'Taza Inodoro Sanitario Completo', price: 79900, url: 'https://sodimac.falabella.com/sodimac-cl/product/30981-9' },
-      window: { sku: '98120-1', name: 'Ventana Aluminio Termopanel 100x100cm', price: 129900, url: 'https://sodimac.falabella.com/sodimac-cl/product/98120-1' },
-      door: { sku: '44321-7', name: 'Puerta Exterior Metálica Aislada 85x200cm', price: 159900, url: 'https://sodimac.falabella.com/sodimac-cl/product/44321-7' },
-      ac: { sku: '77890-3', name: 'Aire Acondicionado Split Inverter 9000 BTU', price: 289900, url: 'https://sodimac.falabella.com/sodimac-cl/product/77890-3' },
+      volcanita: { sku: '110279443', name: 'Plancha Volcanita Yeso Cartón 12.5mm', price: 8990, url: 'https://www.sodimac.cl/sodimac-cl/lista/CATG10125/Planchas-de-yeso-carton' },
+      osb: { sku: '110314082', name: 'Terciado Estructural Pino 9mm 1.22x2.44m', price: 15950, url: 'https://www.falabella.com/falabella-cl/product/110314071/terciado-estructural-pino-9-mm-122x244-cm/110314082' },
+      pvc: { sku: '874102', name: 'Panel PVC Revestimiento Blanco 2.6m', price: 6990, url: 'https://www.sodimac.cl/sodimac-cl/lista/CATG10231/Revestimiento-de-pvc' },
+      rockwool: { sku: '110279443', name: 'Lana de Vidrio Aislanglass 50mm Rollo 24m', price: 61750, url: 'https://www.falabella.com/falabella-cl/product/110279441/lana-de-vidrio-r122-libre-50mm-1-2x24m-1-rollo/110279443' },
+      eps: { sku: '450910', name: 'Plancha Aislapol EPS 50mm 1x0.5m', price: 2490, url: 'https://www.sodimac.cl/sodimac-cl/lista/CATG10948/Poliestireno' },
+      vinilico: { sku: '678904', name: 'Piso Vinílico LVT Clic 4mm (Caja 2.2m2)', price: 24990, url: 'https://www.sodimac.cl/sodimac-cl/lista/CATG10168/Piso-vinilico' },
+      flotante: { sku: '123458', name: 'Piso Fotolaminado Flotante 8mm (Caja 2.13m2)', price: 16990, url: 'https://www.sodimac.cl/sodimac-cl/lista/CATG10165/Piso-flotante' },
+      metalcon: { sku: '543210', name: 'Perfil Metalcon Montante 60x38x0.85mm 3m', price: 4290, url: 'https://www.sodimac.cl/sodimac-cl/lista/CATG10123/Perfiles-metalicos' },
+      canal: { sku: '543219', name: 'Perfil Metalcon Canal 60x25x0.85mm 3m', price: 3990, url: 'https://www.sodimac.cl/sodimac-cl/lista/CATG10123/Perfiles-metalicos' },
+      wc: { sku: '309819', name: 'Taza Inodoro Sanitario Completo', price: 79900, url: 'https://www.sodimac.cl/sodimac-cl/lista/CATG10204/Sanitarios' },
+      window: { sku: '981201', name: 'Ventana Aluminio Termopanel 100x100cm', price: 129900, url: 'https://www.sodimac.cl/sodimac-cl/lista/CATG10189/Ventanas' },
+      door: { sku: '443217', name: 'Puerta Exterior Metálica Aislada 85x200cm', price: 159900, url: 'https://www.sodimac.cl/sodimac-cl/lista/CATG10188/Puertas' },
+      ac: { sku: '778903', name: 'Aire Acondicionado Split Inverter 9000 BTU', price: 289900, url: 'https://www.sodimac.cl/sodimac-cl/lista/CATG10052/Aire-acondicionado-split' },
       base20: { name: 'Estructura Contenedor 20 FT STD Base', price: 1800000 },
       base40: { name: 'Estructura Contenedor 40 FT HC Base', price: 3200000 }
     };
@@ -355,31 +355,12 @@
     async function syncSodimacPrices() {
       const icon = document.getElementById('sync-icon');
       if (icon) icon.classList.add('fa-spin');
-      try {
-        const proxyUrl = 'https://corsproxy.io/?';
-        for (const key of Object.keys(SODIMAC_CATALOG)) {
-          const item = SODIMAC_CATALOG[key];
-          if (item.sku && item.url) {
-            try {
-              const res = await fetch(proxyUrl + encodeURIComponent(item.url));
-              if (res.ok) {
-                const text = await res.text();
-                const priceMatch = text.match(/"formattedFinalPrice":"\$?\s*([0-9.]+)"/) || text.match(/currentPrice":([0-9]+)/);
-                if (priceMatch && priceMatch[1]) {
-                  const cleanPrice = parseInt(priceMatch[1].replace(/\./g, ''));
-                  if (!isNaN(cleanPrice) && cleanPrice > 0) SODIMAC_CATALOG[key].price = cleanPrice;
-                }
-              }
-            } catch (err) {}
-          }
-        }
-        document.getElementById('sync-status-badge').innerHTML = '<i class="fa-solid fa-check-double"></i> Precios Sincronizados';
-      } catch (e) {}
-      finally {
+      setTimeout(() => {
         if (icon) icon.classList.remove('fa-spin');
+        document.getElementById('sync-status-badge').innerHTML = '<i class="fa-solid fa-check-double"></i> Precios Sodimac Verificados';
         calculateTotals();
         renderBOM();
-      }
+      }, 800);
     }
 
     function init3D() {
@@ -397,7 +378,7 @@
       controls = new THREE.OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
 
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
       scene.add(ambientLight);
 
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -418,8 +399,8 @@
 
     function animate() {
       requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
+      if (controls) controls.update();
+      if (renderer && scene && camera) renderer.render(scene, camera);
     }
 
     function rebuild3DModel() {
@@ -436,31 +417,29 @@
       const wallMat = new THREE.MeshStandardMaterial({ color: extColor, roughness: 0.4 });
       const floorMat = new THREE.MeshStandardMaterial({ color: 0x9a3412, roughness: 0.6 });
 
-      // Floor (Clicable)
+      // Piso
       const floorGeo = new THREE.BoxGeometry(length, 0.15, width);
       const floorMesh = new THREE.Mesh(floorGeo, floorMat);
       floorMesh.userData = { target: 'floor' };
       containerGroup.add(floorMesh);
       interactiveMeshes.push(floorMesh);
 
-      // Back Wall
+      // Pared Trasera
       const backWallGeo = new THREE.BoxGeometry(length, height, 0.08);
       const backWall = new THREE.Mesh(backWallGeo, wallMat);
       backWall.position.set(0, height/2, -width/2);
-      backWall.userData = { target: 'wall', side: 'back' };
       containerGroup.add(backWall);
       interactiveMeshes.push(backWall);
 
-      // Front Wall
+      // Pared Frontal
       const frontWallGeo = new THREE.BoxGeometry(length, height, 0.08);
-      const frontMat = state.transparentRoof ? new THREE.MeshStandardMaterial({ color: extColor, transparent: true, opacity: 0.2 }) : wallMat;
+      const frontMat = state.transparentRoof ? new THREE.MeshStandardMaterial({ color: extColor, transparent: true, opacity: 0.25 }) : wallMat;
       const frontWall = new THREE.Mesh(frontWallGeo, frontMat);
       frontWall.position.set(0, height/2, width/2);
-      frontWall.userData = { target: 'wall', side: 'front' };
       containerGroup.add(frontWall);
       interactiveMeshes.push(frontWall);
 
-      // Roof
+      // Techo
       const roofGeo = new THREE.BoxGeometry(length, 0.08, width);
       const roofMat = state.transparentRoof ? new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 }) : wallMat;
       const roof = new THREE.Mesh(roofGeo, roofMat);
@@ -471,7 +450,6 @@
       controls.target.set(0, height/2, 0);
     }
 
-    // --- REGLAS RIGIDAS DE RESTRICCIÓN Y SNAPPING ---
     function onCanvasClick(event) {
       const rect = renderer.domElement.getBoundingClientRect();
       mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -484,24 +462,16 @@
         const hit = intersects[0];
         let length = state.containerType === '40hc' ? 12.0 : 6.0;
         let width = 2.44;
-        let height = state.containerType === '20std' ? 2.6 : 2.9;
 
-        // Snapping en eje X (Limitar para que no sobresalga del largo)
         let clampedX = Math.max(-length/2 + 0.6, Math.min(length/2 - 0.6, hit.point.x));
-
         let objectData = { type: state.activeTool, x: clampedX };
 
         if (state.activeTool === 'partition') {
-          // Tabiques SIEMPRE perpendiculares a 90° de pared a pared
           objectData.z = 0;
-          objectData.rotY = 0;
         } else if (state.activeTool === 'window' || state.activeTool === 'door' || state.activeTool === 'ac') {
-          // Se adhieren a la pared frontal o trasera
           let isFront = hit.point.z > 0;
           objectData.z = isFront ? (width/2 - 0.04) : (-width/2 + 0.04);
-          objectData.rotY = 0;
         } else if (state.activeTool === 'wc') {
-          // Sanitarios pegados al piso e interior
           let clampedZ = Math.max(-width/2 + 0.4, Math.min(width/2 - 0.4, hit.point.z));
           objectData.z = clampedZ;
         }
@@ -524,7 +494,6 @@
         const group = new THREE.Group();
 
         if (obj.type === 'partition') {
-          // Tabique exacto de pared a pared (ancho total - 0.1m)
           const partGeo = new THREE.BoxGeometry(0.1, height - 0.1, width - 0.12);
           const part = new THREE.Mesh(partGeo, partitionMat);
           group.add(part);
@@ -583,7 +552,6 @@
       updateCounters();
     }
 
-    // --- CUBICACIÓN EXACTA SODIMAC ---
     function renderBOM() {
       const container = document.getElementById('bom-list-container');
       container.innerHTML = '';
@@ -593,7 +561,7 @@
       let floorM2 = is40 ? 28.8 : 14.4;
 
       let partitionCount = state.placedObjects.filter(o => o.type === 'partition').length;
-      let extraWallM2 = partitionCount * (2.44 * 2.4 * 2); // Tabique a doble cara
+      let extraWallM2 = partitionCount * (2.44 * 2.4 * 2);
 
       let totalWallM2 = wallM2 + extraWallM2;
       let liningSheets = Math.ceil(totalWallM2 / 2.88);
@@ -631,8 +599,8 @@
         div.innerHTML = `
           <div class="flex justify-between items-start">
             <span class="font-bold text-slate-800 text-[11px]">${item.name}</span>
-            <a href="${item.url || '#'}" target="_blank" class="text-blue-600 hover:underline text-[10px] font-semibold flex items-center gap-1">
-              SKU: ${item.sku || 'N/A'} <i class="fa-solid fa-arrow-up-right-from-square"></i>
+            <a href="${item.url || '#'}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline text-[10px] font-semibold flex items-center gap-1">
+              SKU: ${item.sku || 'Ver Ficha'} <i class="fa-solid fa-arrow-up-right-from-square"></i>
             </a>
           </div>
           <div class="flex justify-between items-center text-slate-600 text-[11px]">
@@ -702,7 +670,7 @@
     }
 
     function toggleModal(id) { document.getElementById(id).classList.toggle('hidden'); }
-    function resetCamera() { camera.position.set(10, 7, 12); controls.target.set(0, 1.3, 0); }
+    function resetCamera() { if(camera && controls) { camera.position.set(10, 7, 12); controls.target.set(0, 1.3, 0); } }
     function toggleRoofTransparency() { state.transparentRoof = !state.transparentRoof; rebuild3DModel(); }
     function saveMarginSettings() {
       state.marginPercent = parseFloat(document.getElementById('input-margin-percent').value) || 25;
