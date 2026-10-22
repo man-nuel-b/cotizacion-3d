@@ -58,7 +58,6 @@ function placeFaceLetter(sprite,face,c){
   else sprite.position.set(-c.length/2-offset,y,0);
 }
 
-// Override the legacy paint/label renderer: letters only, no painted faces and no descriptions.
 addFaceLabels=function(parent,c){
   faceTagObjects=[];
   if(!faceLabelsVisible) return;
@@ -75,7 +74,6 @@ function removeFacePickerModals(){
   document.getElementById('window-face-modal')?.remove();
 }
 
-// Preserve the existing UI setup, then immediately remove modal selectors.
 const installFaceUIBeforeDirectLabels=installFaceUI;
 installFaceUI=function(){
   installFaceUIBeforeDirectLabels();
@@ -104,7 +102,6 @@ function beginDirectFaceSelection(type){
   faceLabelsVisible=true;
   removeFacePickerModals();
 
-  // Adding an object is an editing action, so leave Explore mode automatically.
   if(typeof interactionMode!=='undefined'&&interactionMode==='explore'&&typeof setInteractionMode==='function'){
     setInteractionMode('edit');
   }
@@ -182,7 +179,11 @@ function onDirectFacePointerMove(event){
   canvas.style.cursor=tag?'pointer':'grab';
 }
 
+let directFaceSelectionInstalled=false;
 function installDirectFaceSelection(){
+  if(directFaceSelectionInstalled) return;
+  directFaceSelectionInstalled=true;
+
   faceSelectionRaycaster=new THREE.Raycaster();
   faceSelectionPointer=new THREE.Vector2();
   installFaceUI();
@@ -211,4 +212,8 @@ function installDirectFaceSelection(){
   rebuild3D();
 }
 
-window.addEventListener('DOMContentLoaded',()=>setTimeout(installDirectFaceSelection,80));
+if(document.readyState==='loading'){
+  window.addEventListener('DOMContentLoaded',()=>setTimeout(installDirectFaceSelection,80));
+}else{
+  setTimeout(installDirectFaceSelection,80);
+}
