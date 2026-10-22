@@ -8,6 +8,13 @@
     if(installed) return true;
 
     const panel=document.querySelector('.config-panel');
+    const existingChips=panel?[...panel.querySelectorAll('.step-chip')]:[];
+    const existingInterior=panel?.querySelector('.wizard-step[data-step="3"] h2');
+    if(existingChips.length===5&&(existingInterior?.textContent||'').includes('Terminación interior')){
+      installed=true;
+      return true;
+    }
+
     const step1=panel?.querySelector('.wizard-step[data-step="1"]');
     const step2=panel?.querySelector('.wizard-step[data-step="2"]');
     const extras=panel?.querySelector('.wizard-step[data-step="3"]');
@@ -17,7 +24,6 @@
 
     installed=true;
 
-    // Replace the original four-step navigation.
     const chipsWrap=panel.querySelector('.step-chip')?.parentElement;
     if(chipsWrap){
       chipsWrap.className='grid grid-cols-5 gap-1';
@@ -29,7 +35,6 @@
         <button class="step-chip border rounded-xl py-2 text-[10px] font-bold text-slate-500" onclick="goStep(5)">5. Cotizar</button>`;
     }
 
-    // Base is now only container + exterior color.
     const baseDescription=step2.querySelector('p');
     if(baseDescription) baseDescription.textContent='Elige el tamaño del módulo y su color exterior.';
 
@@ -41,7 +46,6 @@
         <button onclick="goStep(3)" class="flex-1 bg-slate-950 text-white py-3 rounded-xl font-bold text-sm">Definir interior <i class="fa-solid fa-arrow-right ml-1"></i></button>`;
     }
 
-    // Create the dedicated Interior step before Extras.
     const interior=document.createElement('section');
     interior.dataset.step='3';
     interior.className='wizard-step hidden';
@@ -64,12 +68,10 @@
     }
     content.appendChild(finishList);
 
-    // renderInteriorSystemUI inserts the detailed selector after finish-list.
     if(typeof renderInteriorSystemUI==='function') renderInteriorSystemUI();
     const interiorConfig=document.getElementById('interior-system-config');
     if(interiorConfig) content.appendChild(interiorConfig);
 
-    // Extras becomes step 4.
     extras.dataset.step='4';
     const extrasEyebrow=extras.querySelector('.text-amber-600');
     if(extrasEyebrow) extrasEyebrow.textContent='Paso 4';
@@ -82,18 +84,15 @@
         <button onclick="goStep(5)" class="flex-1 bg-amber-500 text-slate-950 py-3 rounded-xl font-black text-sm">Cotizar</button>`;
     }
 
-    // Quote becomes step 5.
     quote.dataset.step='5';
     const quoteEyebrow=quote.querySelector('.text-amber-600');
     if(quoteEyebrow) quoteEyebrow.textContent='Paso 5';
     const quoteBack=[...quote.querySelectorAll('button')].find(btn=>(btn.textContent||'').includes('Volver a editar'));
     if(quoteBack) quoteBack.setAttribute('onclick','goStep(4)');
 
-    // Summary CTA must go to the new quote step.
     const summaryQuote=[...document.querySelectorAll('.summary-panel button')].find(btn=>(btn.textContent||'').includes('Cotizar este diseño'));
     if(summaryQuote) summaryQuote.setAttribute('onclick','goStep(5)');
 
-    // Override the original 4-step clamp.
     goStep=function(step){
       state.step=clamp(Number(step)||1,1,5);
       document.querySelectorAll('.wizard-step').forEach(el=>el.classList.toggle('hidden',Number(el.dataset.step)!==state.step));
