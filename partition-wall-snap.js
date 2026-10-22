@@ -1,5 +1,6 @@
 // Wall snapping for interior partitions.
 // Loaded after partition-transform.js.
+// Important UX rule: snapping to A/B/C/D NEVER changes the chosen orientation.
 
 const PARTITION_WALL_SNAP=.14;
 
@@ -10,37 +11,46 @@ function partitionMovementBounds(index){
   const halfT=(d.thickness||.075)/2;
 
   if(p.orientation===PARTITION_ORIENTATION.LONG){
-    // LONG partition moves across container width (Z), between side walls B/A.
+    // Long wall runs X and moves sideways in Z, between B/A.
     const minWall=-c.width/2+.060;
     const maxWall=c.width/2-.040;
-    return {
-      axis:'z',
-      minCenter:minWall+halfT,
-      maxCenter:maxWall-halfT,
-      minWall,
-      maxWall,
-      nearLabel:'B',
-      farLabel:'A'
-    };
+    return {axis:'z',minCenter:minWall+halfT,maxCenter:maxWall-halfT,minWall,maxWall,nearLabel:'B',farLabel:'A'};
   }
 
-  // CROSS partition moves along container length (X), between end walls D/C.
+  // Cross wall runs Z and moves along X, between D/C.
   const minWall=-c.length/2+.055;
   const maxWall=c.length/2-.055;
-  return {
-    axis:'x',
-    minCenter:minWall+halfT,
-    maxCenter:maxWall-halfT,
-    minWall,
-    maxWall,
-    nearLabel:'D',
-    farLabel:'C'
-  };
+  return {axis:'x',minCenter:minWall+halfT,maxCenter:maxWall-halfT,minWall,maxWall,nearLabel:'D',farLabel:'C'};
+}
+
+function partitionAlongAxisBounds(index){
+  const p=actualLayout('partition',index);
+  const c=DATA.containers[state.container];
+  if(p.orientation===PARTITION_ORIENTATION.LONG){
+    return {min:-c.length/2+.055,max:c.length/2-.055,nearLabel:'D',farLabel:'C'};
+  }
+  return {min:-c.width/2+.060,max:c.width/2-.040,nearLabel:'B',farLabel:'A'};
 }
 
 function partitionCenterCoordinate(index){
   const p=actualLayout('partition',index);
   return p.orientation===PARTITION_ORIENTATION.LONG?p.z:p.x;
+}
+
+function partitionAxisCenter(index){
+  const b=partitionAlongAxisBounds(index);
+  const stored=state.layout?.partition?.[index]?.axisCenter;
+  return Number.isFinite(stored)?stored:(b.min+b.max)/2;
+}
+
+function setPartitionAxisCenter(index,center){
+  ensureLayoutState();
+  const d=objectDimensions('partition',index);
+  const b=partitionAlongAxisBounds(index);
+  const half=Math.min((d.length||.30)/2,(b.max-b.min)/2);
+  const next=clamp(center,b.min+half,b.max-half);
+  state.layout.partition[index]={...state.layout.partition[index],axisCenter:next};
+  return next;
 }
 
 function partitionGapFromNearWall(index){
@@ -77,57 +87,62 @@ function setPartitionCenterCoordinate(index,coord){
   return next;
 }
 
-function partitionFaceConfig(face){
-  if(face==='A') return {orientation:PARTITION_ORIENTATION.LONG,side:'far'};
-  if(face==='B') return {orientation:PARTITION_ORIENTATION.LONG,side:'near'};
-  if(face==='C') return {orientation:PARTITION_ORIENTATION.CROSS,side:'far'};
-  return {orientation:PARTITION_ORIENTATION.CROSS,side:'near'}; // D
-}
+function partitionTouchesFace(index,face,tolerance=.02){
+  const p=actualLayout('partition',index);
+  const d=objectDimensions('partition',index);
+  const move=partitionMovementBounds(index);
+  const axis=partitionAlongAxisBounds(index);
+  const coord=partitionCenterCoordinate(index);
+  const axisCenter=partitionAxisCenter(index);
+  const halfLength=(d.length||.30)/2;
 
-function partitionSnappedFace(index){
-  const p=actualLayout('partition',index),b=partitionMovementBounds(index),coord=partitionCenterCoordinate(index);
-  const tolerance=.018;
-  if(Math.abs(coord-b.minCenter)<=tolerance) return b.nearLabel;
-  if(Math.abs(coord-b.maxCenter)<=tolerance) return b.farLabel;
-  return null;
+  if(p.orientation===PARTITION_ORIENTATION.LONG){
+    if(face==='A') return Math.abs(coord-move.maxCenter)<=tolerance;
+    if(face==='B') return Math.abs(coord-move.minCenter)<=tolerance;
+    if(face==='C') return Math.abs((axisCenter+halfLength)-axis.max)<=tolerance;
+    if(face==='D') return Math.abs((axisCenter-halfLength)-axis.min)<=tolerance;
+  }else{
+    if(face==='C') return Math.abs(coord-move.maxCenter)<=tolerance;
+    if(face==='D') return Math.abs(coord-move.minCenter)<=tolerance;
+    if(face==='A') return Math.abs((axisCenter+halfLength)-axis.max)<=tolerance;
+    if(face==='B') return Math.abs((axisCenter-halfLength)-axis.min)<=tolerance;
+  }
+  return false;
 }
 
 function snapPartitionToFace(face){
   if(!selectedEditable||selectedEditable.type!=='partition'||!['A','B','C','D'].includes(face)) return;
   const {index}=selectedEditable;
-  const config=partitionFaceConfig(face);
-  const c=DATA.containers[state.container];
-  const current=objectDimensions('partition',index);
+  const p=actualLayout('partition',index);
+  const d=objectDimensions('partition',index);
 
   pushHistory();
   ensureLayoutState();
   ensureDimensionState();
 
-  // Change orientation without losing the dimensions chosen by the user.
-  const nextLength=clamp(current.length,.30,partitionFullLength(config.orientation));
-  state.dimensions.partition[index]={
-    ...state.dimensions.partition[index],
-    ...current,
-    length:nextLength,
-    height:clamp(current.height,.30,Math.max(.30,c.height-.06-(current.elevation||0))),
-    thickness:current.thickness||.075,
-    elevation:current.elevation||0
-  };
-  state.layout.partition[index]={
-    ...state.layout.partition[index],
-    orientation:config.orientation,
-    x:0,
-    z:0,
-    axisCenter:0,
-    joints:[]
-  };
+  // Keep orientation and all dimensions exactly as selected by the user.
+  state.dimensions.partition[index]={...state.dimensions.partition[index],...d};
+  state.layout.partition[index]={...state.layout.partition[index],orientation:p.orientation,joints:[]};
 
-  // actualLayout now reflects the new orientation, so movement bounds are correct.
-  const b=partitionMovementBounds(index);
-  setPartitionCenterCoordinate(index,config.side==='far'?b.maxCenter:b.minCenter);
+  const move=partitionMovementBounds(index);
+  const axis=partitionAlongAxisBounds(index);
+  const halfLength=(d.length||.30)/2;
 
+  if(p.orientation===PARTITION_ORIENTATION.LONG){
+    if(face==='A') setPartitionCenterCoordinate(index,move.maxCenter);
+    else if(face==='B') setPartitionCenterCoordinate(index,move.minCenter);
+    else if(face==='C') setPartitionAxisCenter(index,axis.max-halfLength);
+    else if(face==='D') setPartitionAxisCenter(index,axis.min+halfLength);
+  }else{
+    if(face==='C') setPartitionCenterCoordinate(index,move.maxCenter);
+    else if(face==='D') setPartitionCenterCoordinate(index,move.minCenter);
+    else if(face==='A') setPartitionAxisCenter(index,axis.max-halfLength);
+    else if(face==='B') setPartitionAxisCenter(index,axis.min+halfLength);
+  }
+
+  if(typeof normalizePartitionInsideContainer==='function') normalizePartitionInsideContainer(index);
   renderAll();
-  toast(`Tabique pegado a pared ${face}`);
+  toast(`Tabique ${partitionOrientationLabel(p.orientation).toLowerCase()} pegado a pared ${face}`);
 }
 
 function stickPartitionToWall(side){
@@ -137,7 +152,7 @@ function stickPartitionToWall(side){
   return snapPartitionToFace(side==='far'?b.farLabel:b.nearLabel);
 }
 
-// Distance means the real clear gap between the partition face and its near wall.
+// Numeric position continues to control the perpendicular separation.
 updatePartitionPosition=function(value){
   if(!selectedEditable||selectedEditable.type!=='partition') return;
   const {index}=selectedEditable;
@@ -157,7 +172,6 @@ updatePartitionPosition=function(value){
   toast(gap<=.001?`Tabique pegado a pared ${b.nearLabel}`:`Separación: ${gap.toFixed(2)} m`);
 };
 
-// The actual partition thickness may touch, but never cross, the inner lining.
 const validCandidateBeforeWallSnap=validCandidate;
 validCandidate=function(type,index,candidate){
   if(type!=='partition') return validCandidateBeforeWallSnap(type,index,candidate);
@@ -175,7 +189,6 @@ function renderPartitionWallControls(index){
   const input=document.getElementById('partition-position-input');
   const label=document.getElementById('partition-position-label');
   const maxGap=Math.max(0,b.maxWall-b.minWall-(d.thickness||.075));
-  const activeFace=partitionSnappedFace(index);
 
   if(label) label.textContent=`Separación desde pared ${b.nearLabel}`;
   if(input){
@@ -199,12 +212,12 @@ function renderPartitionWallControls(index){
     <div class="partition-wall-title">PEGAR TABIQUE A PARED</div>
     <div id="partition-wall-buttons" class="partition-wall-grid">
       ${['A','B','C','D'].map(face=>`
-        <button type="button" class="partition-wall-face-btn ${activeFace===face?'active':''}" onclick="snapPartitionToFace('${face}')" title="Pegar tabique a pared ${face}">
+        <button type="button" class="partition-wall-face-btn ${partitionTouchesFace(index,face)?'active':''}" onclick="snapPartitionToFace('${face}')" title="Pegar tabique a pared ${face} sin cambiar orientación">
           <span class="partition-wall-letter" style="--face-color:${colors[face]}">${face}</span>
           <span>Pared ${face}</span>
         </button>`).join('')}
     </div>
-    <div class="partition-wall-help">A/B lo orientan a lo largo · C/D lo orientan a lo ancho</div>`;
+    <div class="partition-wall-help">Mantiene la orientación actual · solo mueve el tabique hasta tocar la pared elegida</div>`;
 
   if(!document.getElementById('partition-wall-style')){
     const style=document.createElement('style');
@@ -228,7 +241,6 @@ showEditorPanel=function(root){
   if(root?.userData.editor?.type==='partition') renderPartitionWallControls(root.userData.editor.index);
 };
 
-// Dragging: allow the center to reach the exact inner-wall contact position and snap when close.
 const pointerMoveBeforeWallSnap=onEditorPointerMove;
 onEditorPointerMove=function(event){
   if(draggingEditable?.userData.editor?.type!=='partition') return pointerMoveBeforeWallSnap(event);
