@@ -82,10 +82,13 @@ changePartitionOrientation=function(orientation){
   }
 };
 
+const FINAL_ASSET_VERSION=(typeof APP_ASSET_VERSION!=='undefined'?APP_ASSET_VERSION:'20261022-5');
+function finalVersionedAsset(name){ return `${name}?v=${FINAL_ASSET_VERSION}`; }
+
 function loadInteriorSystemsLayer(){
   if(document.querySelector('script[data-interior-systems]')) return;
   const script=document.createElement('script');
-  script.src='interior-systems.js';
+  script.src=finalVersionedAsset('interior-systems.js');
   script.dataset.interiorSystems='true';
   document.body.appendChild(script);
 }
@@ -96,7 +99,7 @@ function loadPartitionWallSnapLayer(){
     return;
   }
   const script=document.createElement('script');
-  script.src='partition-wall-snap.js';
+  script.src=finalVersionedAsset('partition-wall-snap.js');
   script.dataset.partitionWallSnap='true';
   script.addEventListener('load',()=>setTimeout(loadInteriorSystemsLayer,20),{once:true});
   document.body.appendChild(script);
@@ -108,7 +111,7 @@ function loadPartitionTransformLayer(){
     return;
   }
   const script=document.createElement('script');
-  script.src='partition-transform.js';
+  script.src=finalVersionedAsset('partition-transform.js');
   script.dataset.partitionTransform='true';
   script.addEventListener('load',()=>setTimeout(loadPartitionWallSnapLayer,20),{once:true});
   document.body.appendChild(script);
@@ -120,7 +123,7 @@ function loadEnhancedPartitionDimensionsLayer(){
     return;
   }
   const script=document.createElement('script');
-  script.src='partition-dimensions-enhanced.js';
+  script.src=finalVersionedAsset('partition-dimensions-enhanced.js');
   script.dataset.partitionDimensionsEnhanced='true';
   script.addEventListener('load',()=>setTimeout(loadPartitionTransformLayer,20),{once:true});
   document.body.appendChild(script);
@@ -132,7 +135,7 @@ function loadInteriorViewLayer(){
     return;
   }
   const script=document.createElement('script');
-  script.src='interior-view.js';
+  script.src=finalVersionedAsset('interior-view.js');
   script.dataset.interiorView='true';
   script.addEventListener('load',()=>setTimeout(loadEnhancedPartitionDimensionsLayer,20),{once:true});
   document.body.appendChild(script);
@@ -144,7 +147,7 @@ function loadPassThroughWindowLayer(){
     return;
   }
   const script=document.createElement('script');
-  script.src='window-through.js';
+  script.src=finalVersionedAsset('window-through.js');
   script.dataset.windowThrough='true';
   script.addEventListener('load',()=>setTimeout(loadInteriorViewLayer,20),{once:true});
   document.body.appendChild(script);
