@@ -5,29 +5,49 @@
 (function(){
   const OPENING_TYPES=['opening','openingFrame'];
   const APERTURE_TYPES=['window','door','opening','openingFrame'];
+  const CORNER_CLEARANCE=.075; // inner limit of the structural corner posts
 
   DATA.extras.opening={name:'Vano',icon:'fa-vector-square',max:8};
   DATA.extras.openingFrame={name:'Vano con marco metálico',icon:'fa-border-all',max:8};
   if(!Number.isFinite(Number(state.counts.opening))) state.counts.opening=0;
   if(!Number.isFinite(Number(state.counts.openingFrame))) state.counts.openingFrame=0;
 
-  MOUNTED_FACE_TYPES.opening={defaultFace:'A',gap:1.00,padding:.55,height:'opening',label:'Vano'};
-  MOUNTED_FACE_TYPES.openingFrame={defaultFace:'A',gap:1.00,padding:.55,height:'opening',label:'Vano con marco metálico'};
+  // Openings may move right up to the structural corner-post limit.
+  MOUNTED_FACE_TYPES.opening={defaultFace:'A',gap:1.00,padding:CORNER_CLEARANCE,height:'opening',label:'Vano'};
+  MOUNTED_FACE_TYPES.openingFrame={defaultFace:'A',gap:1.00,padding:CORNER_CLEARANCE,height:'opening',label:'Vano con marco metálico'};
 
+  // Width is intentionally given a global upper ceiling here; the real maximum
+  // is calculated dynamically from container size, selected face and position.
   OBJECT_DIMENSIONS.opening={
     fields:[
-      {key:'width',label:'Ancho',min:.50,max:3.00,step:.05},
+      {key:'width',label:'Ancho',min:.50,max:12.10,step:.05},
       {key:'height',label:'Alto',min:.50,max:2.60,step:.05}
     ],
     defaults:()=>({width:.90,height:2.10,depth:.20})
   };
   OBJECT_DIMENSIONS.openingFrame={
     fields:[
-      {key:'width',label:'Ancho',min:.50,max:3.00,step:.05},
+      {key:'width',label:'Ancho',min:.50,max:12.10,step:.05},
       {key:'height',label:'Alto',min:.50,max:2.60,step:.05}
     ],
     defaults:()=>({width:.90,height:2.10,depth:.20})
   };
+
+  function openingFaceLength(face,c=DATA.containers[state.container]){
+    return (face==='A'||face==='B')?c.length:c.width;
+  }
+
+  function openingMaxWidthAt(type,index,layoutOverride=null){
+    const c=DATA.containers[state.container];
+    const p=layoutOverride||actualLayout(type,index);
+    const face=p?.face||MOUNTED_FACE_TYPES[type]?.defaultFace||'A';
+    const faceLength=openingFaceLength(face,c);
+    const center=Math.abs(Number(p?.x)||0);
+    const halfClear=Math.max(.25,faceLength/2-CORNER_CLEARANCE);
+    // Width grows symmetrically from its current center, so the nearest corner
+    // is the governing structural limit.
+    return Math.max(.50,Math.min(faceLength-(CORNER_CLEARANCE*2),2*(halfClear-center)));
+  }
 
   const ensureLayoutStateBeforeOpenings=ensureLayoutState;
   ensureLayoutState=function(){
@@ -67,6 +87,11 @@
   const validCandidateBeforeOpenings=validCandidate;
   validCandidate=function(type,index,candidate){
     if(!validCandidateBeforeOpenings(type,index,candidate)) return false;
+    if(OPENING_TYPES.includes(type)){
+      const dims=objectDimensions(type,index);
+      const maxWidth=openingMaxWidthAt(type,index,candidate);
+      if((Number(dims.width)||.90)>maxWidth+.001) return false;
+    }
     return apertureCollisionAllowed(type,index,candidate);
   };
 
@@ -75,6 +100,10 @@
     if(!dimensionChangeAllowedBeforeOpenings(type,index,next)) return false;
     if(!APERTURE_TYPES.includes(type)) return true;
     const p=actualLayout(type,index),half=Math.max(.10,(Number(next.width)||.20)/2);
+    if(OPENING_TYPES.includes(type)){
+      const maxWidth=openingMaxWidthAt(type,index,p);
+      if((Number(next.width)||.20)>maxWidth+.001) return false;
+    }
     for(const otherType of APERTURE_TYPES){
       for(let i=0;i<(state.counts[otherType]||0);i++){
         if(otherType===type&&i===index) continue;
@@ -84,6 +113,39 @@
       }
     }
     return true;
+  };
+
+  const renderDimensionEditorBeforeOpeningLimits=renderDimensionEditor;
+  renderDimensionEditor=function(type,index){
+    renderDimensionEditorBeforeOpeningLimits(type,index);
+    if(!OPENING_TYPES.includes(type)) return;
+    const editor=document.getElementById('dimension-editor');
+    if(!editor||editor.classList.contains('hidden')) return;
+    const widthField=OBJECT_DIMENSIONS[type]?.fields?.find(field=>field.key==='width');
+    const widthInput=[...editor.querySelectorAll('input[type="number"]')].find(input=>{
+      const label=input.closest('label');
+      return (label?.textContent||'').includes('Ancho');
+    });
+    const max=openingMaxWidthAt(type,index);
+    if(widthInput){
+      widthInput.max=max.toFixed(2);
+      widthInput.title=`Máximo entre corner posts: ${max.toFixed(2)} m`;
+    }
+    let note=document.getElementById('opening-corner-limit-note');
+    if(!note){
+      note=document.createElement('div');
+      note.id='opening-corner-limit-note';
+      note.className='mt-2 text-[9px] text-sky-300 font-bold';
+      editor.appendChild(note);
+    }
+    note.textContent=`Ancho máximo en esta posición: ${max.toFixed(2)} m · límite estructural: corner posts`;
+    if(widthField) widthField.max=Math.max(widthField.max,max);
+  };
+
+  const hideEditorPanelBeforeOpeningLimits=hideEditorPanel;
+  hideEditorPanel=function(){
+    document.getElementById('opening-corner-limit-note')?.remove();
+    return hideEditorPanelBeforeOpeningLimits();
   };
 
   function openingVerticalBounds(c,dims){
