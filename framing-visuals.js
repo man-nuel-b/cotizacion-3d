@@ -10,6 +10,14 @@
       typeof ensureInteriorSystem==='function'&&typeof rebuild3D==='function'&&typeof box==='function'&&typeof mat==='function';
   }
 
+  function loadMaterialVisuals(){
+    if(document.querySelector('script[data-interior-material-visuals]')) return;
+    const script=document.createElement('script');
+    script.src=(typeof finalVersionedAsset==='function'?finalVersionedAsset('interior-material-visuals.js'):'interior-material-visuals.js?v=20261022-19');
+    script.dataset.interiorMaterialVisuals='true';
+    document.body.appendChild(script);
+  }
+
   function frameMaterial(){
     const s=ensureInteriorSystem();
     return s.framing==='wood'
@@ -205,6 +213,7 @@
     window.framingNogginLinearMeters=framingNogginLinearMeters;
     window.BAT_KUBIQUEITOR_FRAMING_VISUALS=true;
     rebuild3D();
+    setTimeout(loadMaterialVisuals,20);
     return true;
   }
 
