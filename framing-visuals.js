@@ -40,6 +40,47 @@
     return [...new Set(out.map(v=>Math.round(v*1000)/1000))];
   }
 
+  function subtractOpenings(start,end,rowY,openingList,pad=.018){
+    let segments=[[Math.min(start,end),Math.max(start,end)]];
+    openingList.forEach(open=>{
+      const bottom=Number.isFinite(Number(open.bottom))?Number(open.bottom):.12;
+      const top=Number.isFinite(Number(open.top))?Number(open.top):999;
+      if(rowY<=bottom-pad||rowY>=top+pad) return;
+      const center=Number(open.center)||0,width=Math.max(0,Number(open.width)||0);
+      const cutMin=center-width/2-pad,cutMax=center+width/2+pad;
+      const next=[];
+      segments.forEach(([a,b])=>{
+        if(cutMax<=a||cutMin>=b){next.push([a,b]);return;}
+        if(cutMin>a) next.push([a,Math.min(cutMin,b)]);
+        if(cutMax<b) next.push([Math.max(cutMax,a),b]);
+      });
+      segments=next;
+    });
+    return segments.filter(([a,b])=>b-a>.075);
+  }
+
+  function addLongWallNoggins(group,c,material,size,z,opens){
+    const rowY=c.height/2;
+    const studs=spacedPositions(c.length);
+    for(let i=0;i<studs.length-1;i++){
+      const start=studs[i]+size.face/2,end=studs[i+1]-size.face/2;
+      subtractOpenings(start,end,rowY,opens,size.face/2).forEach(([a,b])=>{
+        group.add(box(b-a,size.face,size.depth,material,(a+b)/2,rowY,z));
+      });
+    }
+  }
+
+  function addEndWallNoggins(group,c,material,size,x,opens){
+    const rowY=c.height/2;
+    const studs=spacedPositions(c.width);
+    for(let i=0;i<studs.length-1;i++){
+      const start=studs[i]+size.face/2,end=studs[i+1]-size.face/2;
+      subtractOpenings(start,end,rowY,opens,size.face/2).forEach(([a,b])=>{
+        group.add(box(size.depth,size.face,b-a,material,x,rowY,(a+b)/2));
+      });
+    }
+  }
+
   function addLongWallFrame(group,face,c,material,size){
     const span=c.length-.30,height=c.height-.30,yCenter=c.height/2;
     const z=face==='A'?c.width/2-.112:-c.width/2+.112;
@@ -53,6 +94,9 @@
       if(blockedAt(x,opens,size.face)) return;
       group.add(box(size.face,height,size.depth,material,x,yCenter,z));
     });
+
+    // Cadenetas horizontales entre montantes, cortadas alrededor de las aberturas.
+    addLongWallNoggins(group,c,material,size,z,opens);
 
     // Refuerzos visibles alrededor de vanos/puertas/ventanas.
     opens.forEach(open=>{
@@ -78,6 +122,9 @@
       group.add(box(size.depth,height,size.face,material,x,yCenter,z));
     });
 
+    // Cadenetas horizontales entre montantes, cortadas alrededor de las aberturas.
+    addEndWallNoggins(group,c,material,size,x,opens);
+
     opens.forEach(open=>{
       const center=Number(open.center)||0,width=Math.max(.10,Number(open.width)||0),bottom=Math.max(.12,Number(open.bottom)||.12),top=Math.min(c.height-.12,Number(open.top)||c.height-.12);
       const left=center-width/2-size.face/2,right=center+width/2+size.face/2;
@@ -96,7 +143,13 @@
     group.add(box(size.face,size.depth,spanZ,material,-spanX/2,y,0));
     group.add(box(size.face,size.depth,spanZ,material,spanX/2,y,0));
     // Vigas/omegas a 60 cm, atravesando el ancho.
-    spacedPositions(c.length).forEach(x=>group.add(box(size.face,size.depth,spanZ,material,x,y,0)));
+    const members=spacedPositions(c.length);
+    members.forEach(x=>group.add(box(size.face,size.depth,spanZ,material,x,y,0)));
+    // Cadeneta central del cielo, segmentada entre perfiles principales.
+    for(let i=0;i<members.length-1;i++){
+      const a=members[i]+size.face/2,b=members[i+1]-size.face/2;
+      if(b-a>.075) group.add(box(b-a,size.depth,size.face,material,(a+b)/2,y,0));
+    }
   }
 
   function addInteriorFramingVisuals(){
