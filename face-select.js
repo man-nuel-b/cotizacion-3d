@@ -1,5 +1,5 @@
 // Direct face selection for bat-kubiqueitor.
-// Replaces the A/B/C/D popup with compact letter markers placed on the 3D container.
+// Replaces popup explanations with compact A/B/C/D markers placed on the 3D container.
 
 let faceTagObjects=[];
 let faceSelectionActive=false;
@@ -58,9 +58,9 @@ function placeFaceLetter(sprite,face,c){
   else sprite.position.set(-c.length/2-offset,y,0);
 }
 
+// Letters A/B/C/D are the only visible orientation aid.
 addFaceLabels=function(parent,c){
   faceTagObjects=[];
-  if(!faceLabelsVisible) return;
   ['A','B','C','D'].forEach(face=>{
     const sprite=createFaceLetterSprite(face,faceSelectionActive);
     placeFaceLetter(sprite,face,c);
@@ -74,26 +74,22 @@ function removeFacePickerModals(){
   document.getElementById('window-face-modal')?.remove();
 }
 
+function removeOrientationToolbarButton(){
+  document.getElementById('face-label-toggle')?.remove();
+}
+
 const installFaceUIBeforeDirectLabels=installFaceUI;
 installFaceUI=function(){
   installFaceUIBeforeDirectLabels();
   removeFacePickerModals();
-  const btn=document.getElementById('face-label-toggle');
-  if(btn){
-    btn.innerHTML='<i class="fa-solid fa-font mr-1"></i> Etiquetas A-D';
-    btn.title='Mostrar u ocultar las letras de orientación';
-  }
+  removeOrientationToolbarButton();
 };
 
+// Kept only for compatibility with older calls. The A/B/C/D markers stay visible.
 toggleFaceLabels=function(){
-  faceLabelsVisible=!faceLabelsVisible;
+  faceLabelsVisible=true;
+  removeOrientationToolbarButton();
   rebuild3D();
-  const btn=document.getElementById('face-label-toggle');
-  if(btn){
-    btn.classList.toggle('opacity-50',!faceLabelsVisible);
-    btn.innerHTML='<i class="fa-solid fa-font mr-1"></i> Etiquetas A-D';
-    btn.title=faceLabelsVisible?'Ocultar letras A-D':'Mostrar letras A-D';
-  }
 };
 
 function beginDirectFaceSelection(type){
@@ -101,6 +97,7 @@ function beginDirectFaceSelection(type){
   faceSelectionActive=true;
   faceLabelsVisible=true;
   removeFacePickerModals();
+  removeOrientationToolbarButton();
 
   if(typeof interactionMode!=='undefined'&&interactionMode==='explore'&&typeof setInteractionMode==='function'){
     setInteractionMode('edit');
@@ -123,6 +120,7 @@ closeMountedFacePicker=function(){
   pendingMountedType=null;
   faceSelectionActive=false;
   removeFacePickerModals();
+  removeOrientationToolbarButton();
   rebuild3D();
 };
 
@@ -188,6 +186,7 @@ function installDirectFaceSelection(){
   faceSelectionPointer=new THREE.Vector2();
   installFaceUI();
   removeFacePickerModals();
+  removeOrientationToolbarButton();
 
   const canvas=renderer?.domElement;
   if(canvas){
@@ -202,12 +201,6 @@ function installDirectFaceSelection(){
       toast('Selección de cara cancelada');
     }
   });
-
-  const btn=document.getElementById('face-label-toggle');
-  if(btn){
-    btn.innerHTML='<i class="fa-solid fa-font mr-1"></i> Etiquetas A-D';
-    btn.title='Mostrar u ocultar las letras de orientación';
-  }
 
   rebuild3D();
 }
