@@ -109,9 +109,18 @@ changePartitionOrientation=function(orientation){
   }
 };
 
+function loadPassThroughWindowLayer(){
+  if(document.querySelector('script[data-window-through]')) return;
+  const script=document.createElement('script');
+  script.src='window-through.js';
+  script.dataset.windowThrough='true';
+  document.body.appendChild(script);
+}
+
 function bootPartitionBoundsFix(){
   normalizeAllPartitionsInsideContainer();
   rebuild3D();
+  setTimeout(loadPassThroughWindowLayer,20);
 }
 
 if(document.readyState==='loading'){
