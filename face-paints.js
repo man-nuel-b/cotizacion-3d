@@ -135,11 +135,23 @@ function installInteractionModeControls(){
   updateInteractionModeUI();
 }
 
+function loadPartitionLayer(){
+  if(document.querySelector('script[data-partition-layout]')) return;
+  const script=document.createElement('script');
+  script.src='partition-layout.js';
+  script.dataset.partitionLayout='true';
+  document.body.appendChild(script);
+}
+
 function loadFurnitureLayer(){
-  if(document.querySelector('script[data-furniture-toggle]')) return;
+  if(document.querySelector('script[data-furniture-toggle]')){
+    setTimeout(loadPartitionLayer,20);
+    return;
+  }
   const script=document.createElement('script');
   script.src='furniture-toggle.js';
   script.dataset.furnitureToggle='true';
+  script.addEventListener('load',()=>setTimeout(loadPartitionLayer,20),{once:true});
   document.body.appendChild(script);
 }
 
