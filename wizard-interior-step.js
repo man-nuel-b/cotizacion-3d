@@ -4,11 +4,20 @@
 (function(){
   let installed=false;
 
-  function loadPartitionDuplicateLayer(){
-    if(document.querySelector('script[data-partition-duplicate]')) return;
+  function loadInteriorUXLayer(){
+    if(document.querySelector('script[data-interior-ux]')) return;
     const script=document.createElement('script');
-    script.src=(typeof finalVersionedAsset==='function'?finalVersionedAsset('partition-duplicate.js'):'partition-duplicate.js?v=20261022-9');
+    script.src=(typeof finalVersionedAsset==='function'?finalVersionedAsset('interior-ux.js'):'interior-ux.js?v=20261022-15');
+    script.dataset.interiorUx='true';
+    document.body.appendChild(script);
+  }
+
+  function loadPartitionDuplicateLayer(){
+    if(document.querySelector('script[data-partition-duplicate]')){ setTimeout(loadInteriorUXLayer,20); return; }
+    const script=document.createElement('script');
+    script.src=(typeof finalVersionedAsset==='function'?finalVersionedAsset('partition-duplicate.js'):'partition-duplicate.js?v=20261022-15');
     script.dataset.partitionDuplicate='true';
+    script.addEventListener('load',()=>setTimeout(loadInteriorUXLayer,20),{once:true});
     document.body.appendChild(script);
   }
 
@@ -18,7 +27,7 @@
       return;
     }
     const script=document.createElement('script');
-    script.src=(typeof finalVersionedAsset==='function'?finalVersionedAsset('openings-extras.js'):'openings-extras.js?v=20261022-9');
+    script.src=(typeof finalVersionedAsset==='function'?finalVersionedAsset('openings-extras.js'):'openings-extras.js?v=20261022-15');
     script.dataset.openingExtras='true';
     script.addEventListener('load',()=>setTimeout(loadPartitionDuplicateLayer,20),{once:true});
     document.body.appendChild(script);
@@ -33,7 +42,7 @@
     const panel=document.querySelector('.config-panel');
     const existingChips=panel?[...panel.querySelectorAll('.step-chip')]:[];
     const existingInterior=panel?.querySelector('.wizard-step[data-step="3"] h2');
-    if(existingChips.length===5&&(existingInterior?.textContent||'').includes('Terminación interior')){
+    if(existingChips.length===5&&existingInterior){
       installed=true;
       setTimeout(loadOpeningExtrasLayer,20);
       return true;
@@ -75,8 +84,8 @@
     interior.className='wizard-step hidden';
     interior.innerHTML=`
       <div class="text-[11px] font-black uppercase tracking-widest text-amber-600">Paso 3</div>
-      <h2 class="text-xl font-black mt-1">Terminación interior</h2>
-      <p class="text-sm text-slate-500 mt-1 mb-4">Define revestimiento, aislación y terminaciones antes de agregar puertas, ventanas y equipamiento.</p>
+      <h2 class="text-xl font-black mt-1">Diseña el interior</h2>
+      <p class="text-sm text-slate-500 mt-1 mb-4">Elige una opción rápida. Después puedes ajustar paredes, cielo y piso si lo necesitas.</p>
       <div id="interior-step-content"></div>
       <div class="flex gap-2 mt-5">
         <button onclick="goStep(2)" class="w-1/3 bg-slate-100 py-3 rounded-xl font-bold text-sm">Atrás</button>
@@ -86,7 +95,7 @@
 
     const content=interior.querySelector('#interior-step-content');
     if(finishLabel){
-      finishLabel.textContent='Nivel de terminación';
+      finishLabel.textContent='1. Elige una opción rápida';
       finishLabel.className='block text-xs font-bold text-slate-600 mb-2';
       content.appendChild(finishLabel);
     }
@@ -139,7 +148,7 @@
       style.id='five-step-wizard-style';
       style.textContent=`
         #interior-step-content #finish-list{margin-top:0!important}
-        #interior-step-content #interior-system-config{margin-top:14px!important;background:#f8fafc}
+        #interior-step-content #interior-system-config{margin-top:14px!important;background:transparent!important}
         @media(max-width:420px){.step-chip{font-size:8px!important;padding-left:2px!important;padding-right:2px!important}}
       `;
       document.head.appendChild(style);
