@@ -84,17 +84,39 @@ renderDimensionEditor=function(type,index){
   const heading=editor.querySelector('.text-slate-400');
   if(heading) heading.textContent='DIMENSIONES DEL TABIQUE';
   const help=editor.querySelector('.text-slate-500');
-  if(help) help.textContent='Las medidas modifican físicamente el muro en el 3D';
+  if(help) help.textContent='Escribe las medidas y el muro cambia inmediatamente en el 3D';
 
   const fields=editor.querySelector('[data-dimension-fields]');
   if(!fields) return;
   fields.className='grid grid-cols-2 gap-2';
   fields.innerHTML=`
-    <label class="dimension-field"><span>Largo</span><div class="dimension-input-wrap"><input class="dimension-input-prominent" type="number" min="0.30" max="${partitionFullLength(p.orientation).toFixed(2)}" step="0.05" value="${d.length.toFixed(2)}" onchange="updatePartitionDimension('length',this.value)"><small>m</small></div></label>
-    <label class="dimension-field"><span>Alto</span><div class="dimension-input-wrap"><input class="dimension-input-prominent" type="number" min="0.30" max="${maxHeight.toFixed(2)}" step="0.05" value="${d.height.toFixed(2)}" onchange="updatePartitionDimension('height',this.value)"><small>m</small></div></label>
-    <label class="dimension-field"><span>Espesor</span><div class="dimension-input-wrap"><input class="dimension-input-prominent" type="number" min="0.05" max="0.20" step="0.005" value="${d.thickness.toFixed(3)}" onchange="updatePartitionDimension('thickness',this.value)"><small>m</small></div></label>
-    <label class="dimension-field"><span>Altura desde piso</span><div class="dimension-input-wrap"><input class="dimension-input-prominent" type="number" min="0" max="${maxElevation.toFixed(2)}" step="0.05" value="${d.elevation.toFixed(2)}" onchange="updatePartitionDimension('elevation',this.value)"><small>m</small></div></label>`;
+    <label class="dimension-field"><span>Largo</span><div class="dimension-input-wrap"><input class="dimension-input-prominent" type="number" inputmode="decimal" min="0.30" max="${partitionFullLength(p.orientation).toFixed(2)}" step="0.05" value="${d.length.toFixed(2)}" onchange="updatePartitionDimension('length',this.value)"><small>m</small></div></label>
+    <label class="dimension-field"><span>Alto</span><div class="dimension-input-wrap"><input class="dimension-input-prominent" type="number" inputmode="decimal" min="0.30" max="${maxHeight.toFixed(2)}" step="0.05" value="${d.height.toFixed(2)}" onchange="updatePartitionDimension('height',this.value)"><small>m</small></div></label>
+    <label class="dimension-field"><span>Espesor</span><div class="dimension-input-wrap"><input class="dimension-input-prominent" type="number" inputmode="decimal" min="0.05" max="0.20" step="0.005" value="${d.thickness.toFixed(3)}" onchange="updatePartitionDimension('thickness',this.value)"><small>m</small></div></label>
+    <label class="dimension-field"><span>Altura desde piso</span><div class="dimension-input-wrap"><input class="dimension-input-prominent" type="number" inputmode="decimal" min="0" max="${maxElevation.toFixed(2)}" step="0.05" value="${d.elevation.toFixed(2)}" onchange="updatePartitionDimension('elevation',this.value)"><small>m</small></div></label>`;
 };
+
+function movePartitionDimensionEditorToTop(){
+  const panel=document.getElementById('object-editor');
+  const editor=document.getElementById('dimension-editor');
+  if(!panel||!editor) return;
+  const header=panel.firstElementChild;
+  if(header&&header.nextElementSibling!==editor) header.insertAdjacentElement('afterend',editor);
+  editor.classList.add('partition-dimensions-top');
+}
+
+function installPartitionDimensionTopStyle(){
+  if(document.getElementById('partition-dimensions-top-style')) return;
+  const style=document.createElement('style');
+  style.id='partition-dimensions-top-style';
+  style.textContent=`
+    #dimension-editor.partition-dimensions-top{margin-top:12px!important;padding:12px!important;background:rgba(245,158,11,.075)!important;border-color:rgba(245,158,11,.32)!important}
+    #dimension-editor.partition-dimensions-top [data-dimension-fields]{margin-top:9px}
+    #dimension-editor.partition-dimensions-top .dimension-field>span{font-size:10px!important;font-weight:800!important;color:#e2e8f0!important;display:block;margin-bottom:5px}
+    #dimension-editor.partition-dimensions-top input{background:rgba(15,23,42,.75)!important;border:1px solid rgba(245,158,11,.24)!important;color:#fff!important;font-weight:800!important}
+  `;
+  document.head.appendChild(style);
+}
 
 if(typeof dimensionSummaryText==='function'){
   const dimensionSummaryTextBeforePartitionTransform=dimensionSummaryText;
@@ -140,6 +162,17 @@ rebuildParametricPartitions=function(){
   }
 };
 
+const showEditorPanelBeforePartitionTransform=showEditorPanel;
+showEditorPanel=function(root){
+  showEditorPanelBeforePartitionTransform(root);
+  if(root?.userData.editor?.type==='partition'){
+    movePartitionDimensionEditorToTop();
+    renderDimensionEditor('partition',root.userData.editor.index);
+  }else{
+    document.getElementById('dimension-editor')?.classList.remove('partition-dimensions-top');
+  }
+};
+
 const resetSelectedDimensionsBeforePartitionTransform=resetSelectedDimensions;
 resetSelectedDimensions=function(){
   if(selectedEditable?.type!=='partition') return resetSelectedDimensionsBeforePartitionTransform();
@@ -157,7 +190,9 @@ resetSelectedDimensions=function(){
 };
 
 function bootPartitionTransform(){
+  installPartitionDimensionTopStyle();
   if(typeof installDimensionEditor==='function') installDimensionEditor();
+  if(selectedEditable?.type==='partition') movePartitionDimensionEditorToTop();
   rebuild3D();
 }
 
