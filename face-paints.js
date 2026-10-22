@@ -1,6 +1,9 @@
 // Customer-facing orientation cleanup + Explore/Edit controls for bat-kubiqueitor.
 // The actual A/B/C/D markers and direct selection live in face-select.js.
 
+const APP_ASSET_VERSION='20261022-5';
+function versionedAsset(name){ return `${name}?v=${APP_ASSET_VERSION}`; }
+
 function simplifyOrientationCopy(){
   document.querySelectorAll('span').forEach(el=>{
     const text=(el.textContent||'').trim();
@@ -138,7 +141,7 @@ function installInteractionModeControls(){
 function loadPartitionBoundsFixLayer(){
   if(document.querySelector('script[data-partition-bounds-fix]')) return;
   const script=document.createElement('script');
-  script.src='partition-bounds-fix.js';
+  script.src=versionedAsset('partition-bounds-fix.js');
   script.dataset.partitionBoundsFix='true';
   document.body.appendChild(script);
 }
@@ -149,7 +152,7 @@ function loadPartitionJointsLayer(){
     return;
   }
   const script=document.createElement('script');
-  script.src='partition-joints.js';
+  script.src=versionedAsset('partition-joints.js');
   script.dataset.partitionJoints='true';
   script.addEventListener('load',()=>setTimeout(loadPartitionBoundsFixLayer,20),{once:true});
   document.body.appendChild(script);
@@ -161,7 +164,7 @@ function loadPartitionLayer(){
     return;
   }
   const script=document.createElement('script');
-  script.src='partition-layout.js';
+  script.src=versionedAsset('partition-layout.js');
   script.dataset.partitionLayout='true';
   script.addEventListener('load',()=>setTimeout(loadPartitionJointsLayer,20),{once:true});
   document.body.appendChild(script);
@@ -173,7 +176,7 @@ function loadFurnitureLayer(){
     return;
   }
   const script=document.createElement('script');
-  script.src='furniture-toggle.js';
+  script.src=versionedAsset('furniture-toggle.js');
   script.dataset.furnitureToggle='true';
   script.addEventListener('load',()=>setTimeout(loadPartitionLayer,20),{once:true});
   document.body.appendChild(script);
@@ -185,7 +188,7 @@ function loadDimensionPanelLayer(){
     return;
   }
   const script=document.createElement('script');
-  script.src='dimension-panel.js';
+  script.src=versionedAsset('dimension-panel.js');
   script.dataset.dimensionPanel='true';
   script.addEventListener('load',()=>setTimeout(loadFurnitureLayer,20),{once:true});
   document.body.appendChild(script);
@@ -197,7 +200,7 @@ function loadDimensionsLayer(){
     return;
   }
   const script=document.createElement('script');
-  script.src='dimensions.js';
+  script.src=versionedAsset('dimensions.js');
   script.dataset.dimensions='true';
   script.addEventListener('load',()=>setTimeout(loadDimensionPanelLayer,20),{once:true});
   document.body.appendChild(script);
@@ -209,7 +212,7 @@ function bootOrientationUI(){
 
   if(!document.querySelector('script[data-face-select]')){
     const script=document.createElement('script');
-    script.src='face-select.js';
+    script.src=versionedAsset('face-select.js');
     script.dataset.faceSelect='true';
     script.addEventListener('load',()=>setTimeout(loadDimensionsLayer,20),{once:true});
     document.body.appendChild(script);
