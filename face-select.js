@@ -78,11 +78,31 @@ function removeOrientationToolbarButton(){
   document.getElementById('face-label-toggle')?.remove();
 }
 
+function removeObjectMovementButtons(){
+  const panel=document.getElementById('object-editor');
+  if(!panel) return;
+
+  const buttons=[...panel.querySelectorAll('button')];
+  const removable=new Set();
+
+  buttons.forEach(btn=>{
+    const action=btn.getAttribute('onclick')||'';
+    if(action.includes('nudgeSelected(')||action.includes('resetSelectedPosition()')){
+      const row=btn.parentElement;
+      if(row&&row!==panel) removable.add(row);
+      else btn.remove();
+    }
+  });
+
+  removable.forEach(row=>row.remove());
+}
+
 const installFaceUIBeforeDirectLabels=installFaceUI;
 installFaceUI=function(){
   installFaceUIBeforeDirectLabels();
   removeFacePickerModals();
   removeOrientationToolbarButton();
+  removeObjectMovementButtons();
 };
 
 // Kept only for compatibility with older calls. The A/B/C/D markers stay visible.
@@ -98,6 +118,7 @@ function beginDirectFaceSelection(type){
   faceLabelsVisible=true;
   removeFacePickerModals();
   removeOrientationToolbarButton();
+  removeObjectMovementButtons();
 
   if(typeof interactionMode!=='undefined'&&interactionMode==='explore'&&typeof setInteractionMode==='function'){
     setInteractionMode('edit');
@@ -121,6 +142,7 @@ closeMountedFacePicker=function(){
   faceSelectionActive=false;
   removeFacePickerModals();
   removeOrientationToolbarButton();
+  removeObjectMovementButtons();
   rebuild3D();
 };
 
@@ -187,6 +209,7 @@ function installDirectFaceSelection(){
   installFaceUI();
   removeFacePickerModals();
   removeOrientationToolbarButton();
+  removeObjectMovementButtons();
 
   const canvas=renderer?.domElement;
   if(canvas){
