@@ -77,17 +77,67 @@ function setPartitionCenterCoordinate(index,coord){
   return next;
 }
 
+function partitionFaceConfig(face){
+  if(face==='A') return {orientation:PARTITION_ORIENTATION.LONG,side:'far'};
+  if(face==='B') return {orientation:PARTITION_ORIENTATION.LONG,side:'near'};
+  if(face==='C') return {orientation:PARTITION_ORIENTATION.CROSS,side:'far'};
+  return {orientation:PARTITION_ORIENTATION.CROSS,side:'near'}; // D
+}
+
+function partitionSnappedFace(index){
+  const p=actualLayout('partition',index),b=partitionMovementBounds(index),coord=partitionCenterCoordinate(index);
+  const tolerance=.018;
+  if(Math.abs(coord-b.minCenter)<=tolerance) return b.nearLabel;
+  if(Math.abs(coord-b.maxCenter)<=tolerance) return b.farLabel;
+  return null;
+}
+
+function snapPartitionToFace(face){
+  if(!selectedEditable||selectedEditable.type!=='partition'||!['A','B','C','D'].includes(face)) return;
+  const {index}=selectedEditable;
+  const config=partitionFaceConfig(face);
+  const c=DATA.containers[state.container];
+  const current=objectDimensions('partition',index);
+
+  pushHistory();
+  ensureLayoutState();
+  ensureDimensionState();
+
+  // Change orientation without losing the dimensions chosen by the user.
+  const nextLength=clamp(current.length,.30,partitionFullLength(config.orientation));
+  state.dimensions.partition[index]={
+    ...state.dimensions.partition[index],
+    ...current,
+    length:nextLength,
+    height:clamp(current.height,.30,Math.max(.30,c.height-.06-(current.elevation||0))),
+    thickness:current.thickness||.075,
+    elevation:current.elevation||0
+  };
+  state.layout.partition[index]={
+    ...state.layout.partition[index],
+    orientation:config.orientation,
+    x:0,
+    z:0,
+    axisCenter:0,
+    joints:[]
+  };
+
+  // actualLayout now reflects the new orientation, so movement bounds are correct.
+  const b=partitionMovementBounds(index);
+  setPartitionCenterCoordinate(index,config.side==='far'?b.maxCenter:b.minCenter);
+
+  renderAll();
+  toast(`Tabique pegado a pared ${face}`);
+}
+
 function stickPartitionToWall(side){
   if(!selectedEditable||selectedEditable.type!=='partition') return;
   const {index}=selectedEditable;
   const b=partitionMovementBounds(index);
-  pushHistory();
-  setPartitionCenterCoordinate(index,side==='far'?b.maxCenter:b.minCenter);
-  renderAll();
-  toast(`Tabique pegado a pared ${side==='far'?b.farLabel:b.nearLabel}`);
+  return snapPartitionToFace(side==='far'?b.farLabel:b.nearLabel);
 }
 
-// Distance now means the real clear gap between the partition face and the near wall.
+// Distance means the real clear gap between the partition face and its near wall.
 updatePartitionPosition=function(value){
   if(!selectedEditable||selectedEditable.type!=='partition') return;
   const {index}=selectedEditable;
@@ -107,7 +157,7 @@ updatePartitionPosition=function(value){
   toast(gap<=.001?`Tabique pegado a pared ${b.nearLabel}`:`Separación: ${gap.toFixed(2)} m`);
 };
 
-// Override bounds so the actual wall thickness can touch, but never cross, the container lining.
+// The actual partition thickness may touch, but never cross, the inner lining.
 const validCandidateBeforeWallSnap=validCandidate;
 validCandidate=function(type,index,candidate){
   if(type!=='partition') return validCandidateBeforeWallSnap(type,index,candidate);
@@ -121,10 +171,11 @@ validCandidate=function(type,index,candidate){
 function renderPartitionWallControls(index){
   const block=document.getElementById('partition-layout-editor');
   if(!block) return;
-  const p=actualLayout('partition',index),b=partitionMovementBounds(index),d=objectDimensions('partition',index);
+  const b=partitionMovementBounds(index),d=objectDimensions('partition',index);
   const input=document.getElementById('partition-position-input');
   const label=document.getElementById('partition-position-label');
   const maxGap=Math.max(0,b.maxWall-b.minWall-(d.thickness||.075));
+  const activeFace=partitionSnappedFace(index);
 
   if(label) label.textContent=`Separación desde pared ${b.nearLabel}`;
   if(input){
@@ -134,24 +185,38 @@ function renderPartitionWallControls(index){
     input.value=partitionGapFromNearWall(index).toFixed(2);
   }
 
-  let controls=document.getElementById('partition-wall-buttons');
-  if(!controls){
-    controls=document.createElement('div');
-    controls.id='partition-wall-buttons';
-    controls.className='grid grid-cols-2 gap-2 mt-2';
+  let wrap=document.getElementById('partition-wall-snap-wrap');
+  if(!wrap){
+    wrap=document.createElement('div');
+    wrap.id='partition-wall-snap-wrap';
+    wrap.className='mt-3';
     const field=block.querySelector('.partition-position-field');
-    field?.insertAdjacentElement('afterend',controls);
+    field?.insertAdjacentElement('afterend',wrap);
   }
-  controls.innerHTML=`
-    <button type="button" class="partition-wall-btn" onclick="stickPartitionToWall('near')"><i class="fa-solid fa-arrow-left-long"></i> Pegar a ${b.nearLabel}</button>
-    <button type="button" class="partition-wall-btn" onclick="stickPartitionToWall('far')">Pegar a ${b.farLabel} <i class="fa-solid fa-arrow-right-long"></i></button>`;
+
+  const colors={A:'#f59e0b',B:'#38bdf8',C:'#22c55e',D:'#a78bfa'};
+  wrap.innerHTML=`
+    <div class="partition-wall-title">PEGAR TABIQUE A PARED</div>
+    <div id="partition-wall-buttons" class="partition-wall-grid">
+      ${['A','B','C','D'].map(face=>`
+        <button type="button" class="partition-wall-face-btn ${activeFace===face?'active':''}" onclick="snapPartitionToFace('${face}')" title="Pegar tabique a pared ${face}">
+          <span class="partition-wall-letter" style="--face-color:${colors[face]}">${face}</span>
+          <span>Pared ${face}</span>
+        </button>`).join('')}
+    </div>
+    <div class="partition-wall-help">A/B lo orientan a lo largo · C/D lo orientan a lo ancho</div>`;
 
   if(!document.getElementById('partition-wall-style')){
     const style=document.createElement('style');
     style.id='partition-wall-style';
     style.textContent=`
-      .partition-wall-btn{border:1px solid rgba(245,158,11,.28);background:rgba(245,158,11,.09);color:#fde68a;border-radius:9px;padding:8px 6px;font-size:10px;font-weight:850;transition:.15s ease}
-      .partition-wall-btn:hover{background:#f59e0b;color:#0f172a;border-color:#fbbf24}
+      .partition-wall-title{font-size:9px;font-weight:900;letter-spacing:.12em;color:#94a3b8;margin-bottom:7px}
+      .partition-wall-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+      .partition-wall-face-btn{display:flex;align-items:center;justify-content:flex-start;gap:8px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.055);color:#e2e8f0;border-radius:10px;padding:8px 9px;font-size:10px;font-weight:850;transition:.15s ease}
+      .partition-wall-face-btn:hover{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.35)}
+      .partition-wall-face-btn.active{background:rgba(245,158,11,.16);border-color:#f59e0b;color:#fff}
+      .partition-wall-letter{width:25px;height:25px;border-radius:8px;display:grid;place-items:center;background:color-mix(in srgb,var(--face-color) 24%,transparent);border:1px solid var(--face-color);color:var(--face-color);font-size:12px;font-weight:950}
+      .partition-wall-help{font-size:9px;color:#64748b;margin-top:7px;line-height:1.35}
     `;
     document.head.appendChild(style);
   }
