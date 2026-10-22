@@ -5,6 +5,21 @@
   let partitionClipboard=null;
   const COPY_OFFSET=.35;
 
+  function loadFinalProductivityTools(){
+    if(!document.querySelector('script[data-apu-price-master]')){
+      const apu=document.createElement('script');
+      apu.src=(typeof finalVersionedAsset==='function'?finalVersionedAsset('apu-price-master.js'):'apu-price-master.js?v=20261022-11');
+      apu.dataset.apuPriceMaster='true';
+      document.body.appendChild(apu);
+    }
+    if(!document.querySelector('script[data-multi-select-copy]')){
+      const multi=document.createElement('script');
+      multi.src=(typeof finalVersionedAsset==='function'?finalVersionedAsset('multi-select-copy.js'):'multi-select-copy.js?v=20261022-11');
+      multi.dataset.multiSelectCopy='true';
+      document.body.appendChild(multi);
+    }
+  }
+
   function ready(){
     return typeof state!=='undefined'&&typeof DATA!=='undefined'&&typeof actualLayout==='function'&&
       typeof objectDimensions==='function'&&typeof ensureLayoutState==='function'&&
@@ -168,6 +183,7 @@
       if(root) renderDuplicateButton(root);
     }
     window.BAT_KUBIQUEITOR_PARTITION_DUPLICATE=true;
+    setTimeout(loadFinalProductivityTools,20);
     return true;
   }
 
