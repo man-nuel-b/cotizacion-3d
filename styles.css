@@ -24,6 +24,27 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(245,158,11,.
 #canvas-container canvas { display: block; width: 100%; height: 100%; cursor: grab; }
 #canvas-container canvas:active { cursor: grabbing; }
 
+/* Direct 3D editor stays inside the viewport as controls grow. */
+#object-editor {
+  max-height: calc(100% - 96px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245,158,11,.72) rgba(255,255,255,.05);
+}
+#object-editor::-webkit-scrollbar { width: 8px; }
+#object-editor::-webkit-scrollbar-track {
+  background: rgba(255,255,255,.04);
+  border-radius: 999px;
+}
+#object-editor::-webkit-scrollbar-thumb {
+  background: rgba(245,158,11,.66);
+  border-radius: 999px;
+  border: 2px solid rgba(15,23,42,.92);
+}
+#object-editor::-webkit-scrollbar-thumb:hover { background: rgba(245,158,11,.92); }
+
 .step-chip { transition: all .18s ease; }
 .step-chip.active { background: #fff7ed; border-color: #f59e0b; color: #92400e; }
 .option-card { transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease, background .16s ease; }
@@ -152,6 +173,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(245,158,11,.
   .scene-badge { display: none; }
   .viewer-toolbar { left: 10px; right: 10px; top: 10px; max-width: none; justify-content: flex-start; }
   .viewer-pill { padding: 7px 9px !important; }
+  #object-editor { max-height: calc(100% - 88px); }
   .presentation-mode .viewer-toolbar { top: 68px; }
   .presentation-mode .viewer-help { left: 14px; bottom: 14px; }
 }
