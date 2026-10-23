@@ -1,20 +1,20 @@
 // Loads per-partition finishes after the complete partition tool chain is installed.
-// One render authority only: state integrity -> Cutaway workspace. The old live-refresh
-// layer is intentionally no longer loaded because it rebuilt partitions a second time.
+// One render authority only. The fast interaction layer is loaded last so no later
+// module can replace the optimized drag handlers.
 (function(){
   if(window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER) return;
   window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER=true;
 
   function asset(name){
-    return typeof finalVersionedAsset==='function'?finalVersionedAsset(name):`${name}?v=20261023-39`;
+    return typeof finalVersionedAsset==='function'?finalVersionedAsset(name):`${name}?v=20261023-41`;
   }
 
   function loadScriptOnce(attr,name,onReady){
     const selector=`script[${attr}]`;
     const existing=document.querySelector(selector);
     if(existing){
-      if(existing.dataset.loaded==='true') setTimeout(onReady,0);
-      else existing.addEventListener('load',onReady,{once:true});
+      if(existing.dataset.loaded==='true') setTimeout(()=>onReady?.(),0);
+      else if(onReady) existing.addEventListener('load',onReady,{once:true});
       return;
     }
     const script=document.createElement('script');
@@ -24,22 +24,21 @@
     document.body.appendChild(script);
   }
 
-  function loadCutawayWorkspace(){
-    loadScriptOnce('data-cutaway-workspace','cutaway-workspace.js',()=>{});
+  function loadInteractionPerformance(){
+    loadScriptOnce('data-interaction-performance','interaction-performance.js',()=>{});
   }
-
+  function loadCutawayWorkspace(){
+    loadScriptOnce('data-cutaway-workspace','cutaway-workspace.js',loadInteractionPerformance);
+  }
   function loadStateIntegrity(){
     loadScriptOnce('data-partition-state-integrity','partition-state-integrity.js',loadCutawayWorkspace);
   }
-
   function loadInteriorDoorExtra(){
     loadScriptOnce('data-interior-door-extra','interior-door-extra.js',loadStateIntegrity);
   }
-
   function loadOrientationControls(){
     loadScriptOnce('data-object-orientation-controls','object-orientation-controls.js',loadInteriorDoorExtra);
   }
-
   function continueAfterPartitionFaces(){
     setTimeout(loadOrientationControls,0);
   }
