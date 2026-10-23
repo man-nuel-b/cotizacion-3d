@@ -4,14 +4,28 @@
   window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER=true;
 
   function asset(name){
-    return typeof finalVersionedAsset==='function'?finalVersionedAsset(name):`${name}?v=20261023-33`;
+    return typeof finalVersionedAsset==='function'?finalVersionedAsset(name):`${name}?v=20261023-34`;
+  }
+
+  function loadStateIntegrity(){
+    if(document.querySelector('script[data-partition-state-integrity]')) return;
+    const script=document.createElement('script');
+    script.src=asset('partition-state-integrity.js');
+    script.dataset.partitionStateIntegrity='true';
+    document.body.appendChild(script);
   }
 
   function loadInteriorDoorExtra(){
-    if(document.querySelector('script[data-interior-door-extra]')) return;
+    const existing=document.querySelector('script[data-interior-door-extra]');
+    if(existing){
+      if(window.BAT_KUBIQUEITOR_INTERIOR_DOOR_EXTRA) setTimeout(loadStateIntegrity,20);
+      else existing.addEventListener('load',()=>setTimeout(loadStateIntegrity,20),{once:true});
+      return;
+    }
     const script=document.createElement('script');
     script.src=asset('interior-door-extra.js');
     script.dataset.interiorDoorExtra='true';
+    script.addEventListener('load',()=>setTimeout(loadStateIntegrity,20),{once:true});
     document.body.appendChild(script);
   }
 
