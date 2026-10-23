@@ -4,14 +4,28 @@
   window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER=true;
 
   function asset(name){
-    return typeof finalVersionedAsset==='function'?finalVersionedAsset(name):`${name}?v=20261023-34`;
+    return typeof finalVersionedAsset==='function'?finalVersionedAsset(name):`${name}?v=20261023-36`;
+  }
+
+  function loadLiveRefresh(){
+    if(document.querySelector('script[data-partition-live-refresh]')) return;
+    const script=document.createElement('script');
+    script.src=asset('partition-live-refresh.js');
+    script.dataset.partitionLiveRefresh='true';
+    document.body.appendChild(script);
   }
 
   function loadStateIntegrity(){
-    if(document.querySelector('script[data-partition-state-integrity]')) return;
+    const existing=document.querySelector('script[data-partition-state-integrity]');
+    if(existing){
+      if(window.BAT_KUBIQUEITOR_PARTITION_STATE_INTEGRITY) setTimeout(loadLiveRefresh,20);
+      else existing.addEventListener('load',()=>setTimeout(loadLiveRefresh,20),{once:true});
+      return;
+    }
     const script=document.createElement('script');
     script.src=asset('partition-state-integrity.js');
     script.dataset.partitionStateIntegrity='true';
+    script.addEventListener('load',()=>setTimeout(loadLiveRefresh,20),{once:true});
     document.body.appendChild(script);
   }
 
