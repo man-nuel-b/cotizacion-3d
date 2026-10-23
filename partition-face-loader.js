@@ -6,7 +6,7 @@
   window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER=true;
 
   function asset(name){
-    return typeof finalVersionedAsset==='function'?finalVersionedAsset(name):`${name}?v=20261023-41`;
+    return typeof finalVersionedAsset==='function'?finalVersionedAsset(name):`${name}?v=20261023-42`;
   }
 
   function loadScriptOnce(attr,name,onReady){
