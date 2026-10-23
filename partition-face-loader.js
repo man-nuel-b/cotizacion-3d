@@ -1,74 +1,47 @@
-// Loads per-partition finishes only after the complete partition tool chain is installed.
+// Loads per-partition finishes after the complete partition tool chain is installed.
+// One render authority only: state integrity -> Cutaway workspace. The old live-refresh
+// layer is intentionally no longer loaded because it rebuilt partitions a second time.
 (function(){
   if(window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER) return;
   window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER=true;
 
   function asset(name){
-    return typeof finalVersionedAsset==='function'?finalVersionedAsset(name):`${name}?v=20261023-37`;
+    return typeof finalVersionedAsset==='function'?finalVersionedAsset(name):`${name}?v=20261023-39`;
+  }
+
+  function loadScriptOnce(attr,name,onReady){
+    const selector=`script[${attr}]`;
+    const existing=document.querySelector(selector);
+    if(existing){
+      if(existing.dataset.loaded==='true') setTimeout(onReady,0);
+      else existing.addEventListener('load',onReady,{once:true});
+      return;
+    }
+    const script=document.createElement('script');
+    script.src=asset(name);
+    script.setAttribute(attr,'true');
+    script.addEventListener('load',()=>{script.dataset.loaded='true';onReady?.();},{once:true});
+    document.body.appendChild(script);
   }
 
   function loadCutawayWorkspace(){
-    if(document.querySelector('script[data-cutaway-workspace]')) return;
-    const script=document.createElement('script');
-    script.src=asset('cutaway-workspace.js');
-    script.dataset.cutawayWorkspace='true';
-    document.body.appendChild(script);
-  }
-
-  function loadLiveRefresh(){
-    const existing=document.querySelector('script[data-partition-live-refresh]');
-    if(existing){
-      if(window.BAT_KUBIQUEITOR_PARTITION_LIVE_REFRESH) setTimeout(loadCutawayWorkspace,20);
-      else existing.addEventListener('load',()=>setTimeout(loadCutawayWorkspace,20),{once:true});
-      return;
-    }
-    const script=document.createElement('script');
-    script.src=asset('partition-live-refresh.js');
-    script.dataset.partitionLiveRefresh='true';
-    script.addEventListener('load',()=>setTimeout(loadCutawayWorkspace,20),{once:true});
-    document.body.appendChild(script);
+    loadScriptOnce('data-cutaway-workspace','cutaway-workspace.js',()=>{});
   }
 
   function loadStateIntegrity(){
-    const existing=document.querySelector('script[data-partition-state-integrity]');
-    if(existing){
-      if(window.BAT_KUBIQUEITOR_PARTITION_STATE_INTEGRITY) setTimeout(loadLiveRefresh,20);
-      else existing.addEventListener('load',()=>setTimeout(loadLiveRefresh,20),{once:true});
-      return;
-    }
-    const script=document.createElement('script');
-    script.src=asset('partition-state-integrity.js');
-    script.dataset.partitionStateIntegrity='true';
-    script.addEventListener('load',()=>setTimeout(loadLiveRefresh,20),{once:true});
-    document.body.appendChild(script);
+    loadScriptOnce('data-partition-state-integrity','partition-state-integrity.js',loadCutawayWorkspace);
   }
 
   function loadInteriorDoorExtra(){
-    const existing=document.querySelector('script[data-interior-door-extra]');
-    if(existing){
-      if(window.BAT_KUBIQUEITOR_INTERIOR_DOOR_EXTRA) setTimeout(loadStateIntegrity,20);
-      else existing.addEventListener('load',()=>setTimeout(loadStateIntegrity,20),{once:true});
-      return;
-    }
-    const script=document.createElement('script');
-    script.src=asset('interior-door-extra.js');
-    script.dataset.interiorDoorExtra='true';
-    script.addEventListener('load',()=>setTimeout(loadStateIntegrity,20),{once:true});
-    document.body.appendChild(script);
+    loadScriptOnce('data-interior-door-extra','interior-door-extra.js',loadStateIntegrity);
   }
 
   function loadOrientationControls(){
-    const existing=document.querySelector('script[data-object-orientation-controls]');
-    if(existing){
-      if(window.BAT_KUBIQUEITOR_OBJECT_ORIENTATION) setTimeout(loadInteriorDoorExtra,20);
-      else existing.addEventListener('load',()=>setTimeout(loadInteriorDoorExtra,20),{once:true});
-      return;
-    }
-    const script=document.createElement('script');
-    script.src=asset('object-orientation-controls.js');
-    script.dataset.objectOrientationControls='true';
-    script.addEventListener('load',()=>setTimeout(loadInteriorDoorExtra,20),{once:true});
-    document.body.appendChild(script);
+    loadScriptOnce('data-object-orientation-controls','object-orientation-controls.js',loadInteriorDoorExtra);
+  }
+
+  function continueAfterPartitionFaces(){
+    setTimeout(loadOrientationControls,0);
   }
 
   let tries=0;
@@ -76,16 +49,12 @@
     tries++;
     if(window.BAT_KUBIQUEITOR_PARTITION_FACES){
       clearInterval(timer);
-      setTimeout(loadOrientationControls,20);
+      continueAfterPartitionFaces();
       return;
     }
     if(window.BAT_KUBIQUEITOR_PARTITION_DUPLICATE && typeof finalVersionedAsset==='function'){
       clearInterval(timer);
-      const script=document.createElement('script');
-      script.src=finalVersionedAsset('partition-face-finishes.js');
-      script.dataset.partitionFaceFinishes='true';
-      script.addEventListener('load',()=>setTimeout(loadOrientationControls,20),{once:true});
-      document.body.appendChild(script);
+      loadScriptOnce('data-partition-face-finishes','partition-face-finishes.js',continueAfterPartitionFaces);
       return;
     }
     if(tries>200) clearInterval(timer);
