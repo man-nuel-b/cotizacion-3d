@@ -184,12 +184,14 @@
   }
 
   function addCeilingFinish(group,c,material){
-    // La cara E debe conservar su revestimiento también en Corte 3D.
-    const y=c.height-.225,minX=-c.length/2+.15,maxX=c.length/2-.15,minZ=-c.width/2+.15,maxZ=c.width/2-.15;
+    const y=c.height-.235,minX=-c.length/2+.15,maxX=c.length/2-.15,minZ=-c.width/2+.15,maxZ=c.width/2-.15;
     intervals(minX,maxX,SHEET_H).forEach(([x1,x2])=>intervals(minZ,maxZ,SHEET_W).forEach(([z1,z2])=>{
       const w=x2-x1-PANEL_GAP,d=z2-z1-PANEL_GAP;
       if(w<=.035||d<=.035) return;
-      group.add(box(w,.018,d,material,(x1+x2)/2,y,(z1+z2)/2));
+      const panel=box(w,.022,d,material,(x1+x2)/2,y,(z1+z2)/2);
+      panel.userData.face='E';
+      panel.renderOrder=5;
+      group.add(panel);
     }));
   }
 
@@ -214,10 +216,14 @@
     const insulation=buildInsulationGroup();
     const finish=buildFinishGroup();
 
-    // Las dos capas siempre se construyen y permanecen en la escena.
-    // Para inspeccionar aislación se oculta temporalmente el revestimiento.
-    insulation.visible=s.previewLayer!=='framing';
-    finish.visible=s.previewLayer!=='framing'&&s.previewLayer!=='insulation';
+    const inspectingFraming=s.previewLayer==='framing';
+    const inspectingInsulation=s.previewLayer==='insulation';
+    const inspectingLining=s.previewLayer==='lining';
+
+    // Cada modo muestra la capa que se está editando sin que otra capa la tape.
+    // En modo assembly se conserva la composición física completa.
+    insulation.visible=!inspectingFraming&&!inspectingLining;
+    finish.visible=!inspectingFraming&&!inspectingInsulation;
 
     containerGroup.add(insulation);
     containerGroup.add(finish);
@@ -237,6 +243,15 @@
     wrap('selectInteriorFraming','framing');
     wrap('selectInteriorInsulation','insulation');
     wrap('selectInteriorLining','lining');
+
+    if(typeof window.setView==='function'){
+      const baseSetView=window.setView;
+      window.setView=function(view,...args){
+        if(view==='interior'||view==='exterior') assemblyState().previewLayer='assembly';
+        return baseSetView.call(this,view,...args);
+      };
+    }
+
     window.BAT_KUBIQUEITOR_ASSEMBLY_PREVIEW_HOOKS=true;
   }
 
