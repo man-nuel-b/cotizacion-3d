@@ -1,4 +1,5 @@
 // Cutaway is the authoritative live workspace for project editing.
+// Performance rule: verify only after structural/count changes, not after every renderAll().
 (function(){
   if(window.BAT_KUBIQUEITOR_CUTAWAY_WORKSPACE) return;
 
@@ -111,13 +112,8 @@
     if(installed||!ready())return false;
     installed=true;
 
-    const baseRenderAll=renderAll;
-    renderAll=function(...args){
-      const result=baseRenderAll.apply(this,args);
-      if(isCutaway())scheduleVerification();
-      return result;
-    };
-
+    // Do NOT wrap renderAll. Normal UI refreshes and object movement must not trigger
+    // another Cutaway verification/rebuild. Count-changing actions below are enough.
     const baseAdjustCount=typeof adjustCount==='function'?adjustCount:null;
     if(baseAdjustCount){
       adjustCount=function(key,delta){
@@ -145,7 +141,8 @@
     if(baseRedo)redo=function(...args){const r=baseRedo.apply(this,args);if(isCutaway())scheduleVerification();return r;};
 
     window.syncCutawayWorkspace=function(){hardSyncCutaway({force:true});};
-    window.BAT_KUBIQUEITOR_CUTAWAY_WORKSPACE={version:3,expected,actual,sync:window.syncCutawayWorkspace};
+    window.refreshCutawayPresentation=refreshCutawayPresentation;
+    window.BAT_KUBIQUEITOR_CUTAWAY_WORKSPACE={version:4,expected,actual,sync:window.syncCutawayWorkspace,refresh:refreshCutawayPresentation};
     if(isCutaway())scheduleVerification();
     return true;
   }
