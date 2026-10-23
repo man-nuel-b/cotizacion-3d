@@ -5,6 +5,7 @@
   if(typeof THREE==='undefined'||typeof createContainerShell!=='function'||typeof box!=='function'||typeof mat!=='function') return;
 
   const originalCreateContainerShell=createContainerShell;
+  const INTERIOR_SHELL_COLOR=0xf1f5f9;
 
   function tone(color,factor){
     return new THREE.Color(color).multiplyScalar(factor);
@@ -26,12 +27,70 @@
     return mesh;
   }
 
+  function wallOpenings(face,c){
+    if(typeof windowsForFace!=='function') return [];
+    try{return windowsForFace(face,c)||[];}catch(e){return [];}
+  }
+
+  function subtractRect(rect,cut){
+    const ix1=Math.max(rect.x1,cut.x1),ix2=Math.min(rect.x2,cut.x2),iy1=Math.max(rect.y1,cut.y1),iy2=Math.min(rect.y2,cut.y2);
+    if(ix1>=ix2||iy1>=iy2) return [rect];
+    const out=[];
+    if(rect.x1<ix1) out.push({x1:rect.x1,x2:ix1,y1:rect.y1,y2:rect.y2});
+    if(ix2<rect.x2) out.push({x1:ix2,x2:rect.x2,y1:rect.y1,y2:rect.y2});
+    if(rect.y1<iy1) out.push({x1:ix1,x2:ix2,y1:rect.y1,y2:iy1});
+    if(iy2<rect.y2) out.push({x1:ix1,x2:ix2,y1:iy2,y2:rect.y2});
+    return out.filter(r=>r.x2-r.x1>.035&&r.y2-r.y1>.035);
+  }
+
+  function subtractOpenings(rect,openings){
+    let parts=[rect];
+    openings.forEach(open=>{
+      const center=Number(open.center)||0;
+      const width=Math.max(.05,Number(open.width)||0);
+      const bottom=Number.isFinite(Number(open.bottom))?Number(open.bottom):.10;
+      const top=Number.isFinite(Number(open.top))?Number(open.top):999;
+      const cut={x1:center-width/2-.018,x2:center+width/2+.018,y1:bottom-.018,y2:top+.018};
+      parts=parts.flatMap(part=>subtractRect(part,cut));
+    });
+    return parts;
+  }
+
+  function addInteriorLongSkin(g,face,c,material){
+    if(state.cutaway&&face==='A') return;
+    const L=c.length,H=c.height,W=c.width;
+    const z=face==='A'?W/2-.071:-W/2+.071;
+    const rect={x1:-L/2+.15,x2:L/2-.15,y1:.15,y2:H-.15};
+    subtractOpenings(rect,wallOpenings(face,c)).forEach(r=>{
+      addBox(g,r.x2-r.x1,r.y2-r.y1,.012,material,(r.x1+r.x2)/2,(r.y1+r.y2)/2,z,`container-interior-${face}`);
+    });
+  }
+
+  function addInteriorEndSkin(g,face,c,material){
+    const L=c.length,H=c.height,W=c.width;
+    const x=face==='C'?L/2-.079:-L/2+.079;
+    const rect={x1:-W/2+.15,x2:W/2-.15,y1:.15,y2:H-.15};
+    subtractOpenings(rect,wallOpenings(face,c)).forEach(r=>{
+      addBox(g,.012,r.y2-r.y1,r.x2-r.x1,material,x,(r.y1+r.y2)/2,(r.x1+r.x2)/2,`container-interior-${face}`);
+    });
+  }
+
+  function addUnifiedInteriorShell(g,c){
+    const material=mat(INTERIOR_SHELL_COLOR,{roughness:.78,metalness:.01});
+    addInteriorLongSkin(g,'A',c,material);
+    addInteriorLongSkin(g,'B',c,material);
+    addInteriorEndSkin(g,'C',c,material);
+    addInteriorEndSkin(g,'D',c,material);
+    if(!state.cutaway){
+      addBox(g,c.length-.30,.012,c.width-.30,material,0,c.height-.073,0,'container-interior-E');
+    }
+  }
+
   function addCornerCasting(g,x,y,z,frameMat,darkMat){
     const casting=new THREE.Group();
     casting.name='container-corner-casting';
     addBox(casting,.225,.175,.225,frameMat,0,0,0);
 
-    // Dark recessed discs simulate the characteristic ISO casting holes without expensive booleans.
     const sideHole=new THREE.Mesh(new THREE.CylinderGeometry(.044,.044,.006,18),darkMat);
     sideHole.rotation.z=Math.PI/2;
     sideHole.position.x=x>0?.114:-.114;
@@ -95,13 +154,11 @@
   }
 
   function addBaseDetails(g,L,W,frameMat,darkMat){
-    // Main lower rails.
     addBox(g,L-.10,.145,.115,frameMat,0,.055,-W/2,'container-bottom-rail');
     addBox(g,L-.10,.145,.115,frameMat,0,.055,W/2,'container-bottom-rail');
     addBox(g,.115,.145,W-.10,frameMat,-L/2,.055,0,'container-bottom-end-rail');
     addBox(g,.115,.145,W-.10,frameMat,L/2,.055,0,'container-bottom-end-rail');
 
-    // Under-floor cross members give a much stronger shipping-container silhouette.
     const crossSpacing=.48;
     const count=Math.floor((L-.50)/crossSpacing);
     for(let i=0;i<=count;i++){
@@ -109,7 +166,6 @@
       addBox(g,.055,.075,W-.24,darkMat,x,-.018,0,'container-crossmember');
     }
 
-    // Forklift pockets, most visible on the long elevations.
     if(L<8){
       [-.62,.62].forEach(offset=>{
         const pocket=new THREE.Mesh(new THREE.BoxGeometry(.34,.075,.012),darkMat);
@@ -136,7 +192,6 @@
   }
 
   function addWeldSeams(g,L,W,H,seamMat){
-    // Fine seams prevent the shell from reading as perfectly computer-clean.
     [-W/2,W/2].forEach(z=>{
       if(state.cutaway&&z>0) return;
       addBox(g,L-.32,.010,.009,seamMat,0,.18,z+(z>0?.066:-.066),'container-weld-seam');
@@ -155,20 +210,16 @@
     const edgeMat=metal(tone(baseColor,.42),.39,.64);
     const darkMat=metal(0x121923,.48,.58);
     const seamMat=metal(tone(baseColor,.34),.50,.42);
-    const interior=materials.interior;
     const floor=materials.floor;
 
-    // Floor/deck kept at the exact legacy elevation for furniture and partitions.
     addBox(g,L,.14,W,floor,0,.02,0,'container-floor-deck');
 
-    // Main sheet panels. Their coordinates match the original model.
     addBox(g,.064,H-.18,W-.20,exterior,-L/2,H/2,0,'container-end-D');
     addBox(g,.064,H-.18,W-.20,exterior,L/2,H/2,0,'container-end-C');
     addBox(g,L-.20,H-.18,.046,exterior,0,H/2,-W/2,'container-wall-B');
     if(!state.cutaway) addBox(g,L-.20,H-.18,.046,exterior,0,H/2,W/2,'container-wall-A');
 
-    // Inner back skin preserves the existing cutaway/interior depth cue.
-    addBox(g,L-.28,H-.28,.016,interior,0,H/2,-W/2+.055,'container-inner-skin');
+    addUnifiedInteriorShell(g,c);
 
     addBaseDetails(g,L,W,frameMat,darkMat);
     addTopRails(g,L,W,H,frameMat);
@@ -180,21 +231,20 @@
     addEndCorrugation(g,W,H,L/2,'C',baseColor);
     addWeldSeams(g,L,W,H,seamMat);
 
-    // ISO corner castings: 4 lower + 4 upper.
     [-L/2,L/2].forEach(x=>[-W/2,W/2].forEach(z=>{
       addCornerCasting(g,x,.085,z,edgeMat,darkMat);
       addCornerCasting(g,x,H-.075,z,edgeMat,darkMat);
     }));
 
     g.userData.realisticContainer=true;
+    g.userData.interiorShellColor=INTERIOR_SHELL_COLOR;
     return g;
   }
 
   createContainerShell=realisticContainerShell;
   window.createContainerShell=createContainerShell;
-  window.BAT_KUBIQUEITOR_CONTAINER_REALISM={version:1,legacy:originalCreateContainerShell};
+  window.BAT_KUBIQUEITOR_CONTAINER_REALISM={version:2,legacy:originalCreateContainerShell,interiorColor:INTERIOR_SHELL_COLOR};
 
-  // If this module is loaded after the initial scene boot, refresh immediately.
   if(typeof containerGroup!=='undefined'&&containerGroup&&typeof rebuild3D==='function'){
     try{rebuild3D();}catch(e){console.warn('Container realism rebuild skipped',e);}
   }
