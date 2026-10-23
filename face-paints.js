@@ -99,7 +99,7 @@ function loadPartitionLayer(){
 }
 function loadFurnitureLayer(){
   if(document.querySelector('script[data-furniture-toggle]')){ setTimeout(loadPartitionLayer,20); return; }
-  const script=document.createElement('script'); script.src=versionedAsset('furniture-toggle.js'); script.datasetFurnitureToggle='true'; script.addEventListener('load',()=>setTimeout(loadPartitionLayer,20),{once:true}); document.body.appendChild(script);
+  const script=document.createElement('script'); script.src=versionedAsset('furniture-toggle.js'); script.dataset.furnitureToggle='true'; script.addEventListener('load',()=>setTimeout(loadPartitionLayer,20),{once:true}); document.body.appendChild(script);
 }
 function loadDimensionPanelLayer(){
   if(document.querySelector('script[data-dimension-panel]')){ setTimeout(loadFurnitureLayer,20); return; }
