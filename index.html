@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
-  <link rel="stylesheet" href="styles.css?v=20261022-27" />
+  <link rel="stylesheet" href="styles.css?v=20261022-28" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 </head>
@@ -120,11 +120,12 @@
 <div id="quote-modal" class="fixed inset-0 z-50 modal-backdrop hidden items-center justify-center p-4"><div class="modal-panel bg-white w-full max-w-4xl rounded-2xl shadow-2xl flex flex-col"><div class="px-5 py-4 border-b flex justify-between no-print"><div><h3 class="font-black text-lg">Propuesta comercial</h3><p class="text-xs text-slate-500">Vista previa para cliente.</p></div><div class="flex gap-2"><button onclick="window.print()" class="bg-amber-500 px-4 py-2 rounded-xl text-sm font-black">Imprimir / PDF</button><button onclick="closeModal('quote-modal')" class="w-9 h-9 rounded-full bg-slate-100"><i class="fa-solid fa-xmark"></i></button></div></div><div class="modal-body"><div id="quote-print" class="p-7 md:p-9"><div class="flex justify-between border-b pb-5"><div><div class="text-2xl font-black">PROPUESTA MODULAR</div><div class="text-xs text-slate-500">Configuración preliminar 3D · bat-kubiqueitor</div></div><div class="text-right text-xs"><div id="quote-number" class="font-black text-amber-600">—</div><div id="quote-date" class="text-slate-500">—</div></div></div><div class="grid md:grid-cols-2 gap-6 mt-6"><div><div class="text-[11px] font-black uppercase text-slate-400 mb-2">Cliente</div><div id="quote-customer" class="text-sm"></div></div><div><div class="text-[11px] font-black uppercase text-slate-400 mb-2">Proyecto</div><div id="quote-project" class="text-sm"></div></div></div><div class="mt-6 rounded-xl overflow-hidden border bg-slate-950"><img id="quote-render" class="w-full h-64 object-contain" alt="Render 3D"></div><div class="grid md:grid-cols-2 gap-6 mt-6"><div><div class="text-[11px] font-black uppercase text-slate-400 mb-2">Configuración</div><div id="quote-items" class="space-y-2 text-xs"></div></div><div class="rounded-2xl bg-slate-950 text-white p-5"><div class="text-[11px] uppercase text-slate-400">Total estimado</div><div id="quote-total" class="text-3xl font-black">$0</div><div class="text-xs text-slate-400">IVA incluido</div></div></div><div class="mt-7 pt-4 border-t text-[11px] text-slate-500">Representación comercial preliminar; requiere validación técnica antes de fabricación.</div></div></div></div></div>
 
 <div id="toast" class="toast"></div>
-<script src="app.js?v=20261022-27"></script>
-<script src="progressive-build-start.js?v=20261022-27"></script>
-<script src="container-realism.js?v=20261022-27"></script>
-<script src="editor.js?v=20261022-27"></script>
-<script src="faces-mounted.js?v=20261022-27"></script>
-<script src="face-paints.js?v=20261022-27"></script>
+<script src="app.js?v=20261022-28"></script>
+<script src="progressive-build-start.js?v=20261022-28"></script>
+<script src="container-realism.js?v=20261022-28"></script>
+<script src="editor.js?v=20261022-28"></script>
+<script src="faces-mounted.js?v=20261022-28"></script>
+<script src="face-paints.js?v=20261022-28"></script>
+<script src="partition-face-loader.js?v=20261022-28"></script>
 </body>
 </html>
