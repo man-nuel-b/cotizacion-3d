@@ -78,6 +78,7 @@
   }
 
   function withProvisionalDimensions(type,index,dims,fn){
+    if(!dims||typeof ensureDimensionState==='function'&&false) return fn();
     if(!dims||typeof ensureDimensionState!=='function'||typeof supportsDimensions!=='function'||!supportsDimensions(type)) return fn();
     ensureDimensionState();
     if(!Array.isArray(state.dimensions[type])) state.dimensions[type]=[];
@@ -114,7 +115,7 @@
         const distance=COPY_STEP*step;
         for(const sign of [1,-1]){
           const value=Math.round((base+distance*sign)*20)/20;
-          if(bounds&&(value<bounds.min||value>b.max)) continue;
+          if(bounds&&(value<bounds.min||value>bounds.max)) continue;
           if(!partitionCoordinateFree(orientation,value)) continue;
           const candidate={...layout,joints:[]};
           if(orientation===PARTITION_ORIENTATION.LONG) candidate.z=value; else candidate.x=value;
