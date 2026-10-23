@@ -78,7 +78,6 @@
   }
 
   function withProvisionalDimensions(type,index,dims,fn){
-    if(!dims||typeof ensureDimensionState==='function'&&false) return fn();
     if(!dims||typeof ensureDimensionState!=='function'||typeof supportsDimensions!=='function'||!supportsDimensions(type)) return fn();
     ensureDimensionState();
     if(!Array.isArray(state.dimensions[type])) state.dimensions[type]=[];
