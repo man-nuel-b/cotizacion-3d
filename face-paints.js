@@ -1,7 +1,7 @@
 // Customer-facing orientation cleanup + Explore/Edit controls for bat-kubiqueitor.
 // The actual A/B/C/D markers and direct selection live in face-select.js.
 
-const APP_ASSET_VERSION='20261023-34';
+const APP_ASSET_VERSION='20261023-35';
 function versionedAsset(name){ return `${name}?v=${APP_ASSET_VERSION}`; }
 
 function simplifyOrientationCopy(){
