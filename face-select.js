@@ -9,6 +9,7 @@ let faceTagObjects=[];
 let faceSelectionActive=false;
 let faceSelectionRaycaster=null;
 let faceSelectionPointer=null;
+let faceSelectionOriginView=null;
 
 function createFaceLetterSprite(face,active=false){
   const canvas=document.createElement('canvas');
@@ -123,6 +124,7 @@ function beginDirectFaceSelection(type){
   pendingMountedType=type;
   faceSelectionActive=true;
   faceLabelsVisible=true;
+  faceSelectionOriginView=currentView;
   removeFacePickerModals();
   removeOrientationToolbarButton();
   removeObjectMovementButtons();
@@ -131,10 +133,8 @@ function beginDirectFaceSelection(type){
     setInteractionMode('edit');
   }
 
-  if(state.cutaway){
-    state.cutaway=false;
-    currentView='exterior';
-  }
+  // IMPORTANT: Cutaway is the primary interior workbench. Do not switch to Exterior
+  // just to choose a wall. The selectable A-D tags are rendered in the active view.
   rebuild3D();
   toast(`Selecciona A, B, C o D en el modelo para ubicar ${typeLabel(type).toLowerCase()}`);
 }
@@ -147,11 +147,18 @@ openMountedFacePicker=function(type){
 closeMountedFacePicker=function(){
   pendingMountedType=null;
   faceSelectionActive=false;
+  faceSelectionOriginView=null;
   removeFacePickerModals();
   removeOrientationToolbarButton();
   removeObjectMovementButtons();
   rebuild3D();
 };
+
+function selectMountedAfterBuild(type,index){
+  if(typeof selectEditable!=='function'||!Array.isArray(editableObjects)) return;
+  const root=editableObjects.find(obj=>obj?.userData?.editor?.type===type&&obj.userData.editor.index===index);
+  if(root) selectEditable(root);
+}
 
 addMountedToFace=function(face){
   const type=pendingMountedType;
@@ -160,12 +167,16 @@ addMountedToFace=function(face){
   if((state.counts[type]||0)>=max){
     pendingMountedType=null;
     faceSelectionActive=false;
+    faceSelectionOriginView=null;
     rebuild3D();
     return toast(`Llegaste al máximo de ${typeLabel(type).toLowerCase()}`);
   }
 
   const offset=findAvailableMountedOffset(type,face);
   if(offset===null) return toast(`No queda espacio suficiente en la cara ${face}`);
+
+  const originView=faceSelectionOriginView||currentView;
+  const keepCutaway=originView==='cutaway'||currentView==='cutaway'||state.cutaway===true;
 
   pushHistory();
   ensureLayoutState();
@@ -174,8 +185,32 @@ addMountedToFace=function(face){
   state.layout[type][index]={face,x:offset};
   pendingMountedType=null;
   faceSelectionActive=false;
+  faceSelectionOriginView=null;
+
+  // Render once with the final state. In Cutaway we explicitly keep that state and
+  // camera mode, then verify/sync the workspace so the new mounted object is visible
+  // immediately without rotating the container or changing views.
+  if(keepCutaway){
+    state.cutaway=true;
+    currentView='cutaway';
+  }
   renderAll();
-  focusFace(face);
+
+  if(keepCutaway){
+    state.cutaway=true;
+    currentView='cutaway';
+    window.syncCutawayWorkspace?.();
+    requestAnimationFrame(()=>{
+      if(currentView!=='cutaway') return;
+      if(typeof rebuild3D==='function') rebuild3D();
+      window.syncCutawayWorkspace?.();
+      selectMountedAfterBuild(type,index);
+    });
+  }else{
+    selectMountedAfterBuild(type,index);
+    if(typeof focusFace==='function') focusFace(face);
+  }
+
   toast(`${typeLabel(type)} agregado en cara ${face}`);
 };
 
