@@ -184,7 +184,7 @@
   }
 
   function addCeilingFinish(group,c,material){
-    if(state.cutaway) return;
+    // La cara E debe conservar su revestimiento también en Corte 3D.
     const y=c.height-.225,minX=-c.length/2+.15,maxX=c.length/2-.15,minZ=-c.width/2+.15,maxZ=c.width/2-.15;
     intervals(minX,maxX,SHEET_H).forEach(([x1,x2])=>intervals(minZ,maxZ,SHEET_W).forEach(([z1,z2])=>{
       const w=x2-x1-PANEL_GAP,d=z2-z1-PANEL_GAP;
