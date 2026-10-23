@@ -1,27 +1,29 @@
-// Makes Cutaway the authoritative live workspace for interior construction.
+// Cutaway is the authoritative live workspace for project editing.
 (function(){
   if(window.BAT_KUBIQUEITOR_CUTAWAY_WORKSPACE) return;
 
-  const INTERIOR_TYPES=['partition','wc','sink','shower'];
+  const WORKSPACE_TYPES=['window','door','partition','wc','sink','shower','ac','electrical','opening','openingFrame'];
   let installed=false;
   let syncing=false;
+  let verifyToken=0;
 
   function ready(){
     return typeof state!=='undefined'&&typeof currentView!=='undefined'&&
       typeof rebuild3D==='function'&&typeof renderAll==='function'&&
-      typeof adjustCount==='function'&&typeof editableObjects!=='undefined';
+      typeof editableObjects!=='undefined';
   }
 
   function isCutaway(){ return currentView==='cutaway'; }
-
   function expected(type){ return Math.max(0,Number(state.counts?.[type])||0); }
   function actual(type){
     if(!Array.isArray(editableObjects)) return 0;
     return editableObjects.filter(root=>root?.userData?.editor?.type===type).length;
   }
-
+  function relevantTypes(){
+    return WORKSPACE_TYPES.filter(type=>Number.isFinite(Number(state.counts?.[type]))||DATA?.extras?.[type]);
+  }
   function workspaceOutOfSync(){
-    return INTERIOR_TYPES.some(type=>actual(type)!==expected(type));
+    return relevantTypes().some(type=>actual(type)!==expected(type));
   }
 
   function preserveCamera(){
@@ -31,7 +33,6 @@
       fov:camera?.fov
     };
   }
-
   function restoreCamera(saved){
     if(!saved||!camera||!controls) return;
     if(saved.position) camera.position.copy(saved.position);
@@ -42,8 +43,9 @@
   }
 
   function selectNewest(type){
+    if(!type||typeof selectEditable!=='function') return;
     const index=expected(type)-1;
-    if(index<0||typeof selectEditable!=='function') return;
+    if(index<0) return;
     const root=editableObjects.find(obj=>obj?.userData?.editor?.type===type&&obj.userData.editor.index===index);
     if(root) selectEditable(root);
   }
@@ -54,25 +56,11 @@
       if(selectType) selectNewest(selectType);
       return;
     }
-
     syncing=true;
     const saved=preserveCamera();
     try{
-      // Cutaway is a working state, not a transient camera preset.
       state.cutaway=true;
-
-      // Rebuild through the FINAL rebuild3D chain so sanitary rotation, openings,
-      // material layers and door behavior are all reapplied in one authoritative pass.
       rebuild3D();
-
-      // Partitions have their own parametric renderer. Run it once more after the
-      // complete scene rebuild so no later wrapper can leave the new partition stale.
-      if(typeof rebuildParametricPartitions==='function') rebuildParametricPartitions();
-
-      // Reapply optional visual construction layers when available.
-      window.renderInteriorMaterialLayers?.();
-      window.renderFramingVisuals?.();
-
       restoreCamera(saved);
       if(selectType) selectNewest(selectType);
     }finally{
@@ -81,8 +69,9 @@
   }
 
   function scheduleVerification(selectType=null){
+    const token=++verifyToken;
     requestAnimationFrame(()=>{
-      if(!isCutaway()) return;
+      if(token!==verifyToken||!isCutaway()) return;
       if(workspaceOutOfSync()) hardSyncCutaway({selectType,force:true});
       else if(selectType) selectNewest(selectType);
     });
@@ -92,23 +81,8 @@
     if(installed||!ready()) return false;
     installed=true;
 
-    const baseAdjustCount=adjustCount;
-    adjustCount=function(key,delta){
-      const before=expected(key);
-      const result=baseAdjustCount(key,delta);
-      if(!isCutaway()) return result;
-
-      const after=expected(key);
-      const added=Number(delta)>0&&after>before;
-      const interiorType=INTERIOR_TYPES.includes(key)?key:null;
-
-      // Immediate synchronous pass, then one verification frame. This is intentional:
-      // Cutaway is where the user builds the project live with the client.
-      hardSyncCutaway({selectType:added?interiorType:null,force:true});
-      scheduleVerification(added?interiorType:null);
-      return result;
-    };
-
+    // One post-render verification only. Do not rebuild partitions separately here:
+    // the final rebuild3D chain already owns all scene geometry.
     const baseRenderAll=renderAll;
     renderAll=function(...args){
       const result=baseRenderAll.apply(this,args);
@@ -116,30 +90,32 @@
       return result;
     };
 
-    // Keep the current Cutaway scene healthy even when a project is loaded/undone.
+    const baseAdjustCount=typeof adjustCount==='function'?adjustCount:null;
+    if(baseAdjustCount){
+      adjustCount=function(key,delta){
+        const before=expected(key);
+        const result=baseAdjustCount(key,delta);
+        if(isCutaway()){
+          const added=Number(delta)>0&&expected(key)>before;
+          scheduleVerification(added?key:null);
+        }
+        return result;
+      };
+    }
+
     const baseUndo=typeof undo==='function'?undo:null;
-    if(baseUndo){
-      undo=function(...args){const r=baseUndo.apply(this,args);if(isCutaway()) scheduleVerification();return r;};
-    }
+    if(baseUndo) undo=function(...args){const r=baseUndo.apply(this,args);if(isCutaway())scheduleVerification();return r;};
     const baseRedo=typeof redo==='function'?redo:null;
-    if(baseRedo){
-      redo=function(...args){const r=baseRedo.apply(this,args);if(isCutaway()) scheduleVerification();return r;};
-    }
+    if(baseRedo) redo=function(...args){const r=baseRedo.apply(this,args);if(isCutaway())scheduleVerification();return r;};
 
-    window.syncCutawayWorkspace=function(){ hardSyncCutaway({force:true}); };
-    window.BAT_KUBIQUEITOR_CUTAWAY_WORKSPACE={
-      version:1,
-      expected,
-      actual,
-      sync:window.syncCutawayWorkspace
-    };
-
-    if(isCutaway()) hardSyncCutaway({force:true});
+    window.syncCutawayWorkspace=function(){hardSyncCutaway({force:true});};
+    window.BAT_KUBIQUEITOR_CUTAWAY_WORKSPACE={version:2,expected,actual,sync:window.syncCutawayWorkspace};
+    if(isCutaway()) scheduleVerification();
     return true;
   }
 
   if(!install()){
     let tries=0;
-    const timer=setInterval(()=>{tries++;if(install()||tries>260) clearInterval(timer);},80);
+    const timer=setInterval(()=>{tries++;if(install()||tries>260)clearInterval(timer);},80);
   }
 })();
