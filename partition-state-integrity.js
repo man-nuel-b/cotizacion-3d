@@ -1,5 +1,5 @@
-// Stabilizes per-partition state across copy/paste/delete/undo flows.
-// Keeps each partition's faces, door and door behavior attached to the correct partition.
+// Stable per-partition state across copy/paste/delete/undo flows.
+// Layout identity is authoritative; normal edits are never restored from stale registry data.
 (function(){
   if(window.BAT_KUBIQUEITOR_PARTITION_STATE_INTEGRITY) return;
 
@@ -7,48 +7,39 @@
   let lastIds=[];
   let seq=0;
   let installed=false;
-  let lastPartitionCount=0;
-  let visualRefreshToken=0;
 
   function cloneSafe(value){
     if(value==null) return value;
     try{return typeof clone==='function'?clone(value):JSON.parse(JSON.stringify(value));}
     catch(e){return value;}
   }
-
   function ready(){
     return typeof state!=='undefined'&&typeof renderAll==='function'&&
       typeof ensureLayoutState==='function'&&typeof ensureDimensionState==='function'&&
       window.BAT_KUBIQUEITOR_PARTITION_FACES;
   }
-
-  function count(){ return Math.max(0,Number(state.counts?.partition)||0); }
-
-  function newId(){
-    seq++;
-    return `partition-${Date.now().toString(36)}-${seq.toString(36)}`;
-  }
+  function count(){return Math.max(0,Number(state.counts?.partition)||0);}
+  function newId(){seq++;return `partition-${Date.now().toString(36)}-${seq.toString(36)}`;}
 
   function ensureArrays(){
-    ensureLayoutState();
-    ensureDimensionState();
+    ensureLayoutState(); ensureDimensionState();
     if(!Array.isArray(state.layout.partition)) state.layout.partition=[];
     if(!Array.isArray(state.dimensions.partition)) state.dimensions.partition=[];
     if(!Array.isArray(state.partitionSpecs)) state.partitionSpecs=[];
     if(!Array.isArray(state.interiorDoors)) state.interiorDoors=[];
     if(!Array.isArray(state.interiorDoorBehavior)) state.interiorDoorBehavior=[];
   }
-
   function identityAt(index){
-    const layout=state.layout?.partition?.[index];
-    const dims=state.dimensions?.partition?.[index];
-    return layout?._partitionId||dims?._partitionId||null;
+    return state.layout?.partition?.[index]?._partitionId||state.dimensions?.partition?.[index]?._partitionId||null;
+  }
+  function tag(value,id){
+    if(value&&typeof value==='object') value._partitionId=id;
+    return value;
   }
 
   function ensureIdentitySlots(){
     ensureArrays();
-    const ids=[];
-    const seen=new Set();
+    const ids=[],seen=new Set();
     for(let i=0;i<count();i++){
       if(!state.layout.partition[i]) state.layout.partition[i]={};
       if(!state.dimensions.partition[i]) state.dimensions.partition[i]={};
@@ -64,92 +55,66 @@
     return ids;
   }
 
-  function tagObject(obj,id){
-    if(obj&&typeof obj==='object') obj._partitionId=id;
-    return obj;
-  }
-
   function captureRegistry(){
     ensureArrays();
     const ids=ensureIdentitySlots();
-    for(let i=0;i<ids.length;i++){
-      const id=ids[i];
-      const spec=tagObject(state.partitionSpecs[i],id);
-      const door=tagObject(state.interiorDoors[i],id);
-      const behavior=tagObject(state.interiorDoorBehavior[i],id);
+    ids.forEach((id,i)=>{
+      tag(state.partitionSpecs[i],id);
+      tag(state.interiorDoors[i],id);
+      tag(state.interiorDoorBehavior[i],id);
       registry.set(id,{
-        spec:cloneSafe(spec),
-        door:cloneSafe(door),
-        behavior:cloneSafe(behavior)
+        spec:cloneSafe(state.partitionSpecs[i]),
+        door:cloneSafe(state.interiorDoors[i]),
+        behavior:cloneSafe(state.interiorDoorBehavior[i])
       });
-    }
+    });
     lastIds=ids.slice();
   }
 
-  function currentRawIds(){
+  function rawIds(){
     ensureArrays();
-    const ids=[];
-    for(let i=0;i<count();i++) ids.push(identityAt(i));
-    return ids;
+    return Array.from({length:count()},(_,i)=>identityAt(i));
   }
-
-  function hasStructuralChange(ids){
+  function structureChanged(ids){
     if(ids.length!==lastIds.length) return true;
     const seen=new Set();
     for(let i=0;i<ids.length;i++){
-      const id=ids[i];
-      if(!id||seen.has(id)||id!==lastIds[i]) return true;
-      seen.add(id);
+      if(!ids[i]||seen.has(ids[i])||ids[i]!==lastIds[i]) return true;
+      seen.add(ids[i]);
     }
     return false;
   }
 
-  function chooseCurrentOrRegistry(current,id,source){
-    if(current&&current._partitionId===id) return cloneSafe(current);
-    return cloneSafe(source);
-  }
-
   function reconcileStructuralState(){
     ensureArrays();
-    const rawIds=currentRawIds();
-    if(!hasStructuralChange(rawIds)) return;
+    const ids=rawIds();
+    if(!structureChanged(ids)) return;
 
-    const seen=new Set();
-    const nextSpecs=[],nextDoors=[],nextBehaviors=[];
-
+    const seen=new Set(),nextSpecs=[],nextDoors=[],nextBehaviors=[];
     for(let i=0;i<count();i++){
       if(!state.layout.partition[i]) state.layout.partition[i]={};
       if(!state.dimensions.partition[i]) state.dimensions.partition[i]={};
 
-      let sourceId=identityAt(i);
-      const duplicate=Boolean(sourceId&&seen.has(sourceId));
-      const source=sourceId?registry.get(sourceId):null;
-      let id=sourceId;
-      if(!id||duplicate) id=newId();
+      const incomingId=identityAt(i);
+      const duplicate=Boolean(incomingId&&seen.has(incomingId));
+      const source=incomingId?registry.get(incomingId):null;
+      const id=(!incomingId||duplicate)?newId():incomingId;
       seen.add(id);
-
       state.layout.partition[i]._partitionId=id;
       state.dimensions.partition[i]._partitionId=id;
 
-      const currentSpec=state.partitionSpecs[i];
-      const currentDoor=state.interiorDoors[i];
-      const currentBehavior=state.interiorDoorBehavior[i];
-
-      const spec=duplicate
-        ? cloneSafe(source?.spec||currentSpec)
-        : chooseCurrentOrRegistry(currentSpec,id,source?.spec||currentSpec);
-      const door=duplicate
-        ? cloneSafe(source?.door||currentDoor)
-        : chooseCurrentOrRegistry(currentDoor,id,source?.door||currentDoor);
-      const behavior=duplicate
-        ? cloneSafe(source?.behavior||currentBehavior)
-        : chooseCurrentOrRegistry(currentBehavior,id,source?.behavior||currentBehavior);
-
-      nextSpecs[i]=tagObject(spec,id);
-      nextDoors[i]=tagObject(door,id);
-      nextBehaviors[i]=tagObject(behavior,id);
+      // On a real structural change, layout identity decides which construction data belongs here.
+      // A duplicated layout intentionally receives a clone of the source partition data.
+      if(source){
+        nextSpecs[i]=tag(cloneSafe(source.spec),id);
+        nextDoors[i]=tag(cloneSafe(source.door),id);
+        nextBehaviors[i]=tag(cloneSafe(source.behavior),id);
+      }else{
+        nextSpecs[i]=tag(cloneSafe(state.partitionSpecs[i]),id);
+        nextDoors[i]=tag(cloneSafe(state.interiorDoors[i]),id);
+        nextBehaviors[i]=tag(cloneSafe(state.interiorDoorBehavior[i]),id);
+      }
     }
-
     state.partitionSpecs=nextSpecs;
     state.interiorDoors=nextDoors;
     state.interiorDoorBehavior=nextBehaviors;
@@ -169,39 +134,28 @@
   }
 
   function repairDoorExtraUI(){
-    const select=document.getElementById('interior-door-target');
     const root=document.getElementById('extras-list');
     if(!root) return;
-    const cards=[...root.children];
-    const card=cards.find(el=>(el.querySelector('.font-bold.text-sm')?.textContent||'').trim()==='Puerta interior');
+    const card=[...root.children].find(el=>(el.querySelector('.font-bold.text-sm')?.textContent||'').trim()==='Puerta interior');
     if(!card) return;
-
     const total=count();
     let installedDoors=0,firstFree=-1;
     for(let i=0;i<total;i++){
       let enabled=false;
-      try{ enabled=Boolean(window.partitionDoor?.(i)?.enabled); }catch(e){}
-      if(enabled) installedDoors++;
-      else if(firstFree<0) firstFree=i;
+      try{enabled=Boolean(window.partitionDoor?.(i)?.enabled);}catch(e){}
+      if(enabled) installedDoors++; else if(firstFree<0) firstFree=i;
     }
 
+    const select=document.getElementById('interior-door-target');
     if(select&&firstFree>=0){
       const current=Number(select.value);
-      let currentEnabled=false;
-      try{ currentEnabled=Boolean(window.partitionDoor?.(current)?.enabled); }catch(e){}
-      if(currentEnabled){
-        select.value=String(firstFree);
-        window.selectInteriorDoorTarget?.(firstFree);
-      }
+      let enabled=false;
+      try{enabled=Boolean(window.partitionDoor?.(current)?.enabled);}catch(e){}
+      if(enabled){select.value=String(firstFree);window.selectInteriorDoorTarget?.(firstFree);}
     }
 
-    const buttons=[...card.querySelectorAll('button.counter-btn')];
-    const minus=buttons[0],plus=buttons[buttons.length-1];
-    if(minus){
-      minus.disabled=installedDoors<=0;
-      minus.style.opacity=minus.disabled?'.35':'';
-      minus.style.cursor=minus.disabled?'not-allowed':'';
-    }
+    const buttons=[...card.querySelectorAll('button.counter-btn')],minus=buttons[0],plus=buttons[buttons.length-1];
+    if(minus){minus.disabled=installedDoors<=0;minus.style.opacity=minus.disabled?'.35':'';minus.style.cursor=minus.disabled?'not-allowed':'';}
     if(plus){
       plus.disabled=total<=0||firstFree<0;
       plus.style.opacity=plus.disabled?'.35':'';
@@ -210,67 +164,34 @@
     }
   }
 
-  function fixControlOverlap(){
+  function installUiFixes(){
     if(document.getElementById('stability-ui-style')) return;
     const style=document.createElement('style');
     style.id='stability-ui-style';
-    style.textContent=`
-      @media(min-width:821px){#summary-panel-toggle{top:auto!important;bottom:86px!important;transform:none!important}}
-      @media(max-width:820px){#summary-panel-toggle{top:auto!important;bottom:132px!important;transform:none!important}}
-    `;
+    style.textContent=`@media(min-width:821px){#summary-panel-toggle{top:auto!important;bottom:86px!important;transform:none!important}}@media(max-width:820px){#summary-panel-toggle{top:auto!important;bottom:132px!important;transform:none!important}}`;
     document.head.appendChild(style);
-  }
-
-  // A partition-count change can be visually overwritten by another rebuild wrapper in the
-  // same synchronous render cycle. A final scene rebuild on the next frame guarantees that
-  // the newest parametric partitions are present immediately in Cutaway, Interior and Exterior.
-  function schedulePartitionVisualRefresh(){
-    const token=++visualRefreshToken;
-    const expectedCount=count();
-    requestAnimationFrame(()=>{
-      if(token!==visualRefreshToken||count()!==expectedCount||typeof rebuild3D!=='function') return;
-      rebuild3D();
-      hideLegacyDoorHandles();
-      repairDoorExtraUI();
-    });
   }
 
   function install(){
     if(installed||!ready()) return false;
     installed=true;
-    ensureIdentitySlots();
-    captureRegistry();
-    fixControlOverlap();
-    lastPartitionCount=count();
+    ensureIdentitySlots(); captureRegistry(); installUiFixes();
 
     const baseRenderAll=renderAll;
     renderAll=function(...args){
-      const partitionCountChanged=count()!==lastPartitionCount;
       reconcileStructuralState();
       const result=baseRenderAll.apply(this,args);
-      hideLegacyDoorHandles();
-      repairDoorExtraUI();
-      captureRegistry();
-      lastPartitionCount=count();
-      if(partitionCountChanged) schedulePartitionVisualRefresh();
+      hideLegacyDoorHandles(); repairDoorExtraUI(); captureRegistry();
       return result;
     };
 
-    // Clean the current scene/UI immediately without causing a second full rebuild loop.
-    hideLegacyDoorHandles();
-    repairDoorExtraUI();
-    captureRegistry();
-
-    window.BAT_KUBIQUEITOR_PARTITION_STATE_INTEGRITY={
-      version:2,
-      registrySize:()=>registry.size,
-      refreshPartitions:schedulePartitionVisualRefresh
-    };
+    hideLegacyDoorHandles(); repairDoorExtraUI(); captureRegistry();
+    window.BAT_KUBIQUEITOR_PARTITION_STATE_INTEGRITY={version:3,registrySize:()=>registry.size};
     return true;
   }
 
   if(!install()){
     let tries=0;
-    const timer=setInterval(()=>{tries++;if(install()||tries>240) clearInterval(timer);},80);
+    const timer=setInterval(()=>{tries++;if(install()||tries>240)clearInterval(timer);},80);
   }
 })();
