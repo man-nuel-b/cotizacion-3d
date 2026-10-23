@@ -9,6 +9,24 @@
     return typeof finalVersionedAsset==='function'?finalVersionedAsset(name):`${name}?v=20261023-45`;
   }
 
+  function setExtrasReady(ready){
+    const root=document.getElementById('extras-list');
+    if(!root) return;
+    root.style.pointerEvents=ready?'':'none';
+    root.style.opacity=ready?'':'0.72';
+    root.setAttribute('aria-busy',ready?'false':'true');
+    let badge=document.getElementById('extras-editor-loading');
+    if(!ready){
+      if(!badge){
+        badge=document.createElement('div');
+        badge.id='extras-editor-loading';
+        badge.className='mt-2 text-[10px] font-bold text-slate-500 flex items-center gap-2';
+        badge.innerHTML='<i class="fa-solid fa-circle-notch fa-spin text-amber-500"></i><span>Preparando editor 3D…</span>';
+        root.parentElement?.insertBefore(badge,root);
+      }
+    }else badge?.remove();
+  }
+
   function loadScriptOnce(attr,name,onReady){
     const selector=`script[${attr}]`;
     const existing=document.querySelector(selector);
@@ -25,7 +43,7 @@
   }
 
   function loadVideoRegressionFixes(){
-    loadScriptOnce('data-video-regression-fixes','video-regression-fixes.js',()=>{});
+    loadScriptOnce('data-video-regression-fixes','video-regression-fixes.js',()=>setExtrasReady(true));
   }
   function loadSingleClickExtras(){
     loadScriptOnce('data-single-click-extras','single-click-extras.js',loadVideoRegressionFixes);
@@ -52,19 +70,28 @@
     setTimeout(loadOrientationControls,0);
   }
 
-  let tries=0;
-  const timer=setInterval(()=>{
-    tries++;
-    if(window.BAT_KUBIQUEITOR_PARTITION_FACES){
-      clearInterval(timer);
-      continueAfterPartitionFaces();
-      return;
-    }
-    if(window.BAT_KUBIQUEITOR_PARTITION_DUPLICATE && typeof finalVersionedAsset==='function'){
-      clearInterval(timer);
-      loadScriptOnce('data-partition-face-finishes','partition-face-finishes.js',continueAfterPartitionFaces);
-      return;
-    }
-    if(tries>200) clearInterval(timer);
-  },80);
+  function boot(){
+    setExtrasReady(false);
+    let tries=0;
+    const timer=setInterval(()=>{
+      tries++;
+      if(window.BAT_KUBIQUEITOR_PARTITION_FACES){
+        clearInterval(timer);
+        continueAfterPartitionFaces();
+        return;
+      }
+      if(window.BAT_KUBIQUEITOR_PARTITION_DUPLICATE && typeof finalVersionedAsset==='function'){
+        clearInterval(timer);
+        loadScriptOnce('data-partition-face-finishes','partition-face-finishes.js',continueAfterPartitionFaces);
+        return;
+      }
+      if(tries>200){
+        clearInterval(timer);
+        setExtrasReady(true);
+      }
+    },80);
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true});
+  else boot();
 })();
