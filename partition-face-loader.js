@@ -1,12 +1,12 @@
 // Loads per-partition finishes after the complete partition tool chain is installed.
-// One render authority only. The fast interaction layer is loaded last so no later
-// module can replace the optimized drag handlers.
+// One render authority only. Interaction/per-placement fixes load last so no earlier
+// module can replace the optimized drag or mounted placement behavior.
 (function(){
   if(window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER) return;
   window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER=true;
 
   function asset(name){
-    return typeof finalVersionedAsset==='function'?finalVersionedAsset(name):`${name}?v=20261023-42`;
+    return typeof finalVersionedAsset==='function'?finalVersionedAsset(name):`${name}?v=20261023-43`;
   }
 
   function loadScriptOnce(attr,name,onReady){
@@ -24,8 +24,11 @@
     document.body.appendChild(script);
   }
 
+  function loadOpeningPlacementFix(){
+    loadScriptOnce('data-opening-placement-fix','opening-placement-fix.js',()=>{});
+  }
   function loadInteractionPerformance(){
-    loadScriptOnce('data-interaction-performance','interaction-performance.js',()=>{});
+    loadScriptOnce('data-interaction-performance','interaction-performance.js',loadOpeningPlacementFix);
   }
   function loadCutawayWorkspace(){
     loadScriptOnce('data-cutaway-workspace','cutaway-workspace.js',loadInteractionPerformance);
