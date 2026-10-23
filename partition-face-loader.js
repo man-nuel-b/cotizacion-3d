@@ -4,14 +4,28 @@
   window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER=true;
 
   function asset(name){
-    return typeof finalVersionedAsset==='function'?finalVersionedAsset(name):`${name}?v=20261023-36`;
+    return typeof finalVersionedAsset==='function'?finalVersionedAsset(name):`${name}?v=20261023-37`;
+  }
+
+  function loadCutawayWorkspace(){
+    if(document.querySelector('script[data-cutaway-workspace]')) return;
+    const script=document.createElement('script');
+    script.src=asset('cutaway-workspace.js');
+    script.dataset.cutawayWorkspace='true';
+    document.body.appendChild(script);
   }
 
   function loadLiveRefresh(){
-    if(document.querySelector('script[data-partition-live-refresh]')) return;
+    const existing=document.querySelector('script[data-partition-live-refresh]');
+    if(existing){
+      if(window.BAT_KUBIQUEITOR_PARTITION_LIVE_REFRESH) setTimeout(loadCutawayWorkspace,20);
+      else existing.addEventListener('load',()=>setTimeout(loadCutawayWorkspace,20),{once:true});
+      return;
+    }
     const script=document.createElement('script');
     script.src=asset('partition-live-refresh.js');
     script.dataset.partitionLiveRefresh='true';
+    script.addEventListener('load',()=>setTimeout(loadCutawayWorkspace,20),{once:true});
     document.body.appendChild(script);
   }
 
