@@ -7,6 +7,8 @@
   let lastIds=[];
   let seq=0;
   let installed=false;
+  let lastPartitionCount=0;
+  let visualRefreshToken=0;
 
   function cloneSafe(value){
     if(value==null) return value;
@@ -154,7 +156,7 @@
   }
 
   function hideLegacyDoorHandles(){
-    if(!Array.isArray(window.editableObjects)) return;
+    if(typeof editableObjects==='undefined'||!Array.isArray(editableObjects)) return;
     editableObjects.forEach(root=>{
       if(root?.userData?.editor?.type!=='partition') return;
       const overlay=root.getObjectByName?.('interior-door-behavior-visual');
@@ -219,20 +221,38 @@
     document.head.appendChild(style);
   }
 
+  // A partition-count change can be visually overwritten by another rebuild wrapper in the
+  // same synchronous render cycle. A final scene rebuild on the next frame guarantees that
+  // the newest parametric partitions are present immediately in Cutaway, Interior and Exterior.
+  function schedulePartitionVisualRefresh(){
+    const token=++visualRefreshToken;
+    const expectedCount=count();
+    requestAnimationFrame(()=>{
+      if(token!==visualRefreshToken||count()!==expectedCount||typeof rebuild3D!=='function') return;
+      rebuild3D();
+      hideLegacyDoorHandles();
+      repairDoorExtraUI();
+    });
+  }
+
   function install(){
     if(installed||!ready()) return false;
     installed=true;
     ensureIdentitySlots();
     captureRegistry();
     fixControlOverlap();
+    lastPartitionCount=count();
 
     const baseRenderAll=renderAll;
     renderAll=function(...args){
+      const partitionCountChanged=count()!==lastPartitionCount;
       reconcileStructuralState();
       const result=baseRenderAll.apply(this,args);
       hideLegacyDoorHandles();
       repairDoorExtraUI();
       captureRegistry();
+      lastPartitionCount=count();
+      if(partitionCountChanged) schedulePartitionVisualRefresh();
       return result;
     };
 
@@ -241,7 +261,11 @@
     repairDoorExtraUI();
     captureRegistry();
 
-    window.BAT_KUBIQUEITOR_PARTITION_STATE_INTEGRITY={version:1,registrySize:()=>registry.size};
+    window.BAT_KUBIQUEITOR_PARTITION_STATE_INTEGRITY={
+      version:2,
+      registrySize:()=>registry.size,
+      refreshPartitions:schedulePartitionVisualRefresh
+    };
     return true;
   }
 
