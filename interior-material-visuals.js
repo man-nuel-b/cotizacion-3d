@@ -93,7 +93,10 @@
     return mat(0xc28d23,{roughness:1,metalness:0});
   }
 
+  // Única fuente visual para TODOS los revestimientos disponibles.
+  // La cara E usa exactamente esta misma selección; no hay casos especiales por material.
   function liningMaterial(key){
+    if(key==='gypsum') return mat(0xeeeae3,{roughness:.76,metalness:.01});
     if(key==='fibrocement') return mat(0xb4b7b5,{roughness:.9,metalness:.01});
     if(key==='plywood') return mat(0xc88e4e,{roughness:.72,metalness:.01});
     if(key==='osb') return mat(0xb57b45,{roughness:.82,metalness:.01});
@@ -183,29 +186,32 @@
     }));
   }
 
-  function addCeilingFinish(group,c,material){
+  function addCeilingFinish(group,c,material,liningKey){
     const y=c.height-.235,minX=-c.length/2+.15,maxX=c.length/2-.15,minZ=-c.width/2+.15,maxZ=c.width/2-.15;
     intervals(minX,maxX,SHEET_H).forEach(([x1,x2])=>intervals(minZ,maxZ,SHEET_W).forEach(([z1,z2])=>{
       const w=x2-x1-PANEL_GAP,d=z2-z1-PANEL_GAP;
       if(w<=.035||d<=.035) return;
       const panel=box(w,.022,d,material,(x1+x2)/2,y,(z1+z2)/2);
       panel.userData.face='E';
+      panel.userData.lining=liningKey;
       panel.renderOrder=5;
       group.add(panel);
     }));
   }
 
   function buildFinishGroup(){
-    const s=assemblyState(),c=DATA.containers[state.container],material=liningMaterial(s.lining);
+    const s=assemblyState(),c=DATA.containers[state.container];
+    const liningKey=s.lining;
+    const material=liningMaterial(liningKey);
     const group=new THREE.Group();
     group.name='interior-finish-visuals';
     group.userData.layer='lining';
-    group.userData.material=s.lining;
+    group.userData.material=liningKey;
     if(s.liningFaces?.A) addLongFinish(group,'A',c,material);
     if(s.liningFaces?.B) addLongFinish(group,'B',c,material);
     if(s.liningFaces?.C) addEndFinish(group,'C',c,material);
     if(s.liningFaces?.D) addEndFinish(group,'D',c,material);
-    if(s.liningFaces?.E) addCeilingFinish(group,c,material);
+    if(s.liningFaces?.E) addCeilingFinish(group,c,material,liningKey);
     return group;
   }
 
