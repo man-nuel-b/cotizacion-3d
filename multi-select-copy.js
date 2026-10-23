@@ -52,7 +52,7 @@
       <div class="flex items-center justify-between gap-2"><div><div class="text-[9px] uppercase tracking-widest font-black text-sky-400">Selección múltiple</div><div class="text-sm font-black mt-0.5">${multiSelection.length} objeto${multiSelection.length===1?'':'s'}</div></div><button onclick="clearMultiSelection()" class="w-7 h-7 rounded-lg bg-white/10"><i class="fa-solid fa-xmark"></i></button></div>
       <div class="grid grid-cols-2 gap-2 mt-3"><button onclick="copyMultiSelection()" class="rounded-lg bg-sky-500 text-slate-950 py-2 text-xs font-black"><i class="fa-solid fa-copy mr-1"></i> Copiar</button><button onclick="duplicateMultiSelection()" class="rounded-lg bg-white/10 py-2 text-xs font-bold">Duplicar</button></div>
       <button onclick="deleteMultiSelection()" class="mt-2 w-full rounded-lg bg-red-500/15 border border-red-400/20 text-red-200 py-2 text-xs font-bold"><i class="fa-solid fa-trash mr-1"></i> Eliminar selección</button>
-      <div class="text-[9px] text-slate-400 mt-2 text-center">Clic primero · Shift + clic para sumar/quitar · Ctrl+C / Ctrl+V</div>`;
+      <div class="text-[9px] text-slate-400 mt-2 text-center">Clic primero · Shift + clic para sumar/quitar · Ctrl+C / Ctrl+V · Ctrl+D</div>`;
   }
 
   window.clearMultiSelection=function(){
@@ -114,7 +114,7 @@
         const distance=COPY_STEP*step;
         for(const sign of [1,-1]){
           const value=Math.round((base+distance*sign)*20)/20;
-          if(bounds&&(value<bounds.min||value>bounds.max)) continue;
+          if(bounds&&(value<bounds.min||value>b.max)) continue;
           if(!partitionCoordinateFree(orientation,value)) continue;
           const candidate={...layout,joints:[]};
           if(orientation===PARTITION_ORIENTATION.LONG) candidate.z=value; else candidate.x=value;
@@ -186,6 +186,52 @@
     return {type,index};
   }
 
+  function selectionPriceImpact(meta){
+    if(!meta||typeof calculate!=='function'||!state.counts||!(state.counts[meta.type]>0)) return null;
+    const originalState=state;
+    try{
+      const currentTotal=Number(calculate()?.total)||0;
+      const scenario=clone(state);
+      scenario.counts[meta.type]=Math.max(0,(scenario.counts[meta.type]||0)-1);
+      if(Array.isArray(scenario.layout?.[meta.type])) scenario.layout[meta.type].splice(meta.index,1);
+      if(Array.isArray(scenario.dimensions?.[meta.type])) scenario.dimensions[meta.type].splice(meta.index,1);
+      if(meta.type==='partition'){
+        if(Array.isArray(scenario.partitionSpecs)) scenario.partitionSpecs.splice(meta.index,1);
+        if(Array.isArray(scenario.interiorDoors)) scenario.interiorDoors.splice(meta.index,1);
+        if(Array.isArray(scenario.interiorDoorBehavior)) scenario.interiorDoorBehavior.splice(meta.index,1);
+      }
+      state=scenario;
+      const withoutTotal=Number(calculate()?.total)||0;
+      return Math.max(0,currentTotal-withoutTotal);
+    }catch(e){
+      return null;
+    }finally{
+      state=originalState;
+    }
+  }
+
+  function renderSingleSelectionTools(root){
+    const panel=document.getElementById('object-editor');
+    if(!panel) return;
+    let block=document.getElementById('selected-object-productivity');
+    const meta=root?.userData?.editor;
+    if(!meta){ block?.remove(); return; }
+    if(!block){
+      block=document.createElement('div');
+      block.id='selected-object-productivity';
+      block.className='mt-3 rounded-xl border border-white/10 bg-white/5 p-3';
+      const deleteBtn=panel.querySelector('button[onclick*="deleteSelectedObject"]');
+      if(deleteBtn) panel.insertBefore(block,deleteBtn); else panel.appendChild(block);
+    }
+    const impact=selectionPriceImpact(meta);
+    const duplicateButton=meta.type==='partition'
+      ? ''
+      : `<button type="button" onclick="duplicateSelectedObject()" class="mt-2 w-full rounded-lg bg-amber-500 text-slate-950 py-2 text-xs font-black"><i class="fa-solid fa-copy mr-1"></i> Duplicar <span class="opacity-60">Ctrl+D</span></button>`;
+    block.innerHTML=`
+      <div class="flex items-end justify-between gap-3"><div><div class="text-[9px] uppercase tracking-widest text-slate-400 font-black">Impacto estimado en venta</div><div class="text-[9px] text-slate-500 mt-1">Incluye configuración actual, margen e IVA.</div></div><div class="text-right font-black text-amber-300 text-base">${impact===null?'—':money(impact)}</div></div>
+      ${duplicateButton}`;
+  }
+
   window.copyMultiSelection=function(){
     const source=multiSelection.length?multiSelection:(selectedEditable?[selectedEditable]:[]);
     if(!source.length) return toast('Selecciona uno o más objetos');
@@ -223,6 +269,29 @@
     pasteMultiSelection();
   };
 
+  window.duplicateSelectedObject=function(){
+    if(multiSelection.length>1) return duplicateMultiSelection();
+    if(!selectedEditable) return toast('Selecciona un objeto para duplicar');
+    if(selectedEditable.type==='partition'&&typeof window.duplicateSelectedPartition==='function') return window.duplicateSelectedPartition();
+
+    const before=clone(state),historyLength=history.length,futureBefore=clone(future);
+    const snapshot=snapshotObject(selectedEditable);
+    pushHistory();
+    const created=insertSnapshot(snapshot,1);
+    if(!created){
+      state=before;
+      history=history.slice(0,historyLength);
+      future=futureBefore;
+      renderAll();
+      return toast('No hay espacio suficiente para duplicar este objeto');
+    }
+    multiSelection=[];
+    selectedEditable=created;
+    renderAll();
+    const label=typeof typeLabel==='function'?typeLabel(created.type):'Objeto';
+    toast(`${label} duplicado`);
+  };
+
   window.deleteMultiSelection=function(){
     if(!multiSelection.length) return;
     pushHistory();
@@ -248,6 +317,12 @@
     if(multiSelection.length>1) return deleteMultiSelection();
     multiSelection=[];
     return deleteSelectedObjectBeforeMulti();
+  };
+
+  const showEditorPanelBeforeProductivity=showEditorPanel;
+  showEditorPanel=function(root){
+    showEditorPanelBeforeProductivity(root);
+    renderSingleSelectionTools(root);
   };
 
   const pointerDownBeforeMulti=onEditorPointerDown;
@@ -290,7 +365,9 @@
     const target=event.target;
     if(target?.closest?.('input,textarea,select,[contenteditable="true"]')) return;
     const key=event.key.toLowerCase();
-    if((event.ctrlKey||event.metaKey)&&key==='c'&&(multiSelection.length||selectedEditable)){
+    if((event.ctrlKey||event.metaKey)&&key==='d'&&(multiSelection.length||selectedEditable)){
+      event.preventDefault(); event.stopImmediatePropagation(); duplicateSelectedObject();
+    }else if((event.ctrlKey||event.metaKey)&&key==='c'&&(multiSelection.length||selectedEditable)){
       event.preventDefault(); event.stopImmediatePropagation(); copyMultiSelection();
     }else if((event.ctrlKey||event.metaKey)&&key==='v'&&clipboard.length){
       event.preventDefault(); event.stopImmediatePropagation(); pasteMultiSelection();
@@ -302,6 +379,10 @@
   function boot(){
     if(typeof renderer==='undefined'||!renderer?.domElement||typeof hitEditable!=='function') return false;
     reconnectPointerDown();
+    if(selectedEditable){
+      const root=rootFor(selectedEditable);
+      if(root) renderSingleSelectionTools(root);
+    }
     window.BAT_KUBIQUEITOR_MULTI_SELECT=true;
     return true;
   }
