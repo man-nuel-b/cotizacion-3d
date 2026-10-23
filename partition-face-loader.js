@@ -3,11 +3,29 @@
   if(window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER) return;
   window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER=true;
 
-  function loadOrientationControls(){
-    if(document.querySelector('script[data-object-orientation-controls]')) return;
+  function asset(name){
+    return typeof finalVersionedAsset==='function'?finalVersionedAsset(name):`${name}?v=20261023-33`;
+  }
+
+  function loadInteriorDoorExtra(){
+    if(document.querySelector('script[data-interior-door-extra]')) return;
     const script=document.createElement('script');
-    script.src=typeof finalVersionedAsset==='function'?finalVersionedAsset('object-orientation-controls.js'):'object-orientation-controls.js?v=20261023-30';
+    script.src=asset('interior-door-extra.js');
+    script.dataset.interiorDoorExtra='true';
+    document.body.appendChild(script);
+  }
+
+  function loadOrientationControls(){
+    const existing=document.querySelector('script[data-object-orientation-controls]');
+    if(existing){
+      if(window.BAT_KUBIQUEITOR_OBJECT_ORIENTATION) setTimeout(loadInteriorDoorExtra,20);
+      else existing.addEventListener('load',()=>setTimeout(loadInteriorDoorExtra,20),{once:true});
+      return;
+    }
+    const script=document.createElement('script');
+    script.src=asset('object-orientation-controls.js');
     script.dataset.objectOrientationControls='true';
+    script.addEventListener('load',()=>setTimeout(loadInteriorDoorExtra,20),{once:true});
     document.body.appendChild(script);
   }
 
