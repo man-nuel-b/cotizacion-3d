@@ -1,12 +1,12 @@
 // Loads per-partition finishes after the complete partition tool chain is installed.
-// One render authority only. Interaction/per-placement/single-click fixes load last so no earlier
-// module can replace the optimized drag or mounted placement behavior.
+// One render authority only. Video-regression fixes load last so no earlier module can
+// replace the final count sync, face-pick priority, safer camera or placement behavior.
 (function(){
   if(window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER) return;
   window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER=true;
 
   function asset(name){
-    return typeof finalVersionedAsset==='function'?finalVersionedAsset(name):`${name}?v=20261023-44`;
+    return typeof finalVersionedAsset==='function'?finalVersionedAsset(name):`${name}?v=20261023-45`;
   }
 
   function loadScriptOnce(attr,name,onReady){
@@ -24,8 +24,11 @@
     document.body.appendChild(script);
   }
 
+  function loadVideoRegressionFixes(){
+    loadScriptOnce('data-video-regression-fixes','video-regression-fixes.js',()=>{});
+  }
   function loadSingleClickExtras(){
-    loadScriptOnce('data-single-click-extras','single-click-extras.js',()=>{});
+    loadScriptOnce('data-single-click-extras','single-click-extras.js',loadVideoRegressionFixes);
   }
   function loadOpeningPlacementFix(){
     loadScriptOnce('data-opening-placement-fix','opening-placement-fix.js',loadSingleClickExtras);
