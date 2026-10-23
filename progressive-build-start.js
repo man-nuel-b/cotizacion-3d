@@ -23,12 +23,13 @@
     solution.counts={...EMPTY_COUNTS};
   });
 
-  // A new project now opens as a clean 20 HC container with no added objects.
+  // A new project opens as a clean 20 HC container with no added objects or decorative furniture.
   DEFAULT_STATE.solution='custom';
   DEFAULT_STATE.container='20hc';
   DEFAULT_STATE.finish='standard';
   DEFAULT_STATE.counts={...EMPTY_COUNTS};
   DEFAULT_STATE.showPeople=false;
+  DEFAULT_STATE.showFurniture=false;
 
   // The initial state was cloned before this file loaded. Only replace it when there is no
   // saved user project, so Guardar/Cargar continues to work as expected.
@@ -44,11 +45,12 @@
     state=clone(DEFAULT_STATE);
   }
 
-  // Custom projects should not inject desks merely because the use is "custom".
+  // No solution type is allowed to inject presentation furniture automatically.
+  // Furniture can still be shown later through the existing furniture control/workflow.
   if(typeof addFurnishings==='function'){
     const baseAddFurnishings=addFurnishings;
     addFurnishings=function(parent,c){
-      if(state.solution==='custom') return;
+      if(state.showFurniture===false) return;
       return baseAddFurnishings(parent,c);
     };
   }
@@ -64,5 +66,5 @@
   }
 
   window.EMPTY_PROJECT_COUNTS={...EMPTY_COUNTS};
-  window.BAT_KUBIQUEITOR_PROGRESSIVE_START={version:1};
+  window.BAT_KUBIQUEITOR_PROGRESSIVE_START={version:2};
 })();
