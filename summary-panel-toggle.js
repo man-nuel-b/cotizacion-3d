@@ -101,35 +101,11 @@
     window.toggleSummaryPanel=function(){
       setSummaryCollapsed(!shell.classList.contains('summary-panel-collapsed'));
     };
-    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:1};
+    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:2};
     return true;
   }
 
   if(document.readyState==='loading'){
     document.addEventListener('DOMContentLoaded',()=>setTimeout(install,30),{once:true});
   }else setTimeout(install,30);
-})();
-
-// Optional feature loader kept outside the core editor. Removing these lines disables
-// preset bathroom modules without touching the existing 3D editing implementation.
-(function loadBathroomPresetModules(){
-  if(window.BAT_KUBIQUEITOR_MODULE_PRESETS||document.querySelector('script[data-bathroom-presets]')) return;
-  const script=document.createElement('script');
-  script.src='module-presets.js?v=20261023-35';
-  script.dataset.bathroomPresets='1';
-  script.onload=()=>{
-    if(!document.querySelector('script[data-bathroom-visibility-fix]')){
-      const fix=document.createElement('script');
-      fix.src='module-presets-visibility-fix.js?v=20261023-35';
-      fix.dataset.bathroomVisibilityFix='1';
-      document.body.appendChild(fix);
-    }
-    if(!document.querySelector('script[data-bathroom-room-shell]')){
-      const room=document.createElement('script');
-      room.src='bathroom-module-room-shell.js?v=20261023-35';
-      room.dataset.bathroomRoomShell='1';
-      document.body.appendChild(room);
-    }
-  };
-  document.body.appendChild(script);
 })();
