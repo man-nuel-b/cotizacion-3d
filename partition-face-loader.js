@@ -6,15 +6,13 @@
   window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER=true;
 
   function asset(name){
-    return typeof finalVersionedAsset==='function'
-      ? finalVersionedAsset(name)
-      : `${name}?v=20261024-mod01`;
+    return `${name}?v=20261024-mod01`;
   }
 
   function loadOnce(selector,name,datasetKey,onload){
     const existing=document.querySelector(selector);
     if(existing){
-      if(existing.dataset.loaded==='true'){ onload?.(); return; }
+      if(existing.dataset.loaded==='true'||existing.readyState==='complete'){ onload?.(); return; }
       existing.addEventListener('load',()=>onload?.(),{once:true});
       return;
     }
@@ -23,6 +21,14 @@
     script.dataset[datasetKey]='true';
     script.addEventListener('load',()=>{script.dataset.loaded='true';onload?.();},{once:true});
     document.body.appendChild(script);
+  }
+
+  function migrateInteriorDoorState(){
+    if(!Array.isArray(window.state?.interiorDoors)) return;
+    state.interiorDoors.forEach(door=>{
+      if(!door||typeof door!=='object') return;
+      if(typeof door.enabled!=='boolean') door.enabled=true;
+    });
   }
 
   function loadOrientationControls(){
@@ -38,11 +44,12 @@
       window.BAT_KUBIQUEITOR_MODULE_PRESETS?.syncScene?.();
       if(typeof window.renderFloorFinishVisual==='function') window.renderFloorFinishVisual();
     };
-    window.BAT_KUBIQUEITOR_FINAL_SCENE_COMPOSER={version:1};
+    window.BAT_KUBIQUEITOR_FINAL_SCENE_COMPOSER={version:2};
     rebuild3D();
   }
 
   function loadPartitionFaces(){
+    migrateInteriorDoorState();
     if(window.BAT_KUBIQUEITOR_PARTITION_FACES){
       loadOrientationControls();
       installFinalSceneComposer();
