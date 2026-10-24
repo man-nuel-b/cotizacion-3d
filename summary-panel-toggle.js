@@ -41,24 +41,18 @@
     setSummaryCollapsed(persistedState(),{persist:false});
     window.setSummaryPanelCollapsed=setSummaryCollapsed;
     window.toggleSummaryPanel=function(){setSummaryCollapsed(!shell.classList.contains('summary-panel-collapsed'));};
-    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:4};
+    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:6};
     return true;
   }
 
-  function loadScriptOnce(src,datasetKey){
-    if(document.querySelector(`script[data-${datasetKey}]`)) return;
+  function loadWallModuleEngine(){
+    if(window.BAT_KUBIQUEITOR_WALL_MODULE_ENGINE||document.querySelector('script[data-wall-module-engine]')) return;
     const script=document.createElement('script');
-    script.src=src;
-    script.setAttribute(`data-${datasetKey}`,'true');
+    script.src='wall-module-engine.js?v=20261024-refactor03';
+    script.dataset.wallModuleEngine='true';
     document.body.appendChild(script);
   }
 
-  function loadOpeningShellSystem(){
-    if(!window.BAT_KUBIQUEITOR_OPENING_SHELL) loadScriptOnce('opening-shell-system.js?v=20261024-mod02-19','opening-shell-system');
-    loadScriptOnce('opening-shell-finalizer.js?v=20261024-mod02-21','opening-shell-finalizer');
-    loadScriptOnce('opening-editor-integration.js?v=20261024-mod02-25','opening-editor-integration');
-  }
-
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadOpeningShellSystem,80);},{once:true});
-  else{setTimeout(install,30);setTimeout(loadOpeningShellSystem,80);}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);},{once:true});
+  else{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);}
 })();
