@@ -24,10 +24,8 @@ const OBJECT_DIMENSIONS={
     defaults:c=>({width:Math.max(.60,c.width-.20),height:Math.max(1,c.height-.15),depth:.075})
   },
   wc:{
-    fields:[
-      {key:'width',label:'Ancho',min:.45,max:.90,step:.05},
-      {key:'depth',label:'Fondo',min:.55,max:1.00,step:.05}
-    ],
+    fixed:true,
+    fields:[],
     defaults:()=>({width:.63,height:.86,depth:.72})
   },
   sink:{
@@ -55,6 +53,7 @@ const OBJECT_DIMENSIONS={
 };
 
 function supportsDimensions(type){ return !!OBJECT_DIMENSIONS[type]; }
+function dimensionsEditable(type){ return supportsDimensions(type)&&!OBJECT_DIMENSIONS[type].fixed&&OBJECT_DIMENSIONS[type].fields.length>0; }
 
 function ensureDimensionState(){
   if(!state.dimensions) state.dimensions={};
@@ -78,6 +77,7 @@ function dimensionDefaults(type){
 function objectDimensions(type,index){
   if(!supportsDimensions(type)) return {};
   ensureDimensionState();
+  if(OBJECT_DIMENSIONS[type].fixed) return {...dimensionDefaults(type)};
   return {...dimensionDefaults(type),...(state.dimensions[type][index]||{})};
 }
 
@@ -130,6 +130,7 @@ function objectHalfWidth(type,index){
 }
 
 function dimensionChangeAllowed(type,index,next){
+  if(OBJECT_DIMENSIONS[type]?.fixed) return false;
   const c=DATA.containers[state.container];
   if(isMountedFaceType(type)){
     const p=actualLayout(type,index),face=p.face,faceDim=mountedFaceDimension(face,c);
@@ -225,7 +226,7 @@ validCandidate=function(type,index,candidate){
 };
 
 function updateSelectedDimension(key,value){
-  if(!selectedEditable||!supportsDimensions(selectedEditable.type)) return;
+  if(!selectedEditable||!dimensionsEditable(selectedEditable.type)) return;
   const {type,index}=selectedEditable,field=dimensionField(type,key);
   if(!field) return;
   const parsed=Number(value);
@@ -252,7 +253,7 @@ function updateSelectedDimension(key,value){
 }
 
 function resetSelectedDimensions(){
-  if(!selectedEditable||!supportsDimensions(selectedEditable.type)) return;
+  if(!selectedEditable||!dimensionsEditable(selectedEditable.type)) return;
   const {type,index}=selectedEditable;
   pushHistory();
   ensureDimensionState();
@@ -264,7 +265,7 @@ function resetSelectedDimensions(){
 function renderDimensionEditor(type,index){
   const editor=document.getElementById('dimension-editor');
   if(!editor) return;
-  if(!supportsDimensions(type)){
+  if(!dimensionsEditable(type)){
     editor.classList.add('hidden');
     return;
   }
@@ -417,15 +418,3 @@ rebuild3D=function(){
     else{ selectedEditable=null; hideEditorPanel(); }
   }
 };
-
-function bootDimensionEditor(){
-  ensureDimensionState();
-  installDimensionEditor();
-  rebuild3D();
-}
-
-if(document.readyState==='loading'){
-  window.addEventListener('DOMContentLoaded',()=>setTimeout(bootDimensionEditor,120));
-}else{
-  setTimeout(bootDimensionEditor,120);
-}
