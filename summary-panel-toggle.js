@@ -45,5 +45,14 @@
     return true;
   }
 
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,30),{once:true});else setTimeout(install,30);
+  function loadOpeningShellSystem(){
+    if(window.BAT_KUBIQUEITOR_OPENING_SHELL||document.querySelector('script[data-opening-shell-system]'))return;
+    const script=document.createElement('script');
+    script.src='opening-shell-system.js?v=20261024-mod02-19';
+    script.dataset.openingShellSystem='true';
+    document.body.appendChild(script);
+  }
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadOpeningShellSystem,80);},{once:true});
+  else{setTimeout(install,30);setTimeout(loadOpeningShellSystem,80);}
 })();
