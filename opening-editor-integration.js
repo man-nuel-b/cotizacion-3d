@@ -1,10 +1,11 @@
 // Editing integration for true shell openings.
-// Makes all four opening variants selectable and forces the standard dimension editor.
+// Makes all four opening variants selectable and keeps the standard dimension editor open.
 (function(){
-  if(window.BAT_KUBIQUEITOR_OPENING_EDITOR_INTEGRATION) return;
-  window.BAT_KUBIQUEITOR_OPENING_EDITOR_INTEGRATION={version:1};
+  if(window.BAT_KUBIQUEITOR_OPENING_EDITOR_INTEGRATION?.version>=2) return;
+  window.BAT_KUBIQUEITOR_OPENING_EDITOR_INTEGRATION={version:2};
 
   const TYPES=['opening','openingFrame','windowOpening','windowOpeningFrame'];
+  let lastOpeningSelection=null;
 
   function isOpeningType(type){return TYPES.includes(type);}
 
@@ -50,6 +51,22 @@
     if(typeof ensureDimensionState==='function') ensureDimensionState();
   }
 
+  function rememberOpeningSelection(root){
+    const meta=root?.userData?.editor;
+    if(meta&&isOpeningType(meta.type)) lastOpeningSelection={type:meta.type,index:meta.index};
+  }
+
+  function restoreOpeningSelection(selection){
+    if(!selection||typeof editableObjects==='undefined') return false;
+    const root=editableObjects.find(o=>o?.userData?.editor?.type===selection.type&&o?.userData?.editor?.index===selection.index);
+    if(!root) return false;
+    selectedEditable={type:selection.type,index:selection.index};
+    lastOpeningSelection={...selectedEditable};
+    if(typeof addSelectionOutline==='function') addSelectionOutline(root);
+    showEditorPanel(root);
+    return true;
+  }
+
   function installEditorBridge(){
     if(typeof showEditorPanel!=='function'||typeof renderDimensionEditor!=='function') return false;
     const previousShowEditorPanel=showEditorPanel;
@@ -57,12 +74,24 @@
       previousShowEditorPanel(root);
       const meta=root?.userData?.editor;
       if(!meta||!isOpeningType(meta.type)) return;
+      rememberOpeningSelection(root);
       ensureOpeningSchemas();
       const panel=document.getElementById('object-editor');
       panel?.classList.remove('hidden');
       renderDimensionEditor(meta.type,meta.index);
-      const editor=document.getElementById('dimension-editor');
-      editor?.classList.remove('hidden');
+      document.getElementById('dimension-editor')?.classList.remove('hidden');
+    };
+    return true;
+  }
+
+  function installSelectionBridge(){
+    if(typeof selectEditable!=='function') return false;
+    const previousSelectEditable=selectEditable;
+    selectEditable=function(root){
+      const meta=root?.userData?.editor;
+      if(meta&&isOpeningType(meta.type)) rememberOpeningSelection(root);
+      else if(!root) lastOpeningSelection=null;
+      return previousSelectEditable(root);
     };
     return true;
   }
@@ -71,14 +100,11 @@
     if(typeof rebuild3D!=='function') return false;
     const baseRebuild=rebuild3D;
     rebuild3D=function(){
+      const selection=(selectedEditable&&isOpeningType(selectedEditable.type))?{...selectedEditable}:(lastOpeningSelection?{...lastOpeningSelection}:null);
       baseRebuild();
       strengthenOpeningHitboxes();
-      if(selectedEditable&&isOpeningType(selectedEditable.type)){
-        const root=editableObjects?.find?.(o=>o?.userData?.editor?.type===selectedEditable.type&&o?.userData?.editor?.index===selectedEditable.index);
-        if(root){
-          addSelectionOutline?.(root);
-          showEditorPanel(root);
-        }
+      if(selection){
+        requestAnimationFrame(()=>restoreOpeningSelection(selection));
       }
     };
     strengthenOpeningHitboxes();
@@ -89,6 +115,7 @@
     if(!window.BAT_KUBIQUEITOR_OPENING_SHELL||typeof editableObjects==='undefined') return false;
     ensureOpeningSchemas();
     if(!installEditorBridge()) return false;
+    if(!installSelectionBridge()) return false;
     if(!installRebuildBridge()) return false;
     rebuild3D();
     return true;
