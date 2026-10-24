@@ -1,12 +1,12 @@
 // Final 3D composition loader.
-// Waits for the complete feature chain, then installs the partition face system last
+// Waits for the complete feature chain, then installs the partition construction system last
 // and composes bathroom modules + selected floor after every complete scene rebuild.
 (function(){
   if(window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER) return;
   window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER=true;
 
   function asset(name){
-    return `${name}?v=20261024-mod01`;
+    return `${name}?v=20261024-mod02`;
   }
 
   function loadOnce(selector,name,datasetKey,onload){
