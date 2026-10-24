@@ -1,10 +1,10 @@
 // Final 3D composition loader.
-// Keeps the progressive partition renderer authoritative even if later modules replace it.
+// Accepts only the real progressive partition renderer and keeps it authoritative.
 (function(){
-  if(window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER?.version>=10) return;
-  window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER={version:10};
+  if(window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER?.version>=12) return;
+  window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER={version:12};
 
-  const ASSET_VERSION='20261024-mod02-10';
+  const ASSET_VERSION='20261024-mod02-12';
   let authoritativePartitionRenderer=null;
   let composerInstalled=false;
 
@@ -51,23 +51,38 @@
     });
   }
 
+  function isProgressiveRenderer(candidate){
+    if(window.BAT_KUBIQUEITOR_PARTITION_FACES?.version!==4) return false;
+    if(typeof candidate!=='function') return false;
+    try{
+      const source=Function.prototype.toString.call(candidate);
+      return source.includes('buildPartition')&&
+        source.includes('disposePartitionRoot')&&
+        source.includes('registerEditable');
+    }catch{
+      return false;
+    }
+  }
+
   function captureAuthoritativeRenderer(){
-    if(typeof rebuildParametricPartitions!=='function') return false;
+    if(!isProgressiveRenderer(rebuildParametricPartitions)) return false;
     authoritativePartitionRenderer=rebuildParametricPartitions;
+    authoritativePartitionRenderer.__batKubiqueitorProgressivePartitionRenderer=12;
     window.BAT_KUBIQUEITOR_AUTHORITATIVE_PARTITION_RENDERER=authoritativePartitionRenderer;
     return true;
   }
 
   function restoreAuthoritativeRenderer(){
     const renderer=window.BAT_KUBIQUEITOR_AUTHORITATIVE_PARTITION_RENDERER||authoritativePartitionRenderer;
-    if(typeof renderer!=='function') return false;
+    if(!isProgressiveRenderer(renderer)) return false;
     if(rebuildParametricPartitions!==renderer) rebuildParametricPartitions=renderer;
     return true;
   }
 
   function rebuildAuthoritativePartitions(){
-    if(!restoreAuthoritativeRenderer()) return;
+    if(!restoreAuthoritativeRenderer()) return false;
     rebuildParametricPartitions();
+    return true;
   }
 
   function installFinalSceneComposer(){
@@ -82,31 +97,42 @@
       emphasizePartitionDoor();
     };
     composerInstalled=true;
-    window.BAT_KUBIQUEITOR_FINAL_SCENE_COMPOSER={version:10};
+    window.BAT_KUBIQUEITOR_FINAL_SCENE_COMPOSER={version:12};
     rebuild3D();
+  }
+
+  function waitForRealProgressiveRenderer(){
+    let attempts=0;
+    const timer=setInterval(()=>{
+      attempts++;
+      if(captureAuthoritativeRenderer()){
+        clearInterval(timer);
+        loadOrientationControls();
+        installFinalSceneComposer();
+        return;
+      }
+      if(attempts>=180){
+        clearInterval(timer);
+        console.error('bat-kubiqueitor: partition-face-finishes cargó pero el renderer progresivo real no quedó instalado');
+      }
+    },80);
   }
 
   function forceFreshPartitionFaces(){
     migrateInteriorDoorState();
 
-    // The old loaded flag is not enough: production-suite may have replaced the renderer
-    // after partition-face-finishes executed. Clear the marker and install a fresh copy now,
-    // after all production dependencies are ready.
     const old=document.querySelector('script[data-partition-face-finishes]');
     if(old) old.remove();
     window.BAT_KUBIQUEITOR_PARTITION_FACES=null;
+    window.BAT_KUBIQUEITOR_AUTHORITATIVE_PARTITION_RENDERER=null;
+    authoritativePartitionRenderer=null;
 
     const script=document.createElement('script');
     script.src=asset('partition-face-finishes.js');
     script.dataset.partitionFaceFinishes='true';
     script.addEventListener('load',()=>{
       script.dataset.loaded='true';
-      if(!captureAuthoritativeRenderer()){
-        console.error('bat-kubiqueitor: el renderer progresivo de divisiones no quedó instalado');
-        return;
-      }
-      loadOrientationControls();
-      installFinalSceneComposer();
+      waitForRealProgressiveRenderer();
     },{once:true});
     script.addEventListener('error',()=>console.error('bat-kubiqueitor: no se pudo reinstalar partition-face-finishes.js'),{once:true});
     document.body.appendChild(script);
@@ -118,7 +144,8 @@
       window.BAT_KUBIQUEITOR_PRODUCTION_SUITE&&
       window.BAT_KUBIQUEITOR_MODULE_PRESETS&&
       window.BAT_KUBIQUEITOR_FLOOR_FINISHES&&
-      typeof rebuild3D==='function'
+      typeof rebuild3D==='function'&&
+      typeof rebuildParametricPartitions==='function'
     );
   }
 
