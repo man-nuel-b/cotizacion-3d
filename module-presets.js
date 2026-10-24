@@ -1,4 +1,5 @@
 // Preset bathroom modules: one renderer, one drag engine, event-driven updates only.
+// Owns module UI/3D and exposes pricing contributions; it does not override BOM/calculate.
 (function(){
   if(window.BAT_KUBIQUEITOR_MODULE_PRESETS) return;
 
@@ -68,8 +69,7 @@
   function syncScene(){
     if(!containerGroup)return;ensureState();
     const old=(containerGroup.children||[]).filter(o=>o.userData?.bathroomPresetRoot);old.forEach(r=>containerGroup.remove(r));
-    moduleRoots=[];
-    state.bathroomModules.forEach((m,i)=>{const root=createModuleGroup(m,i);containerGroup.add(root);moduleRoots.push(root);});
+    moduleRoots=[];state.bathroomModules.forEach((m,i)=>{const root=createModuleGroup(m,i);containerGroup.add(root);moduleRoots.push(root);});
   }
 
   function moduleCount(kind){ensureState();return state.bathroomModules.filter(m=>m.kind===kind).length;}
@@ -82,14 +82,17 @@
   const renderExtrasBeforeModules=renderExtras;
   renderExtras=function(){
     renderExtrasBeforeModules();ensureState();const root=document.getElementById('extras-list');if(!root)return;
-    const old=root.querySelector('[data-bathroom-module-section]');old?.remove();
+    root.querySelector('[data-bathroom-module-section]')?.remove();
     const section=document.createElement('div');section.dataset.bathroomModuleSection='true';section.className='mb-4 rounded-2xl border border-amber-200 bg-amber-50/60 p-3';section.innerHTML=`<div class="flex items-start gap-2 mb-3"><div class="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 grid place-items-center"><i class="fa-solid fa-object-group"></i></div><div><div class="font-black text-sm">Módulos prearmados</div><div class="text-[10px] text-slate-500 mt-0.5">Recintos completos que se mueven como una unidad.</div></div></div>${Object.entries(PRESETS).map(([key,p])=>`<div class="bg-white border border-amber-100 rounded-xl p-3 flex items-center gap-3 mb-2"><div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 grid place-items-center"><i class="fa-solid ${p.icon}"></i></div><div class="flex-1 min-w-0"><div class="font-bold text-sm">${p.name}</div><div class="text-[10px] text-slate-400">${p.desc} · ${p.width.toFixed(2)} × ${p.depth.toFixed(2)} m</div></div><button type="button" class="counter-btn" onclick="removeBathroomModule('${key}')">−</button><div class="w-6 text-center font-black">${moduleCount(key)}</div><button type="button" class="counter-btn" onclick="addBathroomModule('${key}')">+</button></div>`).join('')}`;root.prepend(section);
   };
 
-  const buildBOMBeforeModules=buildBOM;
-  buildBOM=function(){const items=buildBOMBeforeModules();ensureState();const totals={wc:0,sink:0,shower:0};state.bathroomModules.forEach(m=>{const c=presetFor(m).components;for(const k of Object.keys(totals))totals[k]+=c[k]||0;});for(const[k,q]of Object.entries(totals)){if(!q)continue;const c=DATA.catalog[k];items.push({key:`module-${k}`,name:`${c.name} · módulos`,qty:q,unit:c.unit,unitCost:c.cost,subtotal:q*c.cost,category:'Sanitario'});}return items;};
-  const calculateBeforeModules=calculate;
-  calculate=function(){const base=calculateBeforeModules();ensureState();let extra=0;state.bathroomModules.forEach(m=>Object.entries(presetFor(m).components).forEach(([k,q])=>extra+=(DATA.labor[k]||0)*q));if(!extra)return base;const labor=base.labor+extra,direct=base.materials+labor+(Number(state.transport)||0),net=direct*(1+(Number(state.margin)||0)/100),taxAmount=net*((Number(state.tax)||0)/100);return{...base,labor,direct,net,taxAmount,total:net+taxAmount};};
+  window.getBathroomModuleBOMItems=function(){
+    ensureState();const totals={wc:0,sink:0,shower:0},items=[];
+    state.bathroomModules.forEach(m=>{const c=presetFor(m).components;for(const k of Object.keys(totals))totals[k]+=c[k]||0;});
+    for(const[k,q]of Object.entries(totals)){if(!q)continue;const c=DATA.catalog[k];items.push({key:`module-${k}`,name:`${c.name} · módulos`,qty:q,unit:c.unit,unitCost:c.cost,subtotal:q*c.cost,category:'Sanitario'});}
+    return items;
+  };
+  window.getBathroomModuleLaborCost=function(){ensureState();let total=0;state.bathroomModules.forEach(m=>Object.entries(presetFor(m).components).forEach(([k,q])=>total+=(DATA.labor[k]||0)*q));return total;};
 
   function rootFromObject(o){let n=o;while(n){if(n.userData?.bathroomPresetRoot)return n;if(n.userData?.bathroomModuleRoot)return n.userData.bathroomModuleRoot;n=n.parent;}return null;}
   function setPointer(e){const r=renderer.domElement.getBoundingClientRect();pointer.x=((e.clientX-r.left)/r.width)*2-1;pointer.y=-((e.clientY-r.top)/r.height)*2+1;}
@@ -104,7 +107,7 @@
   function install(){
     if(installed||!renderer?.domElement)return false;installed=true;ensureState();raycaster=new THREE.Raycaster();pointer=new THREE.Vector2();floorPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
     const canvas=renderer.domElement;canvas.addEventListener('pointerdown',onDown,true);canvas.addEventListener('pointermove',onMove,true);canvas.addEventListener('pointerup',onUp,true);canvas.addEventListener('pointercancel',onUp,true);
-    syncScene();window.BAT_KUBIQUEITOR_MODULE_PRESETS={version:4,presets:PRESETS,syncScene};return true;
+    syncScene();window.BAT_KUBIQUEITOR_MODULE_PRESETS={version:5,presets:PRESETS,syncScene};return true;
   }
   function boot(attempt=0){if(install())return;if(attempt<30)setTimeout(()=>boot(attempt+1),80);}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>boot(),{once:true});else boot();
