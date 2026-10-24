@@ -16,6 +16,12 @@
   const isWindowOpening=type=>WINDOW_OPENINGS.includes(type);
   const isFrameType=type=>type==='openingFrame'||type==='windowOpeningFrame';
   const clampLocal=(v,min,max)=>Math.min(max,Math.max(min,v));
+  function defaultWidth(type){
+    if(type==='window') return 1.20;
+    if(type==='door') return .98;
+    if(isWindowOpening(type)) return 1.20;
+    return .90;
+  }
 
   function faceLength(face,c=DATA.containers[state.container]){
     return (face==='A'||face==='B')?c.length:c.width;
@@ -50,7 +56,7 @@
 
   function apertureHalfWidth(type,index,dimsOverride=null){
     const dims=dimsOverride||objectDimensions(type,index)||{};
-    return Math.max(.10,(Number(dims.width)||(type==='window'?1.20:type==='door'?.98:.90))/2);
+    return Math.max(.10,(Number(dims.width)||defaultWidth(type))/2);
   }
 
   function apertureCollisionAllowed(type,index,candidate,dimsOverride=null){
@@ -74,7 +80,7 @@
     const actualFace=layout.face||MOUNTED_FACE_TYPES[type]?.defaultFace||'A';
     if(actualFace!==face) return null;
     const dims=objectDimensions(type,index)||{};
-    const width=Math.max(.20,Number(dims.width)||(type==='window'?1.20:type==='door'?.98:isWindowOpening(type)?1.20:.90));
+    const width=Math.max(.20,Number(dims.width)||defaultWidth(type));
     let bottom,top;
     if(type==='window'){
       const h=Math.max(.20,Number(dims.height)||1.05),half=h/2;
@@ -193,7 +199,7 @@
 
   function createOpeningDetail(type,index,c){
     const dims=objectDimensions(type,index)||{};
-    const width=Math.max(.30,Number(dims.width)||(isWindowOpening(type)?1.20:.90));
+    const width=Math.max(.30,Number(dims.width)||defaultWidth(type));
     const bounds=openingBounds(type,index,c);
     const g=new THREE.Group();
     g.userData.openingSystemRoot=true;
