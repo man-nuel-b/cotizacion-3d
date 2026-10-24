@@ -41,7 +41,7 @@
     setSummaryCollapsed(persistedState(),{persist:false});
     window.setSummaryPanelCollapsed=setSummaryCollapsed;
     window.toggleSummaryPanel=function(){setSummaryCollapsed(!shell.classList.contains('summary-panel-collapsed'));};
-    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:4};
+    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:8};
     return true;
   }
 
@@ -53,12 +53,12 @@
     document.body.appendChild(script);
   }
 
-  function loadOpeningShellSystem(){
-    if(!window.BAT_KUBIQUEITOR_OPENING_SHELL) loadScriptOnce('opening-shell-system.js?v=20261024-mod02-19','opening-shell-system');
-    loadScriptOnce('opening-shell-finalizer.js?v=20261024-mod02-21','opening-shell-finalizer');
-    loadScriptOnce('opening-editor-integration.js?v=20261024-mod02-25','opening-editor-integration');
+  function loadWallModuleEngine(){
+    if(!window.BAT_KUBIQUEITOR_WALL_MODULE_ENGINE) loadScriptOnce('wall-module-engine.js?v=20261024-refactor03','wall-module-engine');
+    loadScriptOnce('wall-variant-registry.js?v=20261024-refactor05','wall-variant-registry');
+    loadScriptOnce('direct-editor-controller.js?v=20261024-refactor04','direct-editor-controller');
   }
 
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadOpeningShellSystem,80);},{once:true});
-  else{setTimeout(install,30);setTimeout(loadOpeningShellSystem,80);}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);},{once:true});
+  else{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);}
 })();
