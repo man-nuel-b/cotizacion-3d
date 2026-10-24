@@ -41,7 +41,7 @@
     setSummaryCollapsed(persistedState(),{persist:false});
     window.setSummaryPanelCollapsed=setSummaryCollapsed;
     window.toggleSummaryPanel=function(){setSummaryCollapsed(!shell.classList.contains('summary-panel-collapsed'));};
-    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:12};
+    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:13};
     return true;
   }
 
@@ -60,6 +60,7 @@
     loadScriptOnce('spatial-occupancy.js?v=20261024-collision01','spatial-occupancy');
     loadScriptOnce('partition-obstacle-collision.js?v=20261024-collision01','partition-obstacle-collision');
     loadScriptOnce('electrical-placement.js?v=20261024-electrical01','electrical-placement');
+    loadScriptOnce('electrical-commercial-menu.js?v=20261024-electrical-menu01','electrical-commercial-menu');
     loadScriptOnce('electrical-technical-view.js?v=20261024-electrical-tech01','electrical-technical-view');
   }
 
