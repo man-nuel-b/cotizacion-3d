@@ -3,13 +3,13 @@
 (function(){
   if(window.BAT_KUBIQUEITOR_SIX_STEP_WIZARD) return;
 
-  const VERSION=5;
+  const VERSION=6;
   let installed=false;
+  let featureChainStarted=false;
+  let featureChainWaiter=null;
 
   function asset(name){
-    return typeof finalVersionedAsset==='function'
-      ? finalVersionedAsset(name)
-      : `${name}?v=20261024-mod01`;
+    return `${name}?v=20261024-mod01`;
   }
 
   function loadScriptOnce(selector,name,datasetKey,onload){
@@ -32,6 +32,15 @@
     document.body.appendChild(script);
   }
 
+  function baseEditorReady(){
+    return typeof window.OBJECT_DIMENSIONS!=='undefined' &&
+      typeof window.objectDimensions==='function' &&
+      typeof window.dimensionChangeAllowed==='function' &&
+      typeof window.PARTITION_ORIENTATION!=='undefined' &&
+      typeof window.rebuildParametricPartitions==='function' &&
+      typeof window.ensureDimensionState==='function';
+  }
+
   function moveControlsToDedicatedSteps(){
     const floorTarget=document.getElementById('floor-step-content');
     const wallTarget=document.getElementById('wall-step-content');
@@ -52,7 +61,9 @@
     return false;
   }
 
-  function loadFeatureChain(){
+  function startFeatureChain(){
+    if(featureChainStarted) return;
+    featureChainStarted=true;
     loadScriptOnce('script[data-interior-systems]','interior-systems.js','interiorSystems',()=>{
       loadScriptOnce('script[data-opening-extras]','openings-extras.js','openingExtras',()=>{
         loadScriptOnce('script[data-partition-duplicate]','partition-duplicate.js','partitionDuplicate',()=>{
@@ -65,13 +76,35 @@
     });
   }
 
+  function loadFeatureChain(){
+    if(featureChainStarted) return;
+    if(baseEditorReady()){
+      startFeatureChain();
+      return;
+    }
+    if(featureChainWaiter) return;
+    let tries=0;
+    featureChainWaiter=setInterval(()=>{
+      tries++;
+      if(baseEditorReady()){
+        clearInterval(featureChainWaiter);
+        featureChainWaiter=null;
+        startFeatureChain();
+      }else if(tries>=120){
+        clearInterval(featureChainWaiter);
+        featureChainWaiter=null;
+        console.error('bat-kubiqueitor: editor base no quedó listo; cadena avanzada no iniciada');
+      }
+    },50);
+  }
+
   function ensureWallFeatureChain(){
     if(renderWallControls())return;
     loadFeatureChain();
     let tries=0;
     const timer=setInterval(()=>{
       tries++;
-      if(renderWallControls()||tries>40)clearInterval(timer);
+      if(renderWallControls()||tries>80)clearInterval(timer);
     },100);
   }
 
