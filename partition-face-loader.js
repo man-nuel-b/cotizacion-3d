@@ -6,7 +6,7 @@
   window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER=true;
 
   function asset(name){
-    return `${name}?v=20261024-mod02`;
+    return `${name}?v=20261024-mod02-04`;
   }
 
   function loadOnce(selector,name,datasetKey,onload){
