@@ -191,12 +191,20 @@
   function createOpeningObject(type,index){
     const dims=objectDimensions(type,index),g=new THREE.Group();
     const width=Number(dims.width)||.90,height=Math.min(Number(dims.height)||2.10,openingMaxHeight()),depth=.20;
+    const recess=mat(0x111827,{roughness:.96,metalness:0});
+    const voidPanel=box(Math.max(.18,width-.035),Math.max(.18,height-.035),.055,recess,0,0,-.075);
+    voidPanel.name='wall-opening-void';
+    voidPanel.userData.wallOpeningVoid=true;
+    voidPanel.renderOrder=30;
+    g.add(voidPanel);
     if(type==='openingFrame'){
       const steel=mat(0x64748b,{roughness:.30,metalness:.78});
       const t=.055;
-      g.add(box(t,height,depth,steel,-width/2+t/2,0,0));
-      g.add(box(t,height,depth,steel,width/2-t/2,0,0));
-      g.add(box(width,t,depth,steel,0,height/2-t/2,0));
+      const left=box(t,height,depth,steel,-width/2+t/2,0,0);
+      const right=box(t,height,depth,steel,width/2-t/2,0,0);
+      const top=box(width,t,depth,steel,0,height/2-t/2,0);
+      left.name=right.name=top.name='opening-metal-frame';
+      g.add(left,right,top);
     }
     const hit=new THREE.Mesh(
       new THREE.BoxGeometry(Math.max(.20,width-.04),Math.max(.20,height-.04),.028),
@@ -271,7 +279,6 @@
       if(s.faces.D) addSegmentedWall(g,{axisLength:W-.30,axisMin:-W/2+.15,axisMax:W/2-.15,yMin:.15,yMax:H-.15,thickness:th,position:-L/2+.095,axis:'z',material:lining,openings:windowsForFace('D',c)});
       if(s.faces.C) addSegmentedWall(g,{axisLength:W-.30,axisMin:-W/2+.15,axisMax:W/2-.15,yMin:.15,yMax:H-.15,thickness:th,position:L/2-.095,axis:'z',material:lining,openings:windowsForFace('C',c)});
       if(s.faces.E&&!state.cutaway) g.add(box(L-.30,th,W-.30,lining,0,H-.085,0));
-      if(s.faces.F) g.add(box(L-.30,th,W-.30,createFloorMaterial(),0,.095,0));
       containerGroup.add(g);
     };
   }
