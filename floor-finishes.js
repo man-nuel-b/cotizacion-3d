@@ -14,6 +14,7 @@
   };
   const RECOMMENDED={office:'spc_oak',officeBath:'spc_oak',bathrooms:'sanitary_vinyl',locker:'sanitary_vinyl',dining:'vinyl_roll',warehouse:'epoxy',custom:'spc_oak'};
   const BASE={name:'Subpiso estructural OSB 18 mm',coverage:2.98,cost:28990,laborM2:4500,waste:1.08};
+  const textureCache=new Map();
 
   function ensure(){
     if(!state.floorFinish||!FLOORS[state.floorFinish]) state.floorFinish=RECOMMENDED[state.solution]||'spc_oak';
@@ -22,6 +23,8 @@
   function floorArea(){const c=DATA.containers[state.container];return c.length*c.width;}
 
   function makeTexture(kind,color){
+    const cacheKey=`${kind}-${color}`;
+    if(textureCache.has(cacheKey)) return textureCache.get(cacheKey);
     const canvas=document.createElement('canvas');canvas.width=512;canvas.height=512;const ctx=canvas.getContext('2d');
     ctx.fillStyle='#'+new THREE.Color(color).getHexString();ctx.fillRect(0,0,512,512);
     if(kind==='wood'){
@@ -36,16 +39,23 @@
     }else if(kind==='epoxy'){
       for(let i=0;i<250;i++){ctx.fillStyle='rgba(255,255,255,.10)';ctx.fillRect(Math.random()*512,Math.random()*512,1.5,1.5);}
     }
-    const tex=new THREE.CanvasTexture(canvas);tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.repeat.set(6,3);tex.anisotropy=4;return tex;
+    const tex=new THREE.CanvasTexture(canvas);tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.repeat.set(6,3);tex.anisotropy=4;textureCache.set(cacheKey,tex);return tex;
+  }
+
+  function removePreviousOverlay(){
+    if(!containerGroup) return;
+    const old=(containerGroup.children||[]).filter(o=>o.userData?.floorFinishOverlay||o.name==='selected-floor-finish');
+    old.forEach(o=>{containerGroup.remove(o);o.geometry?.dispose?.();o.material?.dispose?.();});
   }
 
   function renderVisual(){
     if(!containerGroup||typeof THREE==='undefined') return;
+    removePreviousOverlay();
     const f=ensure(),c=DATA.containers[state.container];
     const tex=makeTexture(f.pattern,f.color);
     const material=new THREE.MeshStandardMaterial({color:f.color,map:tex,roughness:f.pattern==='epoxy'?.42:.72,metalness:f.pattern==='epoxy'?.08:.01});
-    const mesh=new THREE.Mesh(new THREE.BoxGeometry(c.length-.22,.032,c.width-.22),material);
-    mesh.position.set(0,.125,0);mesh.receiveShadow=true;mesh.name='selected-floor-finish';mesh.userData.floorFinishOverlay=true;containerGroup.add(mesh);
+    const mesh=new THREE.Mesh(new THREE.BoxGeometry(c.length-.22,.040,c.width-.22),material);
+    mesh.position.set(0,.145,0);mesh.receiveShadow=true;mesh.name='selected-floor-finish';mesh.userData.floorFinishOverlay=true;mesh.renderOrder=12;containerGroup.add(mesh);
   }
 
   function renderUI(){
@@ -78,5 +88,5 @@
   renderAll=function(){ensure();renderAllBeforeFloor();renderUI();};
 
   ensure();renderUI();
-  window.BAT_KUBIQUEITOR_FLOOR_FINISHES={version:3,floors:FLOORS,recommended:RECOMMENDED,renderVisual,renderUI};
+  window.BAT_KUBIQUEITOR_FLOOR_FINISHES={version:4,floors:FLOORS,recommended:RECOMMENDED,renderVisual,renderUI};
 })();
