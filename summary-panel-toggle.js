@@ -56,6 +56,7 @@
   function loadOpeningShellSystem(){
     if(!window.BAT_KUBIQUEITOR_OPENING_SHELL) loadScriptOnce('opening-shell-system.js?v=20261024-mod02-19','opening-shell-system');
     loadScriptOnce('opening-shell-finalizer.js?v=20261024-mod02-21','opening-shell-finalizer');
+    loadScriptOnce('opening-editor-integration.js?v=20261024-mod02-23','opening-editor-integration');
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadOpeningShellSystem,80);},{once:true});
