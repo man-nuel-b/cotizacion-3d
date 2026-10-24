@@ -57,21 +57,41 @@
       if(!leaf?.geometry) return;
 
       const knobs=hinge.children.filter(child=>child?.isMesh&&child.geometry?.type==='SphereGeometry');
-      if(!knobs.length) return;
+      knobs.forEach(knob=>{
+        hinge.remove(knob);
+        knob.geometry?.dispose?.();
+        knob.material?.dispose?.();
+      });
+
+      const oldDetails=[];
+      leaf.traverse(child=>{
+        if(child?.name==='interior-door-handle-front'||child?.name==='interior-door-handle-back') oldDetails.push(child);
+      });
+      oldDetails.forEach(obj=>leaf.remove(obj));
 
       leaf.geometry.computeBoundingBox();
       const size=new THREE.Vector3();
       leaf.geometry.boundingBox.getSize(size);
-      const knobX=size.x/2+.018;
-      const knobY=.035;
-      const knobZ=size.z*.32;
 
-      knobs.slice(0,2).forEach((knob,index)=>{
-        hinge.remove(knob);
-        leaf.add(knob);
-        knob.position.set(index===0?knobX:-knobX,knobY,knobZ);
-        knob.name=index===0?'interior-door-handle-front':'interior-door-handle-back';
-      });
+      const handleWidth=.028;
+      const handleHeight=.10;
+      const handleDepth=.008;
+      const handleGeo=new THREE.BoxGeometry(handleDepth,handleHeight,handleWidth);
+      const handleMat=new THREE.MeshStandardMaterial({color:0x2f2f2f,roughness:.65,metalness:.20});
+      const handleY=.02;
+      const handleZ=Math.max(.10,size.z/2-.10);
+      const faceOffset=size.x/2+handleDepth/2-.002;
+
+      const frontHandle=new THREE.Mesh(handleGeo,handleMat.clone());
+      frontHandle.name='interior-door-handle-front';
+      frontHandle.position.set(faceOffset,handleY,handleZ);
+
+      const backHandle=new THREE.Mesh(handleGeo,handleMat.clone());
+      backHandle.name='interior-door-handle-back';
+      backHandle.position.set(-faceOffset,handleY,handleZ);
+
+      leaf.add(frontHandle);
+      leaf.add(backHandle);
     });
   }
 
