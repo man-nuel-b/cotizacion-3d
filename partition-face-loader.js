@@ -6,7 +6,7 @@
   window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER=true;
 
   function asset(name){
-    return `${name}?v=20261024-mod02-04`;
+    return `${name}?v=20261024-mod02-05`;
   }
 
   function loadOnce(selector,name,datasetKey,onload){
@@ -35,6 +35,18 @@
     loadOnce('script[data-object-orientation-controls]','object-orientation-controls.js','objectOrientationControls');
   }
 
+  function emphasizePartitionDoor(){
+    if(!window.containerGroup) return;
+    containerGroup.traverse(obj=>{
+      if(obj?.name==='interior-door-leaf'&&obj.material){
+        obj.material=obj.material.clone();
+        obj.material.color.setHex(0xf59e0b);
+        obj.material.roughness=.42;
+        obj.material.metalness=.04;
+      }
+    });
+  }
+
   function installFinalSceneComposer(){
     if(window.BAT_KUBIQUEITOR_FINAL_SCENE_COMPOSER) return;
     if(typeof rebuild3D!=='function') return;
@@ -43,8 +55,9 @@
       baseRebuild();
       window.BAT_KUBIQUEITOR_MODULE_PRESETS?.syncScene?.();
       if(typeof window.renderFloorFinishVisual==='function') window.renderFloorFinishVisual();
+      emphasizePartitionDoor();
     };
-    window.BAT_KUBIQUEITOR_FINAL_SCENE_COMPOSER={version:2};
+    window.BAT_KUBIQUEITOR_FINAL_SCENE_COMPOSER={version:3};
     rebuild3D();
   }
 
