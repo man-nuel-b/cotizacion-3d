@@ -41,7 +41,7 @@
     setSummaryCollapsed(persistedState(),{persist:false});
     window.setSummaryPanelCollapsed=setSummaryCollapsed;
     window.toggleSummaryPanel=function(){setSummaryCollapsed(!shell.classList.contains('summary-panel-collapsed'));};
-    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:8};
+    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:9};
     return true;
   }
 
@@ -57,6 +57,8 @@
     if(!window.BAT_KUBIQUEITOR_WALL_MODULE_ENGINE) loadScriptOnce('wall-module-engine.js?v=20261024-refactor03','wall-module-engine');
     loadScriptOnce('wall-variant-registry.js?v=20261024-refactor05','wall-variant-registry');
     loadScriptOnce('direct-editor-controller.js?v=20261024-refactor04','direct-editor-controller');
+    loadScriptOnce('spatial-occupancy.js?v=20261024-collision01','spatial-occupancy');
+    loadScriptOnce('partition-obstacle-collision.js?v=20261024-collision01','partition-obstacle-collision');
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);},{once:true});
