@@ -45,12 +45,17 @@
     return true;
   }
 
-  function loadOpeningShellSystem(){
-    if(window.BAT_KUBIQUEITOR_OPENING_SHELL||document.querySelector('script[data-opening-shell-system]'))return;
+  function loadScriptOnce(src,datasetKey){
+    if(document.querySelector(`script[data-${datasetKey}]`)) return;
     const script=document.createElement('script');
-    script.src='opening-shell-system.js?v=20261024-mod02-19';
-    script.dataset.openingShellSystem='true';
+    script.src=src;
+    script.setAttribute(`data-${datasetKey}`,'true');
     document.body.appendChild(script);
+  }
+
+  function loadOpeningShellSystem(){
+    if(!window.BAT_KUBIQUEITOR_OPENING_SHELL) loadScriptOnce('opening-shell-system.js?v=20261024-mod02-19','opening-shell-system');
+    loadScriptOnce('opening-shell-finalizer.js?v=20261024-mod02-21','opening-shell-finalizer');
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadOpeningShellSystem,80);},{once:true});
