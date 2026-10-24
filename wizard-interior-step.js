@@ -3,22 +3,32 @@
 (function(){
   if(window.BAT_KUBIQUEITOR_SIX_STEP_WIZARD) return;
 
-  const VERSION=4;
+  const VERSION=5;
   let installed=false;
 
   function asset(name){
     return typeof finalVersionedAsset==='function'
       ? finalVersionedAsset(name)
-      : `${name}?v=20261024-full-2`;
+      : `${name}?v=20261024-mod01`;
   }
 
   function loadScriptOnce(selector,name,datasetKey,onload){
     const existing=document.querySelector(selector);
-    if(existing){if(onload)setTimeout(onload,0);return;}
+    if(existing){
+      if(existing.dataset.loaded==='true'||existing.readyState==='complete'){
+        onload?.();
+        return;
+      }
+      existing.addEventListener('load',()=>onload?.(),{once:true});
+      return;
+    }
     const script=document.createElement('script');
     script.src=asset(name);
     script.dataset[datasetKey]='true';
-    if(onload)script.addEventListener('load',onload,{once:true});
+    script.addEventListener('load',()=>{
+      script.dataset.loaded='true';
+      onload?.();
+    },{once:true});
     document.body.appendChild(script);
   }
 
@@ -42,8 +52,6 @@
     return false;
   }
 
-  // Interior systems MUST load before openings and interior-ux. interior-ux exits early
-  // when ensureInteriorSystem() does not exist, which previously left only the preset cards visible.
   function loadFeatureChain(){
     loadScriptOnce('script[data-interior-systems]','interior-systems.js','interiorSystems',()=>{
       loadScriptOnce('script[data-opening-extras]','openings-extras.js','openingExtras',()=>{
