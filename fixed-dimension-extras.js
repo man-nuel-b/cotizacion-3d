@@ -1,32 +1,63 @@
-// Standard-size extras: keep physical dimensions for render/collision, hide manual dimension editing.
+// Standard-size extras: preserve physical dimensions for render/collision while disabling manual size editing.
 (function(){
-  if(window.BAT_KUBIQUEITOR_FIXED_DIMENSION_EXTRAS) return;
+  if(window.BAT_KUBIQUEITOR_FIXED_DIMENSION_EXTRAS?.version>=2) return;
 
-  const FIXED_TYPES=['wc','sink','shower','ac'];
+  const FIXED_TYPES=new Set(['wc','sink','shower','ac']);
+  let wrapped=false;
 
-  function applyFixedDimensionPolicy(){
+  function applySchemas(){
     if(typeof OBJECT_DIMENSIONS==='undefined') return false;
-
     FIXED_TYPES.forEach(type=>{
       const schema=OBJECT_DIMENSIONS[type];
       if(!schema) return;
       schema.fixed=true;
       schema.fields=[];
     });
-
-    if(typeof selectedEditable!=='undefined'&&selectedEditable&&FIXED_TYPES.includes(selectedEditable.type)){
-      document.getElementById('dimension-editor')?.classList.add('hidden');
-    }
-
-    window.BAT_KUBIQUEITOR_FIXED_DIMENSION_EXTRAS={version:1,types:[...FIXED_TYPES]};
     return true;
   }
 
-  if(!applyFixedDimensionPolicy()){
-    let tries=0;
-    const timer=setInterval(()=>{
-      tries++;
-      if(applyFixedDimensionPolicy()||tries>80) clearInterval(timer);
-    },100);
+  function installGuards(){
+    if(wrapped) return true;
+    if(typeof dimensionsEditable!=='function'||typeof renderDimensionEditor!=='function') return false;
+
+    const baseDimensionsEditable=dimensionsEditable;
+    dimensionsEditable=function(type){
+      if(FIXED_TYPES.has(type)) return false;
+      return baseDimensionsEditable(type);
+    };
+
+    const baseRenderDimensionEditor=renderDimensionEditor;
+    renderDimensionEditor=function(type,index){
+      if(FIXED_TYPES.has(type)){
+        document.getElementById('dimension-editor')?.classList.add('hidden');
+        return;
+      }
+      return baseRenderDimensionEditor(type,index);
+    };
+
+    wrapped=true;
+    return true;
   }
+
+  function enforce(){
+    const ready=applySchemas();
+    installGuards();
+    if(typeof selectedEditable!=='undefined'&&selectedEditable&&FIXED_TYPES.has(selectedEditable.type)){
+      document.getElementById('dimension-editor')?.classList.add('hidden');
+    }
+    return ready&&wrapped;
+  }
+
+  enforce();
+
+  // Legacy layers load asynchronously. Re-assert during boot so a late schema
+  // cannot re-enable dimensions for standard products.
+  let tries=0;
+  const timer=setInterval(()=>{
+    tries++;
+    enforce();
+    if(tries>=60) clearInterval(timer);
+  },250);
+
+  window.BAT_KUBIQUEITOR_FIXED_DIMENSION_EXTRAS={version:2,types:[...FIXED_TYPES],enforce};
 })();
