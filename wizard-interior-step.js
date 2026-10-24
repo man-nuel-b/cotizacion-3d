@@ -3,42 +3,23 @@
 (function(){
   if(window.BAT_KUBIQUEITOR_SIX_STEP_WIZARD) return;
 
-  const VERSION=6;
+  const VERSION=4;
   let installed=false;
-  let featureChainStarted=false;
-  let featureChainWaiter=null;
 
   function asset(name){
-    return `${name}?v=20261024-mod01`;
+    return typeof finalVersionedAsset==='function'
+      ? finalVersionedAsset(name)
+      : `${name}?v=20261024-full-2`;
   }
 
   function loadScriptOnce(selector,name,datasetKey,onload){
     const existing=document.querySelector(selector);
-    if(existing){
-      if(existing.dataset.loaded==='true'||existing.readyState==='complete'){
-        onload?.();
-        return;
-      }
-      existing.addEventListener('load',()=>onload?.(),{once:true});
-      return;
-    }
+    if(existing){if(onload)setTimeout(onload,0);return;}
     const script=document.createElement('script');
     script.src=asset(name);
     script.dataset[datasetKey]='true';
-    script.addEventListener('load',()=>{
-      script.dataset.loaded='true';
-      onload?.();
-    },{once:true});
+    if(onload)script.addEventListener('load',onload,{once:true});
     document.body.appendChild(script);
-  }
-
-  function baseEditorReady(){
-    return typeof window.OBJECT_DIMENSIONS!=='undefined' &&
-      typeof window.objectDimensions==='function' &&
-      typeof window.dimensionChangeAllowed==='function' &&
-      typeof window.PARTITION_ORIENTATION!=='undefined' &&
-      typeof window.rebuildParametricPartitions==='function' &&
-      typeof window.ensureDimensionState==='function';
   }
 
   function moveControlsToDedicatedSteps(){
@@ -61,9 +42,9 @@
     return false;
   }
 
-  function startFeatureChain(){
-    if(featureChainStarted) return;
-    featureChainStarted=true;
+  // Interior systems MUST load before openings and interior-ux. interior-ux exits early
+  // when ensureInteriorSystem() does not exist, which previously left only the preset cards visible.
+  function loadFeatureChain(){
     loadScriptOnce('script[data-interior-systems]','interior-systems.js','interiorSystems',()=>{
       loadScriptOnce('script[data-opening-extras]','openings-extras.js','openingExtras',()=>{
         loadScriptOnce('script[data-partition-duplicate]','partition-duplicate.js','partitionDuplicate',()=>{
@@ -76,35 +57,13 @@
     });
   }
 
-  function loadFeatureChain(){
-    if(featureChainStarted) return;
-    if(baseEditorReady()){
-      startFeatureChain();
-      return;
-    }
-    if(featureChainWaiter) return;
-    let tries=0;
-    featureChainWaiter=setInterval(()=>{
-      tries++;
-      if(baseEditorReady()){
-        clearInterval(featureChainWaiter);
-        featureChainWaiter=null;
-        startFeatureChain();
-      }else if(tries>=120){
-        clearInterval(featureChainWaiter);
-        featureChainWaiter=null;
-        console.error('bat-kubiqueitor: editor base no quedó listo; cadena avanzada no iniciada');
-      }
-    },50);
-  }
-
   function ensureWallFeatureChain(){
     if(renderWallControls())return;
     loadFeatureChain();
     let tries=0;
     const timer=setInterval(()=>{
       tries++;
-      if(renderWallControls()||tries>80)clearInterval(timer);
+      if(renderWallControls()||tries>40)clearInterval(timer);
     },100);
   }
 
