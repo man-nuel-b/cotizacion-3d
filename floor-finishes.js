@@ -1,4 +1,5 @@
 // Independent floor system: structural base + selectable visible finish.
+// Owns floor UI, floor 3D and floor cost contributions. It never overrides BOM/calculate.
 (function(){
   if(window.BAT_KUBIQUEITOR_FLOOR_FINISHES) return;
 
@@ -48,48 +49,34 @@
   }
 
   function renderUI(){
-    const f=ensure();
+    ensure();
     let host=document.getElementById('floor-finish-selector');
-    if(!host){
-      host=document.createElement('div');host.id='floor-finish-selector';host.className='mt-5';
-      const anchor=document.getElementById('finish-list');anchor?.insertAdjacentElement('afterend',host);
-    }
-    if(!host) return;
+    if(!host){host=document.createElement('div');host.id='floor-finish-selector';host.className='mt-5';document.getElementById('finish-list')?.insertAdjacentElement('afterend',host);}
+    if(!host)return;
     host.innerHTML=`<div class="flex items-end justify-between gap-3 mb-2"><div><label class="block text-xs font-black text-slate-700">Terminación de piso</label><div class="text-[10px] text-slate-400 mt-0.5">Base estructural + acabado visible · precios referenciales</div></div><span class="text-[9px] font-black uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-1 rounded-full">Chile</span></div><div class="grid gap-2">${Object.entries(FLOORS).map(([key,item])=>`<button type="button" onclick="selectFloorFinish('${key}')" class="option-card ${state.floorFinish===key?'active':''} border rounded-xl p-3 text-left flex gap-3 items-center"><span class="w-10 h-10 rounded-xl border shrink-0" style="background:#${new THREE.Color(item.color).getHexString()}"></span><span class="min-w-0 flex-1"><strong class="block text-sm">${item.name}${item.badge?` <span class='text-[9px] text-amber-600'>${item.badge}</span>`:''}</strong><small class="block text-[10px] text-slate-500 mt-0.5">${item.desc}</small></span><span class="text-[10px] font-bold text-slate-500">${money(item.costM2)}/m²</span></button>`).join('')}</div>`;
     window.BAT_KUBIQUEITOR_SIX_STEP_WIZARD?.sync?.();
   }
 
+  window.getFloorBOMItems=function(){
+    const f=ensure(),area=floorArea(),baseQty=Math.ceil((area*BASE.waste)/BASE.coverage),finishQty=Number((area*f.waste).toFixed(1));
+    const items=[
+      {key:'floor-base-structural',name:BASE.name,qty:baseQty,unit:'plancha',unitCost:BASE.cost,subtotal:baseQty*BASE.cost,category:'Piso'},
+      {key:`floor-${state.floorFinish}`,name:f.name,qty:finishQty,unit:'m²',unitCost:f.costM2,subtotal:finishQty*f.costM2,category:'Piso'}
+    ];
+    if(f.ancillaryM2)items.push({key:`floor-${state.floorFinish}-ancillary`,name:'Adhesivo + fragüe para piso',qty:finishQty,unit:'m²',unitCost:f.ancillaryM2,subtotal:finishQty*f.ancillaryM2,category:'Piso'});
+    return items;
+  };
+  window.getFloorLaborCost=function(){const f=ensure();return floorArea()*(BASE.laborM2+f.laborM2);};
   window.renderFloorFinishUI=renderUI;
   window.renderFloorFinishVisual=renderVisual;
   window.applyRecommendedFloorForSolution=function(solution){state.floorFinish=RECOMMENDED[solution]||state.floorFinish||'spc_oak';};
-  window.selectFloorFinish=function(key){
-    if(!FLOORS[key]) return;
-    pushHistory();state.floorFinish=key;renderAll();toast(`${FLOORS[key].name} seleccionado`);
-  };
-
-  const buildBOMBeforeFloor=buildBOM;
-  buildBOM=function(){
-    const items=buildBOMBeforeFloor().filter(i=>!['vinyl','floating','floor-base-structural'].includes(i.key)&&!String(i.key).startsWith('floor-'));
-    const f=ensure(),area=floorArea(),baseQty=Math.ceil((area*BASE.waste)/BASE.coverage),finishQty=Number((area*f.waste).toFixed(1));
-    items.push({key:'floor-base-structural',name:BASE.name,qty:baseQty,unit:'plancha',unitCost:BASE.cost,subtotal:baseQty*BASE.cost,category:'Piso'});
-    items.push({key:`floor-${state.floorFinish}`,name:f.name,qty:finishQty,unit:'m²',unitCost:f.costM2,subtotal:finishQty*f.costM2,category:'Piso'});
-    if(f.ancillaryM2) items.push({key:`floor-${state.floorFinish}-ancillary`,name:'Adhesivo + fragüe para piso',qty:finishQty,unit:'m²',unitCost:f.ancillaryM2,subtotal:finishQty*f.ancillaryM2,category:'Piso'});
-    return items;
-  };
-
-  const calculateBeforeFloor=calculate;
-  calculate=function(){
-    const r=calculateBeforeFloor(),f=ensure(),area=floorArea();
-    const addedLabor=area*(BASE.laborM2+f.laborM2),labor=r.labor+addedLabor,direct=r.materials+labor+(Number(state.transport)||0),net=direct*(1+(Number(state.margin)||0)/100),taxAmount=net*((Number(state.tax)||0)/100);
-    return {...r,labor,direct,net,taxAmount,total:net+taxAmount};
-  };
+  window.selectFloorFinish=function(key){if(!FLOORS[key])return;pushHistory();state.floorFinish=key;renderAll();toast(`${FLOORS[key].name} seleccionado`);};
 
   const rebuild3DBeforeFloor=rebuild3D;
   rebuild3D=function(){rebuild3DBeforeFloor();renderVisual();};
-
   const renderAllBeforeFloor=renderAll;
   renderAll=function(){ensure();renderAllBeforeFloor();renderUI();};
 
   ensure();renderUI();
-  window.BAT_KUBIQUEITOR_FLOOR_FINISHES={version:2,floors:FLOORS,recommended:RECOMMENDED,renderVisual,renderUI};
+  window.BAT_KUBIQUEITOR_FLOOR_FINISHES={version:3,floors:FLOORS,recommended:RECOMMENDED,renderVisual,renderUI};
 })();
