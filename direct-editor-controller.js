@@ -1,9 +1,9 @@
 // Authoritative Universal Direct 3D Editor controller.
 // Owns close, movement controls, face changes, reset and delete visibility.
 (function(){
-  if(window.BAT_KUBIQUEITOR_DIRECT_EDITOR_CONTROLLER?.version>=2) return;
+  if(window.BAT_KUBIQUEITOR_DIRECT_EDITOR_CONTROLLER?.version>=3) return;
 
-  const FLOOR_TYPES=new Set(['wc','sink','shower']);
+  const FLOOR_TYPES=new Set(['wc','sink','shower','electricalLight']);
 
   function currentSelection(){
     try{return (typeof selectedEditable!=='undefined'&&selectedEditable)?selectedEditable:null;}catch(e){return null;}
@@ -142,7 +142,7 @@
 
     window.closeDirect3DEditor=closeDirectEditor;
     window.syncDirect3DEditor=syncControls;
-    window.BAT_KUBIQUEITOR_DIRECT_EDITOR_CONTROLLER={version:2};
+    window.BAT_KUBIQUEITOR_DIRECT_EDITOR_CONTROLLER={version:3};
     syncControls();
     return true;
   }
