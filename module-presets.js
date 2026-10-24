@@ -1,5 +1,4 @@
-// Preset bathroom modules: one renderer, one drag engine, event-driven updates only.
-// Owns module UI/3D and exposes pricing contributions; it does not override BOM/calculate.
+// Preset bathroom modules: full controls, one renderer, one drag engine, event-driven updates only.
 (function(){
   if(window.BAT_KUBIQUEITOR_MODULE_PRESETS) return;
 
@@ -10,7 +9,10 @@
   const MAX_MODULES=6;
   let moduleRoots=[],selectedModuleIndex=null,draggingModule=null,dragStartState=null,dragOffset=null,raycaster=null,pointer=null,floorPlane=null,installed=false;
 
-  function ensureState(){if(!Array.isArray(state.bathroomModules))state.bathroomModules=[];state.bathroomModules.forEach(m=>{if(!Number.isFinite(Number(m.rotation)))m.rotation=0;});}
+  function ensureState(){
+    if(!Array.isArray(state.bathroomModules)) state.bathroomModules=[];
+    state.bathroomModules.forEach(m=>{if(!Number.isFinite(Number(m.rotation)))m.rotation=0;});
+  }
   const presetFor=m=>PRESETS[m?.kind]||PRESETS.half;
   const round5=v=>Math.round(v*20)/20;
   function normRot(v){let r=Math.round((Number(v)||0)/90)*90%360;return r<0?r+360:r;}
@@ -44,7 +46,7 @@
 
   function material(color,opts={}){return typeof mat==='function'?mat(color,opts):new THREE.MeshStandardMaterial({color,...opts});}
   function cube(w,h,d,m,x=0,y=0,z=0){if(typeof box==='function')return box(w,h,d,m,x,y,z);const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);mesh.position.set(x,y,z);mesh.castShadow=mesh.receiveShadow=true;return mesh;}
-  function safeFixture(type){try{if(type==='wc')return createWC();if(type==='sink')return createSink();if(type==='shower')return createShower();}catch(e){}return null;}
+  function safeFixture(type){try{if(type==='wc'&&typeof createWC==='function')return createWC();if(type==='sink'&&typeof createSink==='function')return createSink();if(type==='shower'&&typeof createShower==='function')return createShower();}catch(e){}return null;}
 
   function addRoomShell(g,p,index){
     const wallT=.075,h=2.28,doorW=Math.min(.80,p.width-.34),doorH=2.02;
@@ -68,11 +70,18 @@
 
   function syncScene(){
     if(!containerGroup)return;ensureState();
-    const old=(containerGroup.children||[]).filter(o=>o.userData?.bathroomPresetRoot);old.forEach(r=>containerGroup.remove(r));
+    (containerGroup.children||[]).filter(o=>o.userData?.bathroomPresetRoot).forEach(r=>containerGroup.remove(r));
     moduleRoots=[];state.bathroomModules.forEach((m,i)=>{const root=createModuleGroup(m,i);containerGroup.add(root);moduleRoots.push(root);});
   }
+  const moduleCount=kind=>(ensureState(),state.bathroomModules.filter(m=>m.kind===kind).length);
 
-  function moduleCount(kind){ensureState();return state.bathroomModules.filter(m=>m.kind===kind).length;}
+  function renderSelectedControls(){
+    ensureState();
+    if(selectedModuleIndex===null||!state.bathroomModules[selectedModuleIndex])return'';
+    const m=state.bathroomModules[selectedModuleIndex],p=presetFor(m);
+    return `<div class="mt-3 rounded-xl border border-slate-200 bg-white p-3" data-selected-bathroom-controls><div class="flex items-center justify-between gap-2"><div><div class="text-[9px] uppercase tracking-wider font-black text-amber-600">Módulo seleccionado</div><div class="font-black text-sm">${p.name}</div><div class="text-[9px] text-slate-400">X ${Number(m.x||0).toFixed(2)} · Z ${Number(m.z||0).toFixed(2)} · ${normRot(m.rotation)}°</div></div><button type="button" onclick="deleteSelectedBathroomModule()" class="w-8 h-8 rounded-lg bg-red-50 text-red-600"><i class="fa-solid fa-trash"></i></button></div><div class="grid grid-cols-3 gap-2 mt-3"><button type="button" onclick="nudgeBathroomModule(-.10,0)" class="rounded-lg bg-slate-100 py-2"><i class="fa-solid fa-arrow-left"></i></button><button type="button" onclick="nudgeBathroomModule(0,-.10)" class="rounded-lg bg-slate-100 py-2"><i class="fa-solid fa-arrow-up"></i></button><button type="button" onclick="nudgeBathroomModule(.10,0)" class="rounded-lg bg-slate-100 py-2"><i class="fa-solid fa-arrow-right"></i></button><button type="button" onclick="rotateSelectedBathroomModule(-1)" class="rounded-lg bg-slate-950 text-white py-2"><i class="fa-solid fa-rotate-left"></i> 90°</button><button type="button" onclick="nudgeBathroomModule(0,.10)" class="rounded-lg bg-slate-100 py-2"><i class="fa-solid fa-arrow-down"></i></button><button type="button" onclick="rotateSelectedBathroomModule(1)" class="rounded-lg bg-slate-950 text-white py-2"><i class="fa-solid fa-rotate-right"></i> 90°</button></div><div class="text-[9px] text-slate-400 mt-2">También puedes arrastrarlo directamente dentro del contenedor.</div></div>`;
+  }
+
   window.addBathroomModule=function(kind){if(!PRESETS[kind])return;ensureState();if(state.bathroomModules.length>=MAX_MODULES)return toast(`Máximo ${MAX_MODULES} módulos prearmados`);const p=defaultPos(kind);if(!p)return toast('No queda espacio suficiente para insertar este módulo');pushHistory();state.bathroomModules.push({kind,x:p.x,z:p.z,rotation:0});selectedModuleIndex=state.bathroomModules.length-1;renderAll();toast(`${PRESETS[kind].name} agregado`);};
   window.removeBathroomModule=function(kind){ensureState();for(let i=state.bathroomModules.length-1;i>=0;i--)if(state.bathroomModules[i].kind===kind){pushHistory();state.bathroomModules.splice(i,1);selectedModuleIndex=null;renderAll();return;}};
   window.deleteSelectedBathroomModule=function(){if(selectedModuleIndex===null||!state.bathroomModules[selectedModuleIndex])return;pushHistory();state.bathroomModules.splice(selectedModuleIndex,1);selectedModuleIndex=null;renderAll();};
@@ -83,32 +92,25 @@
   renderExtras=function(){
     renderExtrasBeforeModules();ensureState();const root=document.getElementById('extras-list');if(!root)return;
     root.querySelector('[data-bathroom-module-section]')?.remove();
-    const section=document.createElement('div');section.dataset.bathroomModuleSection='true';section.className='mb-4 rounded-2xl border border-amber-200 bg-amber-50/60 p-3';section.innerHTML=`<div class="flex items-start gap-2 mb-3"><div class="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 grid place-items-center"><i class="fa-solid fa-object-group"></i></div><div><div class="font-black text-sm">Módulos prearmados</div><div class="text-[10px] text-slate-500 mt-0.5">Recintos completos que se mueven como una unidad.</div></div></div>${Object.entries(PRESETS).map(([key,p])=>`<div class="bg-white border border-amber-100 rounded-xl p-3 flex items-center gap-3 mb-2"><div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 grid place-items-center"><i class="fa-solid ${p.icon}"></i></div><div class="flex-1 min-w-0"><div class="font-bold text-sm">${p.name}</div><div class="text-[10px] text-slate-400">${p.desc} · ${p.width.toFixed(2)} × ${p.depth.toFixed(2)} m</div></div><button type="button" class="counter-btn" onclick="removeBathroomModule('${key}')">−</button><div class="w-6 text-center font-black">${moduleCount(key)}</div><button type="button" class="counter-btn" onclick="addBathroomModule('${key}')">+</button></div>`).join('')}`;root.prepend(section);
+    const section=document.createElement('div');section.dataset.bathroomModuleSection='true';section.className='mb-4 rounded-2xl border border-amber-200 bg-amber-50/60 p-3';
+    section.innerHTML=`<div class="flex items-start gap-2 mb-3"><div class="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 grid place-items-center"><i class="fa-solid fa-object-group"></i></div><div><div class="font-black text-sm">Módulos prearmados</div><div class="text-[10px] text-slate-500 mt-0.5">Recintos completos. Selecciona, mueve y gira cada módulo.</div></div></div>${Object.entries(PRESETS).map(([key,p])=>`<div class="bg-white border border-amber-100 rounded-xl p-3 flex items-center gap-3 mb-2"><div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 grid place-items-center"><i class="fa-solid ${p.icon}"></i></div><div class="flex-1 min-w-0"><div class="font-bold text-sm">${p.name}</div><div class="text-[10px] text-slate-400">${p.desc} · ${p.width.toFixed(2)} × ${p.depth.toFixed(2)} m</div></div><button type="button" class="counter-btn" onclick="removeBathroomModule('${key}')">−</button><div class="w-6 text-center font-black">${moduleCount(key)}</div><button type="button" class="counter-btn" onclick="addBathroomModule('${key}')">+</button></div>`).join('')}${renderSelectedControls()}`;
+    root.prepend(section);
   };
 
-  window.getBathroomModuleBOMItems=function(){
-    ensureState();const totals={wc:0,sink:0,shower:0},items=[];
-    state.bathroomModules.forEach(m=>{const c=presetFor(m).components;for(const k of Object.keys(totals))totals[k]+=c[k]||0;});
-    for(const[k,q]of Object.entries(totals)){if(!q)continue;const c=DATA.catalog[k];items.push({key:`module-${k}`,name:`${c.name} · módulos`,qty:q,unit:c.unit,unitCost:c.cost,subtotal:q*c.cost,category:'Sanitario'});}
-    return items;
-  };
+  window.getBathroomModuleBOMItems=function(){ensureState();const totals={wc:0,sink:0,shower:0},items=[];state.bathroomModules.forEach(m=>{const c=presetFor(m).components;for(const k of Object.keys(totals))totals[k]+=c[k]||0;});for(const[k,q]of Object.entries(totals)){if(!q)continue;const c=DATA.catalog[k];items.push({key:`module-${k}`,name:`${c.name} · módulos`,qty:q,unit:c.unit,unitCost:c.cost,subtotal:q*c.cost,category:'Sanitario'});}return items;};
   window.getBathroomModuleLaborCost=function(){ensureState();let total=0;state.bathroomModules.forEach(m=>Object.entries(presetFor(m).components).forEach(([k,q])=>total+=(DATA.labor[k]||0)*q));return total;};
 
   function rootFromObject(o){let n=o;while(n){if(n.userData?.bathroomPresetRoot)return n;if(n.userData?.bathroomModuleRoot)return n.userData.bathroomModuleRoot;n=n.parent;}return null;}
   function setPointer(e){const r=renderer.domElement.getBoundingClientRect();pointer.x=((e.clientX-r.left)/r.width)*2-1;pointer.y=-((e.clientY-r.top)/r.height)*2+1;}
   function hit(e){setPointer(e);raycaster.setFromCamera(pointer,camera);const h=raycaster.intersectObjects(moduleRoots,true);return h.length?rootFromObject(h[0].object):null;}
-  function onDown(e){if(e.button!==0||isPresentation)return;const root=hit(e);if(!root)return;e.preventDefault();e.stopPropagation();const i=root.userData.bathroomModuleIndex,m=state.bathroomModules[i];selectedModuleIndex=i;draggingModule=root;dragStartState=clone(state);controls.enabled=false;setPointer(e);raycaster.setFromCamera(pointer,camera);const pt=new THREE.Vector3();floorPlane.set(new THREE.Vector3(0,1,0),0);dragOffset=raycaster.ray.intersectPlane(floorPlane,pt)?{x:(Number(m.x)||0)-pt.x,z:(Number(m.z)||0)-pt.z}:{x:0,z:0};renderer.domElement.setPointerCapture?.(e.pointerId);}
+  function onDown(e){if(e.button!==0||isPresentation)return;const root=hit(e);if(!root)return;e.preventDefault();e.stopPropagation();const i=root.userData.bathroomModuleIndex,m=state.bathroomModules[i];selectedModuleIndex=i;draggingModule=root;dragStartState=clone(state);controls.enabled=false;setPointer(e);raycaster.setFromCamera(pointer,camera);const pt=new THREE.Vector3();floorPlane.set(new THREE.Vector3(0,1,0),0);dragOffset=raycaster.ray.intersectPlane(floorPlane,pt)?{x:(Number(m.x)||0)-pt.x,z:(Number(m.z)||0)-pt.z}:{x:0,z:0};renderer.domElement.setPointerCapture?.(e.pointerId);if(typeof renderExtras==='function')renderExtras();}
   function onMove(e){if(!draggingModule)return;e.preventDefault();setPointer(e);raycaster.setFromCamera(pointer,camera);const pt=new THREE.Vector3();if(!raycaster.ray.intersectPlane(floorPlane,pt))return;const i=draggingModule.userData.bathroomModuleIndex,m=state.bathroomModules[i],p={x:round5(pt.x+dragOffset.x),z:round5(pt.z+dragOffset.z)};if(!valid(m.kind,p,i,m.rotation||0))return;m.x=p.x;m.z=p.z;draggingModule.position.x=p.x;draggingModule.position.z=p.z;}
-  function onUp(e){if(!draggingModule)return;controls.enabled=true;renderer.domElement.releasePointerCapture?.(e.pointerId);const changed=JSON.stringify(dragStartState?.bathroomModules||[])!==JSON.stringify(state.bathroomModules||[]);if(changed&&dragStartState){history.push(dragStartState);if(history.length>40)history.shift();future=[];}draggingModule=null;dragStartState=null;dragOffset=null;}
+  function onUp(e){if(!draggingModule)return;controls.enabled=true;renderer.domElement.releasePointerCapture?.(e.pointerId);const changed=JSON.stringify(dragStartState?.bathroomModules||[])!==JSON.stringify(state.bathroomModules||[]);if(changed&&dragStartState){history.push(dragStartState);if(history.length>40)history.shift();future=[];}draggingModule=null;dragStartState=null;dragOffset=null;if(typeof renderExtras==='function')renderExtras();}
 
   const rebuild3DBeforeModules=rebuild3D;
   rebuild3D=function(){rebuild3DBeforeModules();syncScene();};
 
-  function install(){
-    if(installed||!renderer?.domElement)return false;installed=true;ensureState();raycaster=new THREE.Raycaster();pointer=new THREE.Vector2();floorPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
-    const canvas=renderer.domElement;canvas.addEventListener('pointerdown',onDown,true);canvas.addEventListener('pointermove',onMove,true);canvas.addEventListener('pointerup',onUp,true);canvas.addEventListener('pointercancel',onUp,true);
-    syncScene();window.BAT_KUBIQUEITOR_MODULE_PRESETS={version:5,presets:PRESETS,syncScene};return true;
-  }
+  function install(){if(installed||!renderer?.domElement)return false;installed=true;ensureState();raycaster=new THREE.Raycaster();pointer=new THREE.Vector2();floorPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);const canvas=renderer.domElement;canvas.addEventListener('pointerdown',onDown,true);canvas.addEventListener('pointermove',onMove,true);canvas.addEventListener('pointerup',onUp,true);canvas.addEventListener('pointercancel',onUp,true);syncScene();window.BAT_KUBIQUEITOR_MODULE_PRESETS={version:6,presets:PRESETS,syncScene,getSelectedIndex:()=>selectedModuleIndex};return true;}
   function boot(attempt=0){if(install())return;if(attempt<30)setTimeout(()=>boot(attempt+1),80);}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>boot(),{once:true});else boot();
 })();
