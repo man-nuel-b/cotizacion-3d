@@ -1,7 +1,7 @@
 // Customer-facing orientation cleanup + Explore/Edit controls for bat-kubiqueitor.
 // The actual A/B/C/D markers and direct selection live in face-select.js.
 
-const APP_ASSET_VERSION='20261023-30';
+const APP_ASSET_VERSION='20261024-mod01';
 function versionedAsset(name){ return `${name}?v=${APP_ASSET_VERSION}`; }
 
 function simplifyOrientationCopy(){
@@ -138,87 +138,51 @@ function installInteractionModeControls(){
   updateInteractionModeUI();
 }
 
-function loadPartitionBoundsFixLayer(){
-  if(document.querySelector('script[data-partition-bounds-fix]')) return;
+function loadVersionedOnce(selector,name,datasetKey,next){
+  const existing=document.querySelector(selector);
+  if(existing){
+    if(existing.dataset.loaded==='true'||existing.readyState==='complete'){
+      next?.();
+      return;
+    }
+    existing.addEventListener('load',()=>next?.(),{once:true});
+    return;
+  }
   const script=document.createElement('script');
-  script.src=versionedAsset('partition-bounds-fix.js');
-  script.dataset.partitionBoundsFix='true';
+  script.src=versionedAsset(name);
+  script.dataset[datasetKey]='true';
+  script.addEventListener('load',()=>{script.dataset.loaded='true';next?.();},{once:true});
   document.body.appendChild(script);
+}
+
+function loadPartitionBoundsFixLayer(){
+  loadVersionedOnce('script[data-partition-bounds-fix]','partition-bounds-fix.js','partitionBoundsFix');
 }
 
 function loadPartitionJointsLayer(){
-  if(document.querySelector('script[data-partition-joints]')){
-    setTimeout(loadPartitionBoundsFixLayer,20);
-    return;
-  }
-  const script=document.createElement('script');
-  script.src=versionedAsset('partition-joints.js');
-  script.dataset.partitionJoints='true';
-  script.addEventListener('load',()=>setTimeout(loadPartitionBoundsFixLayer,20),{once:true});
-  document.body.appendChild(script);
+  loadVersionedOnce('script[data-partition-joints]','partition-joints.js','partitionJoints',loadPartitionBoundsFixLayer);
 }
 
 function loadPartitionLayer(){
-  if(document.querySelector('script[data-partition-layout]')){
-    setTimeout(loadPartitionJointsLayer,20);
-    return;
-  }
-  const script=document.createElement('script');
-  script.src=versionedAsset('partition-layout.js');
-  script.dataset.partitionLayout='true';
-  script.addEventListener('load',()=>setTimeout(loadPartitionJointsLayer,20),{once:true});
-  document.body.appendChild(script);
+  loadVersionedOnce('script[data-partition-layout]','partition-layout.js','partitionLayout',loadPartitionJointsLayer);
 }
 
 function loadFurnitureLayer(){
-  if(document.querySelector('script[data-furniture-toggle]')){
-    setTimeout(loadPartitionLayer,20);
-    return;
-  }
-  const script=document.createElement('script');
-  script.src=versionedAsset('furniture-toggle.js');
-  script.dataset.furnitureToggle='true';
-  script.addEventListener('load',()=>setTimeout(loadPartitionLayer,20),{once:true});
-  document.body.appendChild(script);
+  loadVersionedOnce('script[data-furniture-toggle]','furniture-toggle.js','furnitureToggle',loadPartitionLayer);
 }
 
 function loadDimensionPanelLayer(){
-  if(document.querySelector('script[data-dimension-panel]')){
-    setTimeout(loadFurnitureLayer,20);
-    return;
-  }
-  const script=document.createElement('script');
-  script.src=versionedAsset('dimension-panel.js');
-  script.dataset.dimensionPanel='true';
-  script.addEventListener('load',()=>setTimeout(loadFurnitureLayer,20),{once:true});
-  document.body.appendChild(script);
+  loadVersionedOnce('script[data-dimension-panel]','dimension-panel.js','dimensionPanel',loadFurnitureLayer);
 }
 
 function loadDimensionsLayer(){
-  if(document.querySelector('script[data-dimensions]')){
-    setTimeout(loadDimensionPanelLayer,20);
-    return;
-  }
-  const script=document.createElement('script');
-  script.src=versionedAsset('dimensions.js');
-  script.dataset.dimensions='true';
-  script.addEventListener('load',()=>setTimeout(loadDimensionPanelLayer,20),{once:true});
-  document.body.appendChild(script);
+  loadVersionedOnce('script[data-dimensions]','dimensions.js','dimensions',loadDimensionPanelLayer);
 }
 
 function bootOrientationUI(){
   simplifyOrientationCopy();
   installInteractionModeControls();
-
-  if(!document.querySelector('script[data-face-select]')){
-    const script=document.createElement('script');
-    script.src=versionedAsset('face-select.js');
-    script.dataset.faceSelect='true';
-    script.addEventListener('load',()=>setTimeout(loadDimensionsLayer,20),{once:true});
-    document.body.appendChild(script);
-  }else{
-    setTimeout(loadDimensionsLayer,20);
-  }
+  loadVersionedOnce('script[data-face-select]','face-select.js','faceSelect',loadDimensionsLayer);
 }
 
 if(document.readyState==='loading'){
