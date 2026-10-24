@@ -4,7 +4,7 @@
   if(window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER) return;
   window.BAT_KUBIQUEITOR_PARTITION_FACE_LOADER=true;
 
-  function asset(name){return `${name}?v=20261024-mod02-07`;}
+  function asset(name){return `${name}?v=20261024-mod02-08`;}
 
   function loadOnce(selector,name,datasetKey,onload){
     const existing=document.querySelector(selector);
@@ -29,8 +29,30 @@
 
   function loadOrientationControls(){loadOnce('script[data-object-orientation-controls]','object-orientation-controls.js','objectOrientationControls');}
 
+  function normalizeDoorHardware(){
+    if(!window.containerGroup) return;
+    const hinges=[];
+    containerGroup.traverse(obj=>{if(obj?.name==='interior-door-hinge') hinges.push(obj);});
+    hinges.forEach(hinge=>{
+      const leaf=hinge.getObjectByName('interior-door-leaf');
+      if(!leaf?.geometry?.parameters) return;
+      const knobs=hinge.children.filter(child=>child!==leaf&&child?.geometry?.type==='SphereGeometry');
+      if(!knobs.length) return;
+      const thickness=Number(leaf.geometry.parameters.width)||.038;
+      const leafWidth=Number(leaf.geometry.parameters.depth)||.72;
+      const latchZ=Math.max(.08,leafWidth*.32);
+      knobs.slice(0,2).forEach((knob,index)=>{
+        hinge.remove(knob);
+        leaf.add(knob);
+        knob.position.set(index===0?(thickness/2+.026):-(thickness/2+.026),0,latchZ);
+        knob.name=index===0?'interior-door-knob-front':'interior-door-knob-back';
+      });
+    });
+  }
+
   function emphasizePartitionDoor(){
     if(!window.containerGroup) return;
+    normalizeDoorHardware();
     containerGroup.traverse(obj=>{
       if(obj?.name==='interior-door-leaf'&&obj.material){
         obj.material=obj.material.clone();
@@ -49,7 +71,7 @@
   }
 
   function installFinalSceneComposer(){
-    if(window.BAT_KUBIQUEITOR_FINAL_SCENE_COMPOSER?.version>=4) return;
+    if(window.BAT_KUBIQUEITOR_FINAL_SCENE_COMPOSER?.version>=5) return;
     if(typeof rebuild3D!=='function') return;
     const baseRebuild=rebuild3D;
     rebuild3D=function(){
@@ -61,7 +83,7 @@
       if(typeof window.renderFloorFinishVisual==='function') window.renderFloorFinishVisual();
       emphasizePartitionDoor();
     };
-    window.BAT_KUBIQUEITOR_FINAL_SCENE_COMPOSER={version:4};
+    window.BAT_KUBIQUEITOR_FINAL_SCENE_COMPOSER={version:5};
     rebuild3D();
   }
 
