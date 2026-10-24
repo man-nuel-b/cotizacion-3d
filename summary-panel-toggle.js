@@ -115,8 +115,14 @@
 (function loadBathroomPresetModules(){
   if(window.BAT_KUBIQUEITOR_MODULE_PRESETS||document.querySelector('script[data-bathroom-presets]')) return;
   const script=document.createElement('script');
-  script.src='module-presets.js?v=20261023-33';
+  script.src='module-presets.js?v=20261023-34';
   script.dataset.bathroomPresets='1';
-  script.defer=true;
+  script.onload=()=>{
+    if(document.querySelector('script[data-bathroom-visibility-fix]')) return;
+    const fix=document.createElement('script');
+    fix.src='module-presets-visibility-fix.js?v=20261023-34';
+    fix.dataset.bathroomVisibilityFix='1';
+    document.body.appendChild(fix);
+  };
   document.body.appendChild(script);
 })();
