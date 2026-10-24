@@ -84,6 +84,14 @@
   function updateButton(collapsed){const btn=document.getElementById('summary-panel-toggle');if(!btn)return;btn.setAttribute('aria-expanded',String(!collapsed));btn.setAttribute('title',collapsed?'Mostrar resumen del proyecto':'Ocultar resumen y ampliar el modelo 3D');btn.innerHTML=collapsed?'<i class="fa-solid fa-chevron-left"></i><span>Resumen</span>':'<span>Ocultar</span><i class="fa-solid fa-chevron-right"></i>';}
   function setSummaryCollapsed(collapsed,{persist=true}={}){const shell=document.getElementById('app-shell');if(!shell)return;shell.classList.toggle('summary-panel-collapsed',Boolean(collapsed));updateButton(Boolean(collapsed));if(persist)saveState(Boolean(collapsed));triggerViewportResize();}
 
+  function loadSixStepSupervisor(){
+    if(window.BAT_KUBIQUEITOR_SIX_STEP_SUPERVISOR||document.querySelector('script[data-six-step-supervisor]')) return;
+    const script=document.createElement('script');
+    script.src='wizard-six-step-supervisor.js?v=20261023-41';
+    script.dataset.sixStepSupervisor='true';
+    document.body.appendChild(script);
+  }
+
   function install(){
     const viewer=document.querySelector('.viewer-wrap'),summary=document.querySelector('.summary-panel'),shell=document.getElementById('app-shell');
     if(!viewer||!summary||!shell)return false;
@@ -100,7 +108,8 @@
     setSummaryCollapsed(persistedState(),{persist:false});
     window.setSummaryPanelCollapsed=setSummaryCollapsed;
     window.toggleSummaryPanel=function(){setSummaryCollapsed(!shell.classList.contains('summary-panel-collapsed'));};
-    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:3};
+    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:4};
+    setTimeout(loadSixStepSupervisor,40);
     return true;
   }
 
