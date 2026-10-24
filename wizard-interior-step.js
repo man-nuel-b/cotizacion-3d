@@ -3,13 +3,13 @@
 (function(){
   if(window.BAT_KUBIQUEITOR_SIX_STEP_WIZARD) return;
 
-  const VERSION=3;
+  const VERSION=4;
   let installed=false;
 
   function asset(name){
     return typeof finalVersionedAsset==='function'
       ? finalVersionedAsset(name)
-      : `${name}?v=20261024-full-1`;
+      : `${name}?v=20261024-full-2`;
   }
 
   function loadScriptOnce(selector,name,datasetKey,onload){
@@ -22,17 +22,6 @@
     document.body.appendChild(script);
   }
 
-  // One deterministic chain. No competing navigation or background supervisors.
-  function loadFeatureChain(){
-    loadScriptOnce('script[data-opening-extras]','openings-extras.js','openingExtras',()=>{
-      loadScriptOnce('script[data-partition-duplicate]','partition-duplicate.js','partitionDuplicate',()=>{
-        loadScriptOnce('script[data-interior-ux]','interior-ux.js','interiorUx',()=>{
-          loadScriptOnce('script[data-production-suite]','production-suite.js','productionSuite');
-        });
-      });
-    });
-  }
-
   function moveControlsToDedicatedSteps(){
     const floorTarget=document.getElementById('floor-step-content');
     const wallTarget=document.getElementById('wall-step-content');
@@ -42,6 +31,40 @@
     if(floorTarget&&floor&&floor.parentElement!==floorTarget)floorTarget.appendChild(floor);
     if(wallTarget&&finish&&finish.parentElement!==wallTarget)wallTarget.appendChild(finish);
     if(wallTarget&&interior&&interior.parentElement!==wallTarget)wallTarget.appendChild(interior);
+  }
+
+  function renderWallControls(){
+    if(typeof window.renderInteriorSystemUI==='function'){
+      window.renderInteriorSystemUI();
+      moveControlsToDedicatedSteps();
+      return true;
+    }
+    return false;
+  }
+
+  // Interior systems MUST load before openings and interior-ux. interior-ux exits early
+  // when ensureInteriorSystem() does not exist, which previously left only the preset cards visible.
+  function loadFeatureChain(){
+    loadScriptOnce('script[data-interior-systems]','interior-systems.js','interiorSystems',()=>{
+      loadScriptOnce('script[data-opening-extras]','openings-extras.js','openingExtras',()=>{
+        loadScriptOnce('script[data-partition-duplicate]','partition-duplicate.js','partitionDuplicate',()=>{
+          loadScriptOnce('script[data-interior-ux]','interior-ux.js','interiorUx',()=>{
+            renderWallControls();
+            loadScriptOnce('script[data-production-suite]','production-suite.js','productionSuite');
+          });
+        });
+      });
+    });
+  }
+
+  function ensureWallFeatureChain(){
+    if(renderWallControls())return;
+    loadFeatureChain();
+    let tries=0;
+    const timer=setInterval(()=>{
+      tries++;
+      if(renderWallControls()||tries>40)clearInterval(timer);
+    },100);
   }
 
   function installStyles(){
@@ -121,13 +144,13 @@
       document.querySelectorAll('.wizard-step').forEach(el=>el.classList.toggle('hidden',Number(el.dataset.step)!==state.step));
       document.querySelectorAll('.step-chip').forEach((el,idx)=>{const active=idx+1===state.step;el.classList.toggle('active',active);el.classList.toggle('text-slate-500',!active);});
       if(state.step===3&&typeof window.renderFloorFinishUI==='function')window.renderFloorFinishUI();
-      if(state.step===4&&typeof window.renderInteriorSystemUI==='function')window.renderInteriorSystemUI();
+      if(state.step===4)ensureWallFeatureChain();
       moveControlsToDedicatedSteps();
       if(window.innerWidth<821)document.querySelector('.config-panel')?.scrollIntoView({behavior:'smooth',block:'start'});
     };
 
     installStyles();installed=true;
-    window.BAT_KUBIQUEITOR_SIX_STEP_WIZARD={version:VERSION,sync:moveControlsToDedicatedSteps};
+    window.BAT_KUBIQUEITOR_SIX_STEP_WIZARD={version:VERSION,sync:moveControlsToDedicatedSteps,ensureWalls:ensureWallFeatureChain};
     moveControlsToDedicatedSteps();goStep(Math.min(Math.max(Number(state.step)||1,1),6));loadFeatureChain();return true;
   }
 
