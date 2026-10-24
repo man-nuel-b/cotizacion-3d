@@ -154,18 +154,31 @@
   function addDoorObject(group,index,dims,door){
     if(!door) return;
     const frame=mat(0x334155,{roughness:.38,metalness:.55});
-    const leaf=mat(0xd6c4a7,{roughness:.62,metalness:.02});
-    const handle=mat(0xbfc6ce,{roughness:.16,metalness:.88});
+    const leaf=mat(0xb58a67,{roughness:.58,metalness:.02});
+    const handle=mat(0xd1d5db,{roughness:.14,metalness:.9});
     const jamb=.045;
     group.add(box(dims.thickness+.035,door.height,jamb,frame,0,door.height/2,door.z1));
     group.add(box(dims.thickness+.035,door.height,jamb,frame,0,door.height/2,door.z2));
     group.add(box(dims.thickness+.035,jamb,door.width+jamb*2,frame,0,door.height,door.offset));
-    const leafMesh=box(.035,door.height-.07,door.width-.08,leaf,.004,(door.height-.07)/2,door.offset);
+
+    const leafW=Math.max(.20,door.width-.08),leafH=Math.max(.40,door.height-.07);
+    const pivot=new THREE.Group();
+    pivot.name='interior-door-hinge';
+    pivot.position.set(0,0,door.z1+jamb*.45);
+    pivot.rotation.y=THREE.MathUtils.degToRad(-68);
+
+    const leafMesh=box(.038,leafH,leafW,leaf,.012,leafH/2,leafW/2);
     leafMesh.name='interior-door-leaf';
-    group.add(leafMesh);
-    const knob=new THREE.Mesh(new THREE.SphereGeometry(.035,14,10),handle);
-    knob.position.set(.026,door.height*.50,door.offset+door.width*.32);
-    group.add(knob);
+    leafMesh.userData.openAngle=68;
+    pivot.add(leafMesh);
+
+    const knobFront=new THREE.Mesh(new THREE.SphereGeometry(.036,14,10),handle);
+    knobFront.position.set(.038,door.height*.50,leafW*.82);
+    pivot.add(knobFront);
+    const knobBack=knobFront.clone();
+    knobBack.position.x=-.014;
+    pivot.add(knobBack);
+    group.add(pivot);
   }
 
   function createFaceLabel(text,color){
@@ -209,7 +222,6 @@
     return group;
   }
 
-  // Final partition renderer. Keeps all positioning/anchoring logic from the existing system.
   rebuildParametricPartitions=function(){
     if(!containerGroup) return;
     ensurePartitionSpecs();
@@ -430,7 +442,7 @@
     adjustPartitionBOM();
     window.partitionSpec=partitionSpec;
     window.partitionDoor=partitionDoor;
-    window.BAT_KUBIQUEITOR_PARTITION_FACES={version:1};
+    window.BAT_KUBIQUEITOR_PARTITION_FACES={version:2};
     rebuild3D();
     return true;
   }
