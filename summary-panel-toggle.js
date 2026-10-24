@@ -41,7 +41,7 @@
     setSummaryCollapsed(persistedState(),{persist:false});
     window.setSummaryPanelCollapsed=setSummaryCollapsed;
     window.toggleSummaryPanel=function(){setSummaryCollapsed(!shell.classList.contains('summary-panel-collapsed'));};
-    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:11};
+    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:9};
     return true;
   }
 
@@ -59,7 +59,6 @@
     loadScriptOnce('direct-editor-controller.js?v=20261024-refactor04','direct-editor-controller');
     loadScriptOnce('spatial-occupancy.js?v=20261024-collision01','spatial-occupancy');
     loadScriptOnce('partition-obstacle-collision.js?v=20261024-collision01','partition-obstacle-collision');
-    setTimeout(()=>loadScriptOnce('fixed-dimension-extras.js?v=20261024-fixed02','fixed-dimension-extras'),900);
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);},{once:true});
