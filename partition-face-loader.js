@@ -39,6 +39,7 @@
 
   function emphasizePartitionDoor(){
     if(typeof containerGroup==='undefined'||!containerGroup) return;
+
     containerGroup.traverse(obj=>{
       if(obj?.name==='interior-door-leaf'&&obj.material){
         obj.material=obj.material.clone();
@@ -48,6 +49,29 @@
         obj.material.roughness=.35;
         obj.material.metalness=.03;
       }
+    });
+
+    containerGroup.traverse(hinge=>{
+      if(hinge?.name!=='interior-door-hinge') return;
+      const leaf=hinge.children.find(child=>child?.name==='interior-door-leaf');
+      if(!leaf?.geometry) return;
+
+      const knobs=hinge.children.filter(child=>child?.isMesh&&child.geometry?.type==='SphereGeometry');
+      if(!knobs.length) return;
+
+      leaf.geometry.computeBoundingBox();
+      const size=new THREE.Vector3();
+      leaf.geometry.boundingBox.getSize(size);
+      const knobX=size.x/2+.018;
+      const knobY=.035;
+      const knobZ=size.z*.32;
+
+      knobs.slice(0,2).forEach((knob,index)=>{
+        hinge.remove(knob);
+        leaf.add(knob);
+        knob.position.set(index===0?knobX:-knobX,knobY,knobZ);
+        knob.name=index===0?'interior-door-handle-front':'interior-door-handle-back';
+      });
     });
   }
 
