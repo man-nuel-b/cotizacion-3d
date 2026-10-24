@@ -1,24 +1,45 @@
 // Stable six-step wizard for bat-kubiqueitor.
-// Single responsibility: navigation and deterministic loading of the full editor feature chain.
+// Owns wizard navigation and the verified loading order of the advanced wall tool chain.
 (function(){
   if(window.BAT_KUBIQUEITOR_SIX_STEP_WIZARD) return;
 
-  const VERSION=4;
+  const VERSION=7;
+  const ASSET_VERSION='20261024-mod01-13';
   let installed=false;
+  let featureChainStarted=false;
+  let featureChainWaiter=null;
 
-  function asset(name){
-    return typeof finalVersionedAsset==='function'
-      ? finalVersionedAsset(name)
-      : `${name}?v=20261024-full-2`;
+  function asset(name){return `${name}?v=${ASSET_VERSION}`;}
+
+  function baseEditorReady(){
+    return typeof OBJECT_DIMENSIONS!=='undefined' &&
+      typeof objectDimensions==='function' &&
+      typeof ensureDimensionState==='function' &&
+      typeof PARTITION_ORIENTATION!=='undefined' &&
+      typeof createParametricPartition==='function' &&
+      typeof rebuildParametricPartitions==='function';
   }
 
-  function loadScriptOnce(selector,name,datasetKey,onload){
+  function loadVerified(selector,name,datasetKey,isReady,onload){
+    if(isReady()){
+      onload?.();
+      return;
+    }
+
     const existing=document.querySelector(selector);
-    if(existing){if(onload)setTimeout(onload,0);return;}
+    if(existing) existing.remove();
+
     const script=document.createElement('script');
     script.src=asset(name);
     script.dataset[datasetKey]='true';
-    if(onload)script.addEventListener('load',onload,{once:true});
+    script.addEventListener('load',()=>{
+      script.dataset.loaded='true';
+      setTimeout(()=>{
+        if(isReady()) onload?.();
+        else console.error(`bat-kubiqueitor: ${name} cargó pero no quedó instalado`);
+      },0);
+    },{once:true});
+    script.addEventListener('error',()=>console.error(`bat-kubiqueitor: no se pudo cargar ${name}`),{once:true});
     document.body.appendChild(script);
   }
 
@@ -34,7 +55,7 @@
   }
 
   function renderWallControls(){
-    if(typeof window.renderInteriorSystemUI==='function'){
+    if(window.BAT_KUBIQUEITOR_INTERIOR_UX&&typeof window.renderInteriorSystemUI==='function'){
       window.renderInteriorSystemUI();
       moveControlsToDedicatedSteps();
       return true;
@@ -42,28 +63,81 @@
     return false;
   }
 
-  // Interior systems MUST load before openings and interior-ux. interior-ux exits early
-  // when ensureInteriorSystem() does not exist, which previously left only the preset cards visible.
+  function startFeatureChain(){
+    if(featureChainStarted) return;
+    featureChainStarted=true;
+
+    loadVerified(
+      'script[data-interior-systems]',
+      'interior-systems.js',
+      'interiorSystems',
+      ()=>typeof ensureInteriorSystem==='function'&&typeof INTERIOR_SYSTEMS!=='undefined',
+      ()=>{
+        loadVerified(
+          'script[data-opening-extras]',
+          'openings-extras.js',
+          'openingExtras',
+          ()=>Boolean(DATA.extras?.opening&&DATA.extras?.openingFrame&&OBJECT_DIMENSIONS?.opening&&OBJECT_DIMENSIONS?.openingFrame),
+          ()=>{
+            loadVerified(
+              'script[data-partition-duplicate]',
+              'partition-duplicate.js',
+              'partitionDuplicate',
+              ()=>Boolean(window.BAT_KUBIQUEITOR_PARTITION_DUPLICATE),
+              ()=>{
+                loadVerified(
+                  'script[data-interior-ux]',
+                  'interior-ux.js',
+                  'interiorUx',
+                  ()=>Boolean(window.BAT_KUBIQUEITOR_INTERIOR_UX&&typeof window.renderInteriorSystemUI==='function'),
+                  ()=>{
+                    renderWallControls();
+                    loadVerified(
+                      'script[data-production-suite]',
+                      'production-suite.js',
+                      'productionSuite',
+                      ()=>Boolean(window.BAT_KUBIQUEITOR_PRODUCTION_SUITE),
+                      ()=>renderWallControls()
+                    );
+                  }
+                );
+              }
+            );
+          }
+        );
+      }
+    );
+  }
+
   function loadFeatureChain(){
-    loadScriptOnce('script[data-interior-systems]','interior-systems.js','interiorSystems',()=>{
-      loadScriptOnce('script[data-opening-extras]','openings-extras.js','openingExtras',()=>{
-        loadScriptOnce('script[data-partition-duplicate]','partition-duplicate.js','partitionDuplicate',()=>{
-          loadScriptOnce('script[data-interior-ux]','interior-ux.js','interiorUx',()=>{
-            renderWallControls();
-            loadScriptOnce('script[data-production-suite]','production-suite.js','productionSuite');
-          });
-        });
-      });
-    });
+    if(featureChainStarted) return;
+    if(baseEditorReady()){
+      startFeatureChain();
+      return;
+    }
+    if(featureChainWaiter) return;
+    let tries=0;
+    featureChainWaiter=setInterval(()=>{
+      tries++;
+      if(baseEditorReady()){
+        clearInterval(featureChainWaiter);
+        featureChainWaiter=null;
+        startFeatureChain();
+      }else if(tries>=160){
+        clearInterval(featureChainWaiter);
+        featureChainWaiter=null;
+        console.error('bat-kubiqueitor: editor base no quedó listo; cadena de Paredes no iniciada');
+      }
+    },50);
   }
 
   function ensureWallFeatureChain(){
-    if(renderWallControls())return;
+    if(renderWallControls()) return;
     loadFeatureChain();
     let tries=0;
     const timer=setInterval(()=>{
       tries++;
-      if(renderWallControls()||tries>40)clearInterval(timer);
+      if(renderWallControls()||tries>=120) clearInterval(timer);
     },100);
   }
 
@@ -151,9 +225,12 @@
 
     installStyles();installed=true;
     window.BAT_KUBIQUEITOR_SIX_STEP_WIZARD={version:VERSION,sync:moveControlsToDedicatedSteps,ensureWalls:ensureWallFeatureChain};
-    moveControlsToDedicatedSteps();goStep(Math.min(Math.max(Number(state.step)||1,1),6));loadFeatureChain();return true;
+    moveControlsToDedicatedSteps();
+    goStep(Math.min(Math.max(Number(state.step)||1,1),6));
+    loadFeatureChain();
+    return true;
   }
 
-  function boot(attempt=0){if(install())return;if(attempt<20)setTimeout(()=>boot(attempt+1),100);}
+  function boot(attempt=0){if(install())return;if(attempt<30)setTimeout(()=>boot(attempt+1),100);}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>boot(),{once:true});else boot();
 })();
