@@ -109,3 +109,14 @@
     document.addEventListener('DOMContentLoaded',()=>setTimeout(install,30),{once:true});
   }else setTimeout(install,30);
 })();
+
+// Optional feature loader kept outside the core editor. Removing these lines disables
+// preset bathroom modules without touching the existing 3D editing implementation.
+(function loadBathroomPresetModules(){
+  if(window.BAT_KUBIQUEITOR_MODULE_PRESETS||document.querySelector('script[data-bathroom-presets]')) return;
+  const script=document.createElement('script');
+  script.src='module-presets.js?v=20261023-33';
+  script.dataset.bathroomPresets='1';
+  script.defer=true;
+  document.body.appendChild(script);
+})();
