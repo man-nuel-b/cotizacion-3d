@@ -19,7 +19,7 @@
       .summary-panel-collapsed #summary-panel-toggle{background:rgba(245,158,11,.95);color:#0f172a;border-color:#f59e0b}
       .summary-panel-collapsed #summary-panel-toggle i{color:#0f172a}
       .presentation-mode #summary-panel-toggle{display:none!important}
-      @media(max-width:1180px){.summary-panel-collapsed .main-grid{grid-template-columns:330px minmax(0,1fr)}.summary-panel-collapsed .summary-panel{display:none!important}}
+      @media(max-width:1180px){.summary-panel-collapsed .main-grid{grid-template-columns:330px minmax(0,1fr) 0px}.summary-panel-collapsed .summary-panel{display:none!important}}
       @media(max-width:820px){.summary-panel-collapsed .main-grid{display:block}.summary-panel-collapsed .summary-panel{display:none!important}#summary-panel-toggle{top:auto;bottom:78px;transform:none;padding:9px 10px}}
     `;
     document.head.appendChild(style);
@@ -41,16 +41,35 @@
     setSummaryCollapsed(persistedState(),{persist:false});
     window.setSummaryPanelCollapsed=setSummaryCollapsed;
     window.toggleSummaryPanel=function(){setSummaryCollapsed(!shell.classList.contains('summary-panel-collapsed'));};
-    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:5};
+    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:6};
     return true;
   }
 
-  function loadOpeningSystem(){
-    if(window.BAT_KUBIQUEITOR_OPENING_SYSTEM||document.querySelector('script[data-opening-system]')) return;
+  function loadScriptOnce(src,datasetKey,onload){
+    const existing=document.querySelector(`script[data-${datasetKey}]`);
+    if(existing){
+      if(onload){
+        if(existing.dataset.loaded==='true') onload();
+        else existing.addEventListener('load',onload,{once:true});
+      }
+      return existing;
+    }
     const script=document.createElement('script');
-    script.src='opening-system.js?v=20261024-refactor01';
-    script.dataset.openingSystem='true';
+    script.src=src;
+    script.setAttribute(`data-${datasetKey}`,'true');
+    script.addEventListener('load',()=>{script.dataset.loaded='true';onload?.();},{once:true});
     document.body.appendChild(script);
+    return script;
+  }
+
+  function loadOpeningIntegration(){
+    if(window.BAT_KUBIQUEITOR_OPENING_INTERIOR_INTEGRATION) return;
+    loadScriptOnce('opening-interior-integration.js?v=20261024-mod02-27','opening-interior-integration');
+  }
+
+  function loadOpeningSystem(){
+    if(window.BAT_KUBIQUEITOR_OPENING_SYSTEM){loadOpeningIntegration();return;}
+    loadScriptOnce('opening-system.js?v=20261024-refactor01','opening-system',loadOpeningIntegration);
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadOpeningSystem,80);},{once:true});
