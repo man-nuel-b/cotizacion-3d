@@ -73,8 +73,8 @@
           <div class="space-y-3">
             <input id="customer-name" oninput="setCustomer('name',this.value)" class="w-full border rounded-xl px-3 py-2.5 text-sm" placeholder="Nombre y apellido" />
             <input id="customer-company" oninput="setCustomer('company',this.value)" class="w-full border rounded-xl px-3 py-2.5 text-sm" placeholder="Empresa" />
-            <input id="customer-phone" oninput="setCustomer('phone',this.value)" class="w-full border rounded-xl px-3 py-2.5 text-sm" placeholder="Teléfono" />
-            <input id="customer-email" oninput="setCustomer('email',this.value)" class="w-full border rounded-xl px-3 py-2.5 text-sm" placeholder="Correo" />
+            <input id="customer-phone" oninput="setCustomer('phone',this.value)" type="tel" class="w-full border rounded-xl px-3 py-2.5 text-sm" placeholder="Teléfono" />
+            <input id="customer-email" oninput="setCustomer('email',this.value)" type="email" class="w-full border rounded-xl px-3 py-2.5 text-sm" placeholder="Correo" />
           </div>
           <button onclick="openQuote()" class="mt-5 w-full bg-amber-500 py-3 rounded-xl font-black text-sm"><i class="fa-solid fa-file-pdf mr-1"></i> Generar propuesta</button>
           <button onclick="shareWhatsApp()" class="mt-2 w-full bg-emerald-600 text-white py-3 rounded-xl font-bold text-sm"><i class="fa-brands fa-whatsapp mr-1"></i> Compartir resumen</button>
@@ -126,7 +126,7 @@
 <script src="editor.js?v=20261024-1"></script>
 <script src="faces-mounted.js?v=20261024-1"></script>
 <script src="face-paints.js?v=20261024-mod01"></script>
-<script src="partition-face-loader.js?v=20261024-mod02-12"></script>
+<script src="partition-face-loader.js?v=20261024-mod02-16"></script>
 <script src="summary-panel-toggle.js?v=20261024-1"></script>
 <script src="module-presets.js?v=20261024-mod01"></script>
 <script src="floor-finishes.js?v=20261024-mod01"></script>
