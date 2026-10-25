@@ -50,6 +50,50 @@ function defaultWallX(index,count,length,padding=.9){ return slotPosition(index,
 function windowFace(index){ ensureLayoutState(); return state.layout.window[index]?.face||'B'; }
 function faceDimension(face,c){ return (face==='A'||face==='B')?c.length:c.width; }
 
+function electricalTypeDefaultHeight(type,c){
+  if(type==='switch') return 1.10;
+  if(type==='acPoint') return Math.min(2.15,c.height-.18);
+  if(type==='light') return c.height-.10;
+  return .35;
+}
+function electricalTypeLabel(type){
+  return ({outlet:'Enchufe doble',switch:'Interruptor',light:'Luminaria LED',acPoint:'Punto A/C'})[type]||'Punto eléctrico';
+}
+function ensureElectricalStateForEditor(){
+  if(!state.electrical||typeof state.electrical!=='object') state.electrical={version:1,points:[]};
+  if(!Array.isArray(state.electrical.points)) state.electrical.points=[];
+  const desired=Math.max(0,Math.round(Number(state.counts?.electrical)||0));
+  while(state.electrical.points.length<desired){
+    state.electrical.points.push({id:`EL-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`,type:'outlet',circuit:'Enchufes',face:null,position:null,height:null});
+  }
+  if(state.electrical.points.length>desired) state.electrical.points=state.electrical.points.slice(0,desired);
+  return state.electrical;
+}
+function electricalLayout(index){
+  const c=DATA.containers[state.container],e=ensureElectricalStateForEditor(),point=e.points[index];
+  if(!point) return {face:'B',x:0,y:.35,z:0};
+  if(point.type==='light'){
+    const x=Number.isFinite(point.position?.x)?point.position.x:slotPosition(index,Math.max(1,e.points.filter(p=>p.type==='light').length),c.length,.7);
+    const z=Number.isFinite(point.position?.z)?point.position.z:0;
+    return {face:'ceiling',x,z,y:c.height-.10};
+  }
+  const face=['A','B','C','D'].includes(point.face)?point.face:'B';
+  const dim=faceDimension(face,c);
+  const same=e.points.filter(p=>p.type!=='light'&&(['A','B','C','D'].includes(p.face)?p.face:'B')===face);
+  const localIndex=Math.max(0,same.indexOf(point));
+  const x=Number.isFinite(point.position?.x)?point.position.x:defaultWallX(localIndex,Math.max(1,same.length),dim,.42);
+  const y=Number.isFinite(point.height)?point.height:electricalTypeDefaultHeight(point.type,c);
+  return {face,x,y,z:0};
+}
+function writeElectricalLayout(index,candidate){
+  const point=ensureElectricalStateForEditor().points[index]; if(!point) return;
+  if(point.type==='light'){
+    point.face='ceiling'; point.position={x:candidate.x,z:candidate.z}; point.height=null;
+  }else{
+    point.face=candidate.face; point.position={x:candidate.x}; point.height=candidate.y;
+  }
+}
+
 function sanitaryFallbacks(c){
   const list=[]; for(let i=0;i<(state.counts.wc||0);i++) list.push(['wc',i]); for(let i=0;i<(state.counts.sink||0);i++) list.push(['sink',i]); for(let i=0;i<(state.counts.shower||0);i++) list.push(['shower',i]);
   const cols=Math.max(1,Math.min(c.length>8?5:3,Math.ceil(Math.sqrt(list.length||1))));
@@ -62,6 +106,7 @@ function sanitaryFallbacks(c){
 }
 function actualLayout(type,index){
   const c=DATA.containers[state.container];
+  if(type==='electrical') return electricalLayout(index);
   if(type==='window'){
     const face=windowFace(index),dim=faceDimension(face,c);
     const stored=state.layout?.window?.[index];
@@ -77,6 +122,14 @@ function actualLayout(type,index){
 
 function validCandidate(type,index,candidate){
   const c=DATA.containers[state.container];
+  if(type==='electrical'){
+    const point=ensureElectricalStateForEditor().points[index]; if(!point) return false;
+    if(point.type==='light'){
+      return candidate.x>=-c.length/2+.18&&candidate.x<=c.length/2-.18&&candidate.z>=-c.width/2+.18&&candidate.z<=c.width/2-.18;
+    }
+    const dim=faceDimension(candidate.face||'B',c),limit=dim/2-.16;
+    return candidate.x>=-limit&&candidate.x<=limit&&candidate.y>=.16&&candidate.y<=c.height-.16;
+  }
   if(type==='window'){
     const face=candidate.face||windowFace(index),dim=faceDimension(face,c),limit=dim/2-.7;
     if(candidate.x<-limit||candidate.x>limit) return false;
@@ -103,21 +156,28 @@ function validCandidate(type,index,candidate){
   return true;
 }
 
-function typeLabel(type){ return ({window:'Ventana termopanel',door:'Puerta peatonal',partition:'División interior',wc:'WC',sink:'Lavamanos',shower:'Ducha',ac:'Aire acondicionado'})[type]||type; }
+function typeLabel(type,index){
+  if(type==='electrical') return electricalTypeLabel(ensureElectricalStateForEditor().points[index]?.type);
+  return ({window:'Ventana termopanel',door:'Puerta peatonal',partition:'División interior',wc:'WC',sink:'Lavamanos',shower:'Ducha',ac:'Aire acondicionado'})[type]||type;
+}
 function editorPositionLabel(type,pos){
+  if(type==='electrical') return pos.face==='ceiling'?`Cielo · X ${pos.x.toFixed(2)} m · Z ${pos.z.toFixed(2)} m`:`Cara ${pos.face} · ${pos.x.toFixed(2)} m · altura ${pos.y.toFixed(2)} m`;
   if(type==='window') return `Cara ${pos.face} · posición ${pos.x.toFixed(2)} m`;
   return ['wc','sink','shower'].includes(type)?`X ${pos.x.toFixed(2)} m · Z ${pos.z.toFixed(2)} m`:`X ${pos.x.toFixed(2)} m`;
 }
 function showEditorPanel(root){
   const panel=document.getElementById('object-editor'); if(!panel||!root) return;
-  const meta=root.userData.editor,pos=actualLayout(meta.type,meta.index);
-  document.getElementById('editor-title').textContent=typeLabel(meta.type);
+  const meta=root.userData.editor,pos=actualLayout(meta.type,meta.index),electricalPoint=meta.type==='electrical'?ensureElectricalStateForEditor().points[meta.index]:null;
+  document.getElementById('editor-title').textContent=typeLabel(meta.type,meta.index);
   document.getElementById('editor-subtitle').textContent=`Elemento ${meta.index+1} · ${editorPositionLabel(meta.type,pos)}`;
   const faceEditor=document.getElementById('window-face-editor');
+  const wallElectrical=meta.type==='electrical'&&electricalPoint?.type!=='light';
   if(faceEditor){
-    faceEditor.classList.toggle('hidden',meta.type!=='window');
-    if(meta.type==='window') faceEditor.querySelectorAll('[data-face]').forEach(btn=>btn.classList.toggle('active-face',btn.dataset.face===pos.face));
+    faceEditor.classList.toggle('hidden',meta.type!=='window'&&!wallElectrical);
+    if(meta.type==='window'||wallElectrical) faceEditor.querySelectorAll('[data-face]').forEach(btn=>btn.classList.toggle('active-face',btn.dataset.face===pos.face));
   }
+  const heightEditor=document.getElementById('electrical-height-editor');
+  if(heightEditor) heightEditor.classList.toggle('hidden',!wallElectrical);
   panel.classList.remove('hidden');
 }
 function hideEditorPanel(){ document.getElementById('object-editor')?.classList.add('hidden'); }
@@ -126,18 +186,37 @@ function selectEditable(root){
   const meta=root.userData.editor; selectedEditable={type:meta.type,index:meta.index}; addSelectionOutline(root); showEditorPanel(root);
 }
 function deleteSelectedObject(){
-  if(!selectedEditable) return; const {type,index}=selectedEditable; if(!(state.counts[type]>0)) return;
-  pushHistory(); state.counts[type]--; ensureLayoutState(); state.layout[type].splice(index,1); selectedEditable=null; hideEditorPanel(); renderAll(); toast(`${typeLabel(type)} eliminado`);
+  if(!selectedEditable) return; const {type,index}=selectedEditable;
+  if(type==='electrical'){
+    const e=ensureElectricalStateForEditor(); if(!e.points[index]) return;
+    pushHistory(); e.points.splice(index,1); state.counts.electrical=e.points.length; selectedEditable=null; hideEditorPanel(); renderAll(); toast('Punto eléctrico eliminado'); return;
+  }
+  if(!(state.counts[type]>0)) return;
+  pushHistory(); state.counts[type]--; ensureLayoutState(); state.layout[type].splice(index,1); selectedEditable=null; hideEditorPanel(); renderAll(); toast(`${typeLabel(type,index)} eliminado`);
 }
-function nudgeSelected(dx=0,dz=0){
+function nudgeSelected(dx=0,dz=0,dy=0){
   if(!selectedEditable) return; const {type,index}=selectedEditable,current=actualLayout(type,index);
+  if(type==='electrical'){
+    const point=ensureElectricalStateForEditor().points[index]; if(!point) return;
+    const candidate={...current};
+    if(point.type==='light'){
+      candidate.x=Math.round((candidate.x+dx)*100)/100; candidate.z=Math.round((candidate.z+dz)*100)/100;
+    }else{
+      candidate.x=Math.round((candidate.x+dx)*100)/100; candidate.y=Math.round((candidate.y+dy)*100)/100;
+    }
+    if(!validCandidate(type,index,candidate)) return toast('Esa posición no es válida');
+    pushHistory(); writeElectricalLayout(index,candidate); renderAll(); toast('Posición ajustada'); return;
+  }
   const candidate={...current,x:Math.round((current.x+dx)*100)/100}; if(['wc','sink','shower'].includes(type)) candidate.z=Math.round(((current.z||0)+dz)*100)/100;
   if(!validCandidate(type,index,candidate)) return toast('Esa posición no es válida');
   pushHistory(); ensureLayoutState(); state.layout[type][index]=candidate; renderAll(); toast('Posición ajustada');
 }
 function resetSelectedPosition(){
-  if(!selectedEditable) return; const {type,index}=selectedEditable; pushHistory(); ensureLayoutState();
-  if(type==='window') state.layout.window[index]={face:windowFace(index)}; else state.layout[type][index]=undefined;
+  if(!selectedEditable) return; const {type,index}=selectedEditable; pushHistory();
+  if(type==='electrical'){
+    const point=ensureElectricalStateForEditor().points[index]; if(point){point.face=null;point.position=null;point.height=null;} renderAll(); toast('Posición automática restaurada'); return;
+  }
+  ensureLayoutState(); if(type==='window') state.layout.window[index]={face:windowFace(index)}; else state.layout[type][index]=undefined;
   renderAll(); toast('Posición automática restaurada');
 }
 
@@ -147,6 +226,28 @@ function positionWindowObject(obj,layout,c){
   else if(face==='B'){ obj.position.set(layout.x,c.height*.60,-c.width/2-.075); }
   else if(face==='C'){ obj.position.set(c.length/2+.075,c.height*.60,layout.x); obj.rotation.y=-Math.PI/2; }
   else { obj.position.set(-c.length/2-.075,c.height*.60,layout.x); obj.rotation.y=Math.PI/2; }
+}
+function createElectricalOutlet(){
+  const g=new THREE.Group(),shell=mat(0xf8fafc,{roughness:.3}),dark=mat(0x334155,{roughness:.55});
+  g.add(box(.14,.09,.026,shell)); [-.032,.032].forEach(x=>{const h=new THREE.Mesh(new THREE.CircleGeometry(.009,14),dark);h.position.set(x,0,.0145);g.add(h);}); return g;
+}
+function createElectricalSwitch(){
+  const g=new THREE.Group(); g.add(box(.09,.13,.027,mat(0xf8fafc,{roughness:.3}))); const rocker=box(.052,.07,.013,mat(0xe2e8f0,{roughness:.38})); rocker.position.z=.020; rocker.rotation.x=-.08; g.add(rocker); return g;
+}
+function createElectricalAcPoint(){
+  const g=createElectricalOutlet(),badge=box(.045,.022,.014,mat(0x38bdf8,{emissive:0x0c4a6e,emissiveIntensity:.18})); badge.position.set(.043,.028,.022); g.add(badge); return g;
+}
+function createElectricalLight(){
+  const g=new THREE.Group(),rim=new THREE.Mesh(new THREE.CylinderGeometry(.105,.105,.018,24),mat(0xffffff,{emissive:0xffe7a3,emissiveIntensity:.36})); rim.rotation.x=Math.PI/2; g.add(rim); return g;
+}
+function positionElectricalObject(obj,layout,c){
+  obj.rotation.set(0,0,0);
+  if(layout.face==='ceiling'){obj.position.set(layout.x,c.height-.10,layout.z);return;}
+  const inset=.062;
+  if(layout.face==='A'){obj.position.set(layout.x,layout.y,c.width/2-inset);obj.rotation.y=Math.PI;}
+  else if(layout.face==='B'){obj.position.set(layout.x,layout.y,-c.width/2+inset);}
+  else if(layout.face==='C'){obj.position.set(c.length/2-inset,layout.y,layout.x);obj.rotation.y=-Math.PI/2;}
+  else{obj.position.set(-c.length/2+inset,layout.y,layout.x);obj.rotation.y=Math.PI/2;}
 }
 
 function createFaceSprite(letter,description,color){
@@ -182,7 +283,7 @@ function addCargoDoorDetails(parent,c){
 
 rebuild3D=function(){
   if(!containerGroup) return;
-  ensureLayoutState(); clearInvalidLayoutEntries(); disposeGroup(containerGroup); editableObjects=[];
+  ensureLayoutState(); ensureElectricalStateForEditor(); clearInvalidLayoutEntries(); disposeGroup(containerGroup); editableObjects=[];
   const c=DATA.containers[state.container],extColor=new THREE.Color(state.exteriorColor);
   const materials={exterior:mat(extColor,{roughness:.58,metalness:.2}),interior:mat(state.finish==='sanitary'?0xf8fafc:0xf1f5f9,{roughness:state.finish==='sanitary'?.32:.82}),frame:mat(new THREE.Color(extColor).multiplyScalar(.55),{roughness:.42,metalness:.48}),floor:createFloorMaterial()};
   containerGroup.add(createContainerShell(c,materials)); addCargoDoorDetails(containerGroup,c);
@@ -197,7 +298,14 @@ rebuild3D=function(){
     const p=actualLayout(type,i),obj=type==='wc'?createWC():type==='sink'?createSink():createShower(); addGroup(containerGroup,obj,p.x,.08,p.z,type==='sink'?Math.PI:0); registerEditable(obj,type,i,{axis:'xz',surface:'floor'});
   }
   for(let i=0;i<(state.counts.ac||0);i++){ const p=actualLayout('ac',i),indoor=createSplitAC(); addGroup(containerGroup,indoor,p.x,c.height-.42,-c.width/2+.17); registerEditable(indoor,'ac',i,{axis:'x',surface:'rear'}); addGroup(containerGroup,createCondenser(),p.x,.08,c.width/2+.28); }
-  const lightCount=Math.max(1,Math.ceil((state.counts.electrical||0)/3)); for(let i=0;i<lightCount;i++) addGroup(containerGroup,createCeilingLight(),slotPosition(i,lightCount,c.length,.7),c.height-.1,0);
+  ensureElectricalStateForEditor().points.forEach((point,i)=>{
+    const p=actualLayout('electrical',i),obj=point.type==='switch'?createElectricalSwitch():point.type==='acPoint'?createElectricalAcPoint():point.type==='light'?createElectricalLight():createElectricalOutlet();
+    positionElectricalObject(obj,p,c); containerGroup.add(obj);
+    const surface=p.face==='ceiling'?'ceiling':p.face==='A'?'faceA':p.face==='B'?'faceB':p.face==='C'?'faceC':'faceD';
+    registerEditable(obj,'electrical',i,{axis:p.face==='ceiling'?'xz':'xy',surface,face:p.face});
+  });
+  const legacyLightCount=state.electrical?.points?.some(p=>p.type==='light')?0:Math.max(1,Math.ceil((state.counts.electrical||0)/3));
+  for(let i=0;i<legacyLightCount;i++) addGroup(containerGroup,createCeilingLight(),slotPosition(i,legacyLightCount,c.length,.7),c.height-.1,0);
   addFurnishings(containerGroup,c);
   if(state.showPeople) addGroup(containerGroup,createHuman(),c.length*.28,.08,c.width/2+.75,-Math.PI/2);
   addFaceLabels(containerGroup,c);
@@ -214,6 +322,7 @@ function planeForEditable(root){
   if(meta.surface==='faceB') return new THREE.Plane(new THREE.Vector3(0,0,1),c.width/2+.075);
   if(meta.surface==='faceC') return new THREE.Plane(new THREE.Vector3(1,0,0),-(c.length/2+.075));
   if(meta.surface==='faceD') return new THREE.Plane(new THREE.Vector3(1,0,0),c.length/2+.075);
+  if(meta.surface==='ceiling') return new THREE.Plane(new THREE.Vector3(0,1,0),-(c.height-.10));
   if(meta.axis==='xz'||meta.surface==='floor') return new THREE.Plane(new THREE.Vector3(0,1,0),-.08);
   if(meta.surface==='front') return new THREE.Plane(new THREE.Vector3(0,0,1),-(c.width/2+.07));
   if(meta.surface==='rear') return new THREE.Plane(new THREE.Vector3(0,0,1),c.width/2-.07);
@@ -228,15 +337,28 @@ function onEditorPointerMove(event){
   const point=new THREE.Vector3(); if(!editorRaycaster.ray.intersectPlane(dragPlane,point)) return;
   const {type,index}=draggingEditable.userData.editor,current=actualLayout(type,index);
   let candidate={...current};
-  if(type==='window'){
+  if(type==='electrical'){
+    const electricalPoint=ensureElectricalStateForEditor().points[index]; if(!electricalPoint) return;
+    if(electricalPoint.type==='light'){
+      candidate.x=Math.round(point.x*20)/20; candidate.z=Math.round(point.z*20)/20;
+    }else{
+      candidate.x=Math.round(((current.face==='A'||current.face==='B')?point.x:point.z)*20)/20;
+      candidate.y=Math.round(point.y*20)/20;
+    }
+  }else if(type==='window'){
     candidate.x=Math.round(((current.face==='A'||current.face==='B')?point.x:point.z)*20)/20;
   }else{
     candidate.x=Math.round(point.x*20)/20; if(['wc','sink','shower'].includes(type)) candidate.z=Math.round(point.z*20)/20;
   }
   if(!validCandidate(type,index,candidate)) return;
-  dragMoved=true; ensureLayoutState(); state.layout[type][index]=candidate;
-  if(type==='window') positionWindowObject(draggingEditable,candidate,DATA.containers[state.container]);
-  else{ draggingEditable.position.x=candidate.x; if(['wc','sink','shower'].includes(type)) draggingEditable.position.z=candidate.z; }
+  dragMoved=true;
+  if(type==='electrical'){
+    writeElectricalLayout(index,candidate); positionElectricalObject(draggingEditable,candidate,DATA.containers[state.container]);
+  }else{
+    ensureLayoutState(); state.layout[type][index]=candidate;
+    if(type==='window') positionWindowObject(draggingEditable,candidate,DATA.containers[state.container]);
+    else{ draggingEditable.position.x=candidate.x; if(['wc','sink','shower'].includes(type)) draggingEditable.position.z=candidate.z; }
+  }
   const subtitle=document.getElementById('editor-subtitle'); if(subtitle) subtitle.textContent=`Elemento ${index+1} · ${editorPositionLabel(type,candidate)}`;
 }
 function onEditorPointerUp(event){
@@ -291,7 +413,14 @@ function addWindowToFace(face){
   closeWindowFacePicker(); renderAll(); focusFace(face); toast(`Ventana agregada en cara ${face}`);
 }
 function changeSelectedWindowFace(face){
-  if(!selectedEditable||selectedEditable.type!=='window')return; const {index}=selectedEditable,offset=findAvailableWindowOffset(face,index); if(offset===null)return toast(`No queda espacio suficiente en la cara ${face}`);
+  if(!selectedEditable) return;
+  const {type,index}=selectedEditable;
+  if(type==='electrical'){
+    const e=ensureElectricalStateForEditor(),point=e.points[index]; if(!point||point.type==='light') return;
+    const current=actualLayout('electrical',index),dim=faceDimension(face,DATA.containers[state.container]);
+    pushHistory(); point.face=face; point.position={x:clamp(current.x,-dim/2+.16,dim/2-.16)}; point.height=clamp(current.y,.16,DATA.containers[state.container].height-.16); renderAll(); focusFace(face); toast(`Punto eléctrico movido a cara ${face}`); return;
+  }
+  if(type!=='window') return; const offset=findAvailableWindowOffset(face,index); if(offset===null)return toast(`No queda espacio suficiente en la cara ${face}`);
   pushHistory(); ensureLayoutState(); state.layout.window[index]={face,x:offset}; renderAll(); focusFace(face); toast(`Ventana movida a cara ${face}`);
 }
 function toggleFaceLabels(){ faceLabelsVisible=!faceLabelsVisible; rebuild3D(); const btn=document.getElementById('face-label-toggle'); if(btn)btn.classList.toggle('opacity-50',!faceLabelsVisible); }
@@ -331,14 +460,23 @@ function installFaceUI(){
     const faceEditor=document.createElement('div');faceEditor.id='window-face-editor';faceEditor.className='hidden mt-3 rounded-xl bg-white/5 border border-white/10 p-3';faceEditor.innerHTML=`<div class="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-2">Cara de instalación</div><div class="face-editor-row grid grid-cols-4 gap-1.5">${['A','B','C','D'].map(f=>`<button data-face="${f}" onclick="changeSelectedWindowFace('${f}')">${f}</button>`).join('')}</div>`;
     const deleteBtn=panel.querySelector('button[onclick*="deleteSelectedObject"]'); if(deleteBtn)panel.insertBefore(faceEditor,deleteBtn); else panel.appendChild(faceEditor);
   }
+  if(panel&&!document.getElementById('electrical-height-editor')){
+    const heightEditor=document.createElement('div');heightEditor.id='electrical-height-editor';heightEditor.className='hidden mt-2 grid grid-cols-2 gap-2';heightEditor.innerHTML=`<button onclick="nudgeSelected(0,0,.05)" class="rounded-lg bg-white/10 py-2 text-[11px]"><i class="fa-solid fa-arrow-up mr-1"></i> Subir 5 cm</button><button onclick="nudgeSelected(0,0,-.05)" class="rounded-lg bg-white/10 py-2 text-[11px]"><i class="fa-solid fa-arrow-down mr-1"></i> Bajar 5 cm</button>`; const deleteBtn=panel.querySelector('button[onclick*="deleteSelectedObject"]'); if(deleteBtn)panel.insertBefore(heightEditor,deleteBtn); else panel.appendChild(heightEditor);
+  }
 }
 
 function installDirectEditor(){
-  if(editorInstalled||!renderer?.domElement)return; editorInstalled=true;ensureLayoutState();editorRaycaster=new THREE.Raycaster();editorPointer=new THREE.Vector2();
+  if(editorInstalled||!renderer?.domElement)return; editorInstalled=true;ensureLayoutState();ensureElectricalStateForEditor();editorRaycaster=new THREE.Raycaster();editorPointer=new THREE.Vector2();
   const canvas=renderer.domElement;canvas.addEventListener('pointerdown',onEditorPointerDown);canvas.addEventListener('pointermove',onEditorPointerMove);canvas.addEventListener('pointerup',onEditorPointerUp);canvas.addEventListener('pointercancel',onEditorPointerUp);
   window.addEventListener('keydown',event=>{
     if(!selectedEditable||['INPUT','TEXTAREA'].includes(document.activeElement?.tagName))return;const step=event.shiftKey?.2:.05;
-    if(event.key==='Delete'||event.key==='Backspace'){event.preventDefault();deleteSelectedObject();}else if(event.key==='ArrowLeft'){event.preventDefault();nudgeSelected(-step,0);}else if(event.key==='ArrowRight'){event.preventDefault();nudgeSelected(step,0);}else if(event.key==='ArrowUp'&&['wc','sink','shower'].includes(selectedEditable.type)){event.preventDefault();nudgeSelected(0,-step);}else if(event.key==='ArrowDown'&&['wc','sink','shower'].includes(selectedEditable.type)){event.preventDefault();nudgeSelected(0,step);}
+    if(event.key==='Delete'||event.key==='Backspace'){event.preventDefault();deleteSelectedObject();}
+    else if(event.key==='ArrowLeft'){event.preventDefault();nudgeSelected(-step,0,0);}
+    else if(event.key==='ArrowRight'){event.preventDefault();nudgeSelected(step,0,0);}
+    else if(event.key==='ArrowUp'&&selectedEditable.type==='electrical'){event.preventDefault();const point=ensureElectricalStateForEditor().points[selectedEditable.index];if(point?.type==='light')nudgeSelected(0,-step,0);else nudgeSelected(0,0,step);}
+    else if(event.key==='ArrowDown'&&selectedEditable.type==='electrical'){event.preventDefault();const point=ensureElectricalStateForEditor().points[selectedEditable.index];if(point?.type==='light')nudgeSelected(0,step,0);else nudgeSelected(0,0,-step);}
+    else if(event.key==='ArrowUp'&&['wc','sink','shower'].includes(selectedEditable.type)){event.preventDefault();nudgeSelected(0,-step,0);}
+    else if(event.key==='ArrowDown'&&['wc','sink','shower'].includes(selectedEditable.type)){event.preventDefault();nudgeSelected(0,step,0);}
   });
   installZoomControls();installFaceUI();rebuild3D();
 }
