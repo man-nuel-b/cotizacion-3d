@@ -10,8 +10,8 @@
 
   function master(){try{return typeof getApuMaster==='function'?getApuMaster():null;}catch(e){return null;}}
   function taxPct(){try{return Math.max(0,n(getApuExcelSettings?.()?.taxPct,19));}catch(e){return 19;}}
-  function currentBom(){try{return Array.isArray(calculate?.()?.bom)?calculate().bom:(typeof buildBOM==='function'?buildBOM():[]);}catch(e){return [];}}
-  function buyQty(qty){return Math.ceil(Math.max(0,n(qty))*1000)/1000;}
+  function currentBom(){try{const c=typeof calculate==='function'?calculate():null;return Array.isArray(c?.bom)?c.bom:(typeof buildBOM==='function'?buildBOM():[]);}catch(e){return [];}}
+  function buyQty(qty){return Math.ceil(Math.max(0,n(qty)));}
 
   function consolidate(){
     const m=master();
@@ -83,7 +83,7 @@
 
   function csvCell(v){const s=String(v??'');return `"${s.replaceAll('"','""')}"`;}
   window.exportProjectMaterialsCSV=function(){
-    const rows=consolidate(),tax=taxPct();
+    const rows=consolidate();
     const header=['Código','Material','Unidad','Cantidad calculada','Merma','Merma %','Cantidad final','Cantidad a comprar','Precio unitario neto','Total neto','Total con IVA','Partidas'];
     const data=[header,...rows.map(r=>[r.code,r.name,r.unit,r.calculatedQty,r.wasteQty,r.effectiveWastePct,r.finalQty,r.purchaseQty,r.unitPriceNet,r.totalNet,r.totalGross,r.partidas.join(' | ')])];
     const csv='\ufeff'+data.map(row=>row.map(csvCell).join(';')).join('\r\n');
