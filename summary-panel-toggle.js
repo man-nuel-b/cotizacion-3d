@@ -41,7 +41,7 @@
     setSummaryCollapsed(persistedState(),{persist:false});
     window.setSummaryPanelCollapsed=setSummaryCollapsed;
     window.toggleSummaryPanel=function(){setSummaryCollapsed(!shell.classList.contains('summary-panel-collapsed'));};
-    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:18};
+    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:19};
     return true;
   }
 
@@ -77,6 +77,16 @@
     loadScriptOnce('model-cost-bridge-v1.js?v=20261025-costbridge01','model-cost-bridge-v1');
   }
 
+  function loadExcelApuCatalog(){
+    loadScriptOnce('apu-excel-resources-1.js?v=20261025-library01','apu-excel-resources-1');
+    loadScriptOnce('apu-excel-resources-2.js?v=20261025-library01','apu-excel-resources-2');
+    loadScriptOnce('apu-excel-resources-3.js?v=20261025-library01','apu-excel-resources-3');
+    loadScriptOnce('apu-excel-partidas-1.js?v=20261025-library01','apu-excel-partidas-1');
+    loadScriptOnce('apu-excel-partidas-2.js?v=20261025-library01','apu-excel-partidas-2');
+    loadScriptOnce('apu-excel-partidas-3.js?v=20261025-library01','apu-excel-partidas-3');
+    loadScriptOnce('apu-excel-catalog-core-v1.js?v=20261025-library01','apu-excel-catalog-core-v1');
+  }
+
   function loadExcelApuMethod(){
     loadScriptOnce('apu-excel-method-v1.js?v=20261025-apuexcel01','apu-excel-method-v1');
   }
@@ -85,6 +95,6 @@
     loadScriptOnce('apu-excel-accounting-v1.js?v=20261025-apuaccount01','apu-excel-accounting-v1');
   }
 
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuMethod,2300);setTimeout(loadExcelApuAccounting,2600);},{once:true});
-  else{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuMethod,2300);setTimeout(loadExcelApuAccounting,2600);}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuCatalog,2150);setTimeout(loadExcelApuMethod,3200);setTimeout(loadExcelApuAccounting,3500);},{once:true});
+  else{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuCatalog,2150);setTimeout(loadExcelApuMethod,3200);setTimeout(loadExcelApuAccounting,3500);}
 })();
