@@ -1,4 +1,4 @@
-// BAT-Cubikeitor · Project commercial metrics v2
+// BAT-Cubikeitor · Project commercial metrics v3
 // Read-only metric layer: does not modify 3D state, geometry or editor behavior.
 (function(){
   if(window.BAT_KUBIQUEITOR_PROJECT_METRICS) return;
@@ -62,7 +62,52 @@
     return card;
   }
 
+  function ensureCompanySections(){
+    const modalBody=document.querySelector('#company-modal .modal-body');
+    const totalEl=document.getElementById('admin-total');
+    const resultsGrid=totalEl?.parentElement?.parentElement;
+    const marginInput=document.getElementById('margin-input');
+    const paramsGrid=marginInput?.closest('.grid');
+    if(!modalBody||!resultsGrid||!paramsGrid) return;
+
+    if(!document.getElementById('company-results-section')){
+      const section=document.createElement('section');
+      section.id='company-results-section';
+      section.className='rounded-2xl border border-slate-200 bg-white p-4 mb-5';
+      section.innerHTML='<div class="flex items-start justify-between gap-3 mb-3"><div><div class="text-[10px] font-black uppercase tracking-widest text-amber-600">Resultados calculados</div><h4 class="font-black text-sm mt-1">Costos y venta del proyecto</h4><p class="text-[11px] text-slate-500 mt-0.5">Se actualizan automáticamente según el modelo, materiales y A.P.U.</p></div><span class="text-[10px] font-bold text-slate-400 bg-slate-100 rounded-full px-2 py-1">AUTOMÁTICO</span></div>';
+      resultsGrid.parentNode.insertBefore(section,resultsGrid);
+      resultsGrid.classList.remove('mb-5');
+      section.appendChild(resultsGrid);
+    }
+
+    if(!document.getElementById('company-parameters-section')){
+      const section=document.createElement('section');
+      section.id='company-parameters-section';
+      section.className='rounded-2xl border border-amber-200 bg-amber-50/40 p-4 mb-5';
+      section.innerHTML='<div class="flex items-start justify-between gap-3 mb-3"><div><div class="text-[10px] font-black uppercase tracking-widest text-amber-700">Parámetros configurables</div><h4 class="font-black text-sm mt-1">Variables comerciales</h4><p class="text-[11px] text-slate-500 mt-0.5">Estos valores los define la empresa y afectan el precio final.</p></div><span class="text-[10px] font-bold text-amber-700 bg-amber-100 rounded-full px-2 py-1">EDITABLE</span></div>';
+      paramsGrid.parentNode.insertBefore(section,paramsGrid);
+      paramsGrid.classList.remove('mb-5');
+      section.appendChild(paramsGrid);
+      const transportLabel=document.getElementById('transport-input')?.closest('label');
+      if(transportLabel && !transportLabel.querySelector('[data-company-help]')) transportLabel.insertAdjacentHTML('beforeend','<div data-company-help class="text-[10px] font-normal text-slate-500 mt-1">Costo específico de traslado para esta cotización.</div>');
+      const marginLabel=document.getElementById('margin-input')?.closest('label');
+      if(marginLabel && !marginLabel.querySelector('[data-company-help]')) marginLabel.insertAdjacentHTML('beforeend','<div data-company-help class="text-[10px] font-normal text-slate-500 mt-1">Porcentaje aplicado sobre el costo directo.</div>');
+      const taxLabel=document.getElementById('tax-input')?.closest('label');
+      if(taxLabel && !taxLabel.querySelector('[data-company-help]')) taxLabel.insertAdjacentHTML('beforeend','<div data-company-help class="text-[10px] font-normal text-slate-500 mt-1">Impuesto aplicado a la venta.</div>');
+    }
+
+    const bomTable=document.getElementById('bom-table')?.closest('.overflow-x-auto');
+    if(bomTable && !document.getElementById('company-bom-heading')){
+      const heading=document.createElement('div');
+      heading.id='company-bom-heading';
+      heading.className='mb-3 mt-1';
+      heading.innerHTML='<div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Cubicación y costos</div><h4 class="font-black text-sm mt-1">Detalle de materiales y partidas</h4>';
+      bomTable.parentNode.insertBefore(heading,bomTable);
+    }
+  }
+
   function ensureCompanyMetrics(){
+    ensureCompanySections();
     const totalEl = document.getElementById('admin-total');
     const grid = totalEl?.parentElement?.parentElement;
     if(!grid) return;
@@ -119,7 +164,7 @@
     renderMetrics();
     window.getProjectMetrics = projectMetrics;
     window.renderProjectMetrics = renderMetrics;
-    window.BAT_KUBIQUEITOR_PROJECT_METRICS = { version:2, get:projectMetrics, render:renderMetrics };
+    window.BAT_KUBIQUEITOR_PROJECT_METRICS = { version:3, get:projectMetrics, render:renderMetrics };
   }
 
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(init, 80), { once:true });
