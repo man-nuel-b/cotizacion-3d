@@ -1,4 +1,4 @@
-// BAT-Cubikeitor · Supabase cloud integration v1
+// BAT-Cubikeitor · Supabase cloud integration v2
 // Keeps localStorage as a fallback and adds authenticated cloud save/open.
 (function(){
   if(window.BAT_KUBIQUEITOR_SUPABASE_CLOUD) return;
@@ -14,7 +14,7 @@
   let currentProjectId=null;
   let sdkPromise=null;
 
-  function esc(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
+  function esc(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[c]));}
   function notify(message){if(typeof window.toast==='function') window.toast(message); else console.info(message);}
   function getCurrentProjectId(){try{return localStorage.getItem(CURRENT_PROJECT_KEY)||null;}catch(e){return null;}}
   function setCurrentProjectId(id){currentProjectId=id||null;try{if(id)localStorage.setItem(CURRENT_PROJECT_KEY,id);else localStorage.removeItem(CURRENT_PROJECT_KEY);}catch(e){}}
@@ -22,6 +22,15 @@
     const solution=(window.DATA||typeof DATA!=='undefined'?DATA:null)?.solutions?.[state?.solution]?.name||'Proyecto modular';
     const customer=state?.customer?.company||state?.customer?.name;
     return customer?`${solution} · ${customer}`:solution;
+  }
+
+  function validateNewPassword(password){
+    if(password.length<12)return 'La contraseña debe tener al menos 12 caracteres.';
+    if(!/[a-z]/.test(password))return 'Agrega al menos una letra minúscula.';
+    if(!/[A-Z]/.test(password))return 'Agrega al menos una letra mayúscula.';
+    if(!/[0-9]/.test(password))return 'Agrega al menos un número.';
+    if(!/[^A-Za-z0-9]/.test(password))return 'Agrega al menos un símbolo.';
+    return null;
   }
 
   function loadSdk(){
@@ -70,7 +79,8 @@
           <div class="p-5">
             <div id="bat-cloud-signed-out">
               <p class="text-sm text-slate-500 mb-4">Inicia sesión para guardar y abrir proyectos desde cualquier equipo. El guardado local seguirá funcionando como respaldo.</p>
-              <div class="grid gap-3"><input id="bat-auth-name" class="border rounded-xl px-3 py-2.5 text-sm" placeholder="Nombre (para crear cuenta)"><input id="bat-auth-email" type="email" class="border rounded-xl px-3 py-2.5 text-sm" placeholder="Correo"><input id="bat-auth-password" type="password" class="border rounded-xl px-3 py-2.5 text-sm" placeholder="Contraseña · mínimo 6 caracteres"></div>
+              <div class="grid gap-3"><input id="bat-auth-name" class="border rounded-xl px-3 py-2.5 text-sm" placeholder="Nombre (para crear cuenta)"><input id="bat-auth-email" type="email" class="border rounded-xl px-3 py-2.5 text-sm" placeholder="Correo"><input id="bat-auth-password" type="password" autocomplete="current-password" class="border rounded-xl px-3 py-2.5 text-sm" placeholder="Contraseña"></div>
+              <div class="mt-2 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2.5 text-[11px] text-slate-600"><strong>Para cuentas nuevas:</strong> mínimo 12 caracteres, con mayúscula, minúscula, número y símbolo.</div>
               <div class="grid sm:grid-cols-2 gap-2 mt-4"><button id="bat-sign-in" class="bg-slate-950 text-white rounded-xl py-3 text-sm font-bold">Iniciar sesión</button><button id="bat-sign-up" class="bg-amber-500 text-slate-950 rounded-xl py-3 text-sm font-black">Crear cuenta</button></div>
               <div id="bat-auth-message" class="text-xs text-slate-500 mt-3"></div>
             </div>
@@ -109,10 +119,7 @@
     const {data:membership,error}=await client.from('organization_members').select('organization_id,role').eq('user_id',session.user.id).maybeSingle();
     if(error)throw error;
     if(membership?.organization_id){organizationId=membership.organization_id;return organizationId;}
-    const displayName=document.getElementById('bat-auth-name')?.value?.trim()||session.user.user_metadata?.full_name||session.user.email?.split('@')[0]||null;
-    const {data,error:bootstrapError}=await client.rpc('bootstrap_current_user',{display_name:displayName});
-    if(bootstrapError)throw bootstrapError;
-    organizationId=data;return organizationId;
+    throw new Error('Tu cuenta aún no tiene acceso a una organización. Solicita acceso al administrador.');
   }
 
   async function signIn(){
@@ -122,7 +129,8 @@
   }
   async function signUp(){
     try{setAuthMessage('Creando cuenta…');const fullName=document.getElementById('bat-auth-name').value.trim();const email=document.getElementById('bat-auth-email').value.trim();const password=document.getElementById('bat-auth-password').value;
-      const {data,error}=await client.auth.signUp({email,password,options:{data:{full_name:fullName}}});if(error)throw error;
+      const passwordError=validateNewPassword(password);if(passwordError)throw new Error(passwordError);
+      const {data,error}=await client.auth.signUp({email,password,options:{data:{full_name:fullName},emailRedirectTo:'https://man-nuel-b.github.io/cotizacion-3d/'}});if(error)throw error;
       if(data.session){session=data.session;await initializeMembership();updateUi();notify('Cuenta creada');refreshCloudProjects();setAuthMessage('');}
       else setAuthMessage('Cuenta creada. Revisa tu correo para confirmar y luego inicia sesión.');
     }catch(error){setAuthMessage(error.message||'No se pudo crear la cuenta',true);}
@@ -169,9 +177,9 @@
       const {data}=await client.auth.getSession();session=data.session||null;if(session?.user){try{await initializeMembership();}catch(error){console.warn('[BAT Cloud] membership',error.message);}}
       client.auth.onAuthStateChange(async(_event,newSession)=>{session=newSession;organizationId=null;if(session?.user){try{await initializeMembership();}catch(error){console.warn('[BAT Cloud] membership',error.message);}}updateUi();});
       updateUi();
-      window.BAT_KUBIQUEITOR_SUPABASE_CLOUD={version:1,client,save:saveCloudProject,open:openCloudModal,refresh:refreshCloudProjects,getSession:()=>session};
+      window.BAT_KUBIQUEITOR_SUPABASE_CLOUD={version:2,client,save:saveCloudProject,open:openCloudModal,refresh:refreshCloudProjects,getSession:()=>session};
       window.saveProject=async function(){if(typeof localSave==='function')localSave();if(session?.user)await saveCloudProject();};
-    }catch(error){console.error('[BAT Cloud] init',error);window.BAT_KUBIQUEITOR_SUPABASE_CLOUD={version:1,error:error.message};}
+    }catch(error){console.error('[BAT Cloud] init',error);window.BAT_KUBIQUEITOR_SUPABASE_CLOUD={version:2,error:error.message};}
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(init,100),{once:true});else setTimeout(init,100);
