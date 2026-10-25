@@ -1,0 +1,15 @@
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on table public.profiles to authenticated;
+grant select, insert, update, delete on table public.organization_members to authenticated;
+grant select, insert, update, delete on table public.organizations to authenticated;
+grant select, insert, update, delete on table public.customers to authenticated;
+grant select, insert, update, delete on table public.projects to authenticated;
+grant select, insert, update, delete on table public.project_items to authenticated;
+grant select, insert, update, delete on table public.suppliers to authenticated;
+grant select, insert, update, delete on table public.materials to authenticated;
+grant select, insert, update, delete on table public.supplier_prices to authenticated;
+grant select, insert, update, delete on table public.apu_resources to authenticated;
+grant select, insert, update, delete on table public.quotes to authenticated;
+grant select, insert, update, delete on table public.quote_items to authenticated;
+grant select on table public.price_history to authenticated;
+grant select on table public.audit_log to authenticated;
