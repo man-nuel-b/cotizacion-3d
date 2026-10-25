@@ -3,7 +3,7 @@
 (function(){
   if(window.BAT_KUBIQUEITOR_ELECTRICAL_VISUAL_STAGE2) return;
 
-  const VERSION=1;
+  const VERSION=2;
   let installed=false;
   let wrappedRebuild=null;
 
@@ -95,8 +95,10 @@
   function fallbackPlacement(point,index,typeIndex,typeCount,c){
     if(point.type==='light'){
       const usable=Math.max(.5,c.length-1.4);
-      const x=typeCount<=1?0:-usable/2+(usable/(typeCount-1))*typeIndex;
-      return {face:'ceiling',x,y:c.height-.075,z:0};
+      const fallbackX=typeCount<=1?0:-usable/2+(usable/(typeCount-1))*typeIndex;
+      const x=Number.isFinite(Number(point.position?.x))?Number(point.position.x):fallbackX;
+      const z=Number.isFinite(Number(point.position?.z))?Number(point.position.z):0;
+      return {face:'ceiling',x,y:c.height-.075,z};
     }
 
     const defaultHeight=point.type==='switch'?1.10:point.type==='acPoint'?2.15:.35;
@@ -106,8 +108,8 @@
     const dim=alongLong?c.length:c.width;
     const usable=Math.max(.45,dim-1.2);
     const slot=typeCount<=1?0:-usable/2+(usable/(typeCount-1))*typeIndex;
-    const x=Number.isFinite(point.position?.x)?point.position.x:slot;
-    const y=Number.isFinite(point.height)?point.height:defaultHeight;
+    const x=Number.isFinite(Number(point.position?.x))?Number(point.position.x):slot;
+    const y=Number.isFinite(Number(point.height))?Number(point.height):defaultHeight;
     return {face,x,y,z:0};
   }
 
