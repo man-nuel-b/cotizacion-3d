@@ -41,7 +41,7 @@
     setSummaryCollapsed(persistedState(),{persist:false});
     window.setSummaryPanelCollapsed=setSummaryCollapsed;
     window.toggleSummaryPanel=function(){setSummaryCollapsed(!shell.classList.contains('summary-panel-collapsed'));};
-    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:10};
+    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:11};
     return true;
   }
 
@@ -61,6 +61,10 @@
     loadScriptOnce('partition-obstacle-collision.js?v=20261024-collision01','partition-obstacle-collision');
   }
 
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);},{once:true});
-  else{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);}
+  function loadSafeElectricalStage(){
+    loadScriptOnce('electrical-ui-stage1.js?v=20261025-safe01','electrical-ui-stage1');
+  }
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);},{once:true});
+  else{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);}
 })();
