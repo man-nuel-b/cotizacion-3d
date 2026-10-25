@@ -41,16 +41,13 @@
     setSummaryCollapsed(persistedState(),{persist:false});
     window.setSummaryPanelCollapsed=setSummaryCollapsed;
     window.toggleSummaryPanel=function(){setSummaryCollapsed(!shell.classList.contains('summary-panel-collapsed'));};
-    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:24};
+    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:25};
     return true;
   }
 
   function loadScriptOnce(src,datasetKey){
     if(document.querySelector(`script[data-${datasetKey}]`)) return;
-    const script=document.createElement('script');
-    script.src=src;
-    script.setAttribute(`data-${datasetKey}`,'true');
-    document.body.appendChild(script);
+    const script=document.createElement('script');script.src=src;script.setAttribute(`data-${datasetKey}`,'true');document.body.appendChild(script);
   }
 
   function loadWallModuleEngine(){
@@ -73,16 +70,16 @@
     loadScriptOnce('apu-excel-partidas-1.js?v=20261025-library01','apu-excel-partidas-1');
     loadScriptOnce('apu-excel-partidas-2.js?v=20261025-library01','apu-excel-partidas-2');
     loadScriptOnce('apu-excel-partidas-3.js?v=20261025-library01','apu-excel-partidas-3');
-    loadScriptOnce('apu-excel-catalog-core-v1.js?v=20261025-library01','apu-excel-catalog-core-v1');
+    loadScriptOnce('apu-excel-catalog-core-v1.js?v=20261025-library02','apu-excel-catalog-core-v1');
   }
 
-  function loadExcelApuMethod(){loadScriptOnce('apu-excel-method-v1.js?v=20261025-apuexcel01','apu-excel-method-v1');}
-  function loadExcelApuAccounting(){loadScriptOnce('apu-excel-accounting-v1.js?v=20261025-apuaccount01','apu-excel-accounting-v1');}
-  function loadApu3dMapping(){loadScriptOnce('apu-3d-mapping-v1.js?v=20261025-map01','apu-3d-mapping-v1');}
-  function loadApuSurfaceMapping(){loadScriptOnce('apu-surface-mapping-v1.js?v=20261025-surface01','apu-surface-mapping-v1');}
-  function loadApuExcelEditor(){loadScriptOnce('apu-excel-editor-v1.js?v=20261025-editor01','apu-excel-editor-v1');}
-  function loadProjectMaterialsList(){loadScriptOnce('project-materials-list-v1.js?v=20261025-materials02','project-materials-list-v1');}
-  function loadProjectMaterialPlan(){loadScriptOnce('project-material-plan-v1.js?v=20261025-plan01','project-material-plan-v1');}
+  function loadExcelApuMethod(){loadScriptOnce('apu-excel-method-v1.js?v=20261025-apuexcel02','apu-excel-method-v1');}
+  function loadExcelApuAccounting(){loadScriptOnce('apu-excel-accounting-v1.js?v=20261025-apuaccount02','apu-excel-accounting-v1');}
+  function loadApu3dMapping(){loadScriptOnce('apu-3d-mapping-v1.js?v=20261025-map02','apu-3d-mapping-v1');}
+  function loadApuSurfaceMapping(){loadScriptOnce('apu-surface-mapping-v1.js?v=20261025-surface02','apu-surface-mapping-v1');}
+  function loadApuExcelEditor(){loadScriptOnce('apu-excel-editor-v1.js?v=20261025-editor02','apu-excel-editor-v1');}
+  function loadProjectMaterialsList(){loadScriptOnce('project-materials-list-v2.js?v=20261025-materials03','project-materials-list-v2');}
+  function loadProjectMaterialPlan(){loadScriptOnce('project-material-plan-v1.js?v=20261025-plan02','project-material-plan-v1');}
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuCatalog,2150);setTimeout(loadExcelApuMethod,3200);setTimeout(loadExcelApuAccounting,3500);setTimeout(loadApu3dMapping,3900);setTimeout(loadApuSurfaceMapping,4300);setTimeout(loadApuExcelEditor,4700);setTimeout(loadProjectMaterialsList,5100);setTimeout(loadProjectMaterialPlan,5500);},{once:true});
   else{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuCatalog,2150);setTimeout(loadExcelApuMethod,3200);setTimeout(loadExcelApuAccounting,3500);setTimeout(loadApu3dMapping,3900);setTimeout(loadApuSurfaceMapping,4300);setTimeout(loadApuExcelEditor,4700);setTimeout(loadProjectMaterialsList,5100);setTimeout(loadProjectMaterialPlan,5500);}
