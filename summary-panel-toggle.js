@@ -41,7 +41,7 @@
     setSummaryCollapsed(persistedState(),{persist:false});
     window.setSummaryPanelCollapsed=setSummaryCollapsed;
     window.toggleSummaryPanel=function(){setSummaryCollapsed(!shell.classList.contains('summary-panel-collapsed'));};
-    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:12};
+    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:13};
     return true;
   }
 
@@ -66,7 +66,7 @@
   }
 
   function loadSupabaseCloud(){
-    loadScriptOnce('supabase-cloud.js?v=20261025-cloud01','supabase-cloud');
+    loadScriptOnce('supabase-cloud.js?v=20261025-cloud02','supabase-cloud');
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);},{once:true});
