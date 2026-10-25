@@ -59,7 +59,7 @@
     loadScriptOnce('direct-editor-controller.js?v=20261024-editor-final01','direct-editor-controller');
     loadScriptOnce('spatial-occupancy.js?v=20261024-collision01','spatial-occupancy');
     loadScriptOnce('partition-obstacle-collision.js?v=20261024-collision01','partition-obstacle-collision');
-    loadScriptOnce('electrical-system.js?v=20261025-electrical01','electrical-system');
+    setTimeout(()=>loadScriptOnce('electrical-system.js?v=20261025-electrical01','electrical-system'),350);
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);},{once:true});
