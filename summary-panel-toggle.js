@@ -41,7 +41,7 @@
     setSummaryCollapsed(persistedState(),{persist:false});
     window.setSummaryPanelCollapsed=setSummaryCollapsed;
     window.toggleSummaryPanel=function(){setSummaryCollapsed(!shell.classList.contains('summary-panel-collapsed'));};
-    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:12};
+    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:13};
     return true;
   }
 
@@ -66,9 +66,13 @@
   }
 
   function loadElectricalVisualStage(){
-    loadScriptOnce('electrical-visual-stage2.js?v=20261025-visual01','electrical-visual-stage2');
+    loadScriptOnce('electrical-visual-stage2.js?v=20261025-visual02','electrical-visual-stage2');
   }
 
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadElectricalVisualStage,1700);},{once:true});
-  else{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadElectricalVisualStage,1700);}
+  function loadElectricalEditStage(){
+    loadScriptOnce('electrical-edit-stage3.js?v=20261025-drag01','electrical-edit-stage3');
+  }
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadElectricalVisualStage,1700);setTimeout(loadElectricalEditStage,2400);},{once:true});
+  else{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadElectricalVisualStage,1700);setTimeout(loadElectricalEditStage,2400);}
 })();
