@@ -1,4 +1,4 @@
-// BAT-Cubikeitor · Project commercial metrics v1
+// BAT-Cubikeitor · Project commercial metrics v2
 // Read-only metric layer: does not modify 3D state, geometry or editor behavior.
 (function(){
   if(window.BAT_KUBIQUEITOR_PROJECT_METRICS) return;
@@ -16,9 +16,18 @@
       if(!container) return { area:0, total:0, valuePerM2:0 };
       const area = Math.max(0, Number(container.length)||0) * Math.max(0, Number(container.width)||0);
       const calc = typeof calculate === 'function' ? calculate() : null;
+      const materials = Math.max(0, Number(calc?.materials)||0);
+      const labor = Math.max(0, Number(calc?.labor)||0);
+      const transport = Math.max(0, Number(state?.transport)||0);
+      const direct = Math.max(0, Number(calc?.direct)||0);
+      const net = Math.max(0, Number(calc?.net)||0);
+      const taxAmount = Math.max(0, Number(calc?.taxAmount)||0);
       const total = Math.max(0, Number(calc?.total)||0);
+      const marginAmount = Math.max(0, net - direct);
+      const marginPct = Math.max(0, Number(state?.margin)||0);
+      const taxPct = Math.max(0, Number(state?.tax)||0);
       const valuePerM2 = area > 0 ? total / area : 0;
-      return { area, total, valuePerM2, container };
+      return { area, materials, labor, transport, direct, marginAmount, marginPct, net, taxAmount, taxPct, total, valuePerM2, container };
     }catch(error){
       console.warn('[BAT Metrics] calculation', error);
       return { area:0, total:0, valuePerM2:0 };
@@ -46,22 +55,27 @@
     return root;
   }
 
+  function metricCard(id,label,sub=''){
+    const card=document.createElement('div');
+    card.className='rounded-xl bg-slate-50 border p-3';
+    card.innerHTML=`<div class="text-[11px] text-slate-500">${label}</div><div id="${id}" class="font-black text-lg">—</div>${sub?`<div class="text-[10px] text-slate-400 mt-0.5">${sub}</div>`:''}`;
+    return card;
+  }
+
   function ensureCompanyMetrics(){
     const totalEl = document.getElementById('admin-total');
     const grid = totalEl?.parentElement?.parentElement;
     if(!grid) return;
-    if(!document.getElementById('admin-project-area')){
-      const card = document.createElement('div');
-      card.className = 'rounded-xl bg-slate-50 border p-3';
-      card.innerHTML = '<div class="text-[11px] text-slate-500">Superficie construida</div><div id="admin-project-area" class="font-black text-lg">—</div>';
-      grid.appendChild(card);
-    }
-    if(!document.getElementById('admin-project-m2')){
-      const card = document.createElement('div');
-      card.className = 'rounded-xl bg-slate-50 border p-3';
-      card.innerHTML = '<div class="text-[11px] text-slate-500">Precio de venta por m²</div><div id="admin-project-m2" class="font-black text-lg">—</div>';
-      grid.appendChild(card);
-    }
+    const defs=[
+      ['admin-project-area','Superficie construida'],
+      ['admin-project-m2','Precio de venta por m²'],
+      ['admin-transport-breakdown','Transporte'],
+      ['admin-margin-amount','Margen en pesos','Aplicado sobre costo directo'],
+      ['admin-net-sale','Neto de venta','Antes de IVA'],
+      ['admin-tax-amount','IVA'],
+      ['admin-final-sale','Precio final','IVA incluido']
+    ];
+    defs.forEach(([id,label,sub])=>{ if(!document.getElementById(id)) grid.appendChild(metricCard(id,label,sub)); });
   }
 
   function renderMetrics(){
@@ -70,14 +84,19 @@
     ensureCompanyMetrics();
     const areaText = m.area > 0 ? `${DECIMAL_METRICS.format(m.area)} m²` : '—';
     const valueText = m.valuePerM2 > 0 ? `${money(m.valuePerM2)}/m²` : '—';
-    const customerArea = document.getElementById('project-area-customer');
-    const customerM2 = document.getElementById('project-m2-customer');
-    const adminArea = document.getElementById('admin-project-area');
-    const adminM2 = document.getElementById('admin-project-m2');
-    if(customerArea) customerArea.textContent = areaText;
-    if(customerM2) customerM2.textContent = valueText;
-    if(adminArea) adminArea.textContent = areaText;
-    if(adminM2) adminM2.textContent = valueText;
+
+    const values={
+      'project-area-customer':areaText,
+      'project-m2-customer':valueText,
+      'admin-project-area':areaText,
+      'admin-project-m2':valueText,
+      'admin-transport-breakdown':money(m.transport),
+      'admin-margin-amount':`${money(m.marginAmount)} (${DECIMAL_METRICS.format(m.marginPct)}%)`,
+      'admin-net-sale':money(m.net),
+      'admin-tax-amount':`${money(m.taxAmount)} (${DECIMAL_METRICS.format(m.taxPct)}%)`,
+      'admin-final-sale':money(m.total)
+    };
+    Object.entries(values).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.textContent=value;});
   }
 
   function hookRenderers(){
@@ -100,7 +119,7 @@
     renderMetrics();
     window.getProjectMetrics = projectMetrics;
     window.renderProjectMetrics = renderMetrics;
-    window.BAT_KUBIQUEITOR_PROJECT_METRICS = { version:1, get:projectMetrics, render:renderMetrics };
+    window.BAT_KUBIQUEITOR_PROJECT_METRICS = { version:2, get:projectMetrics, render:renderMetrics };
   }
 
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(init, 80), { once:true });
