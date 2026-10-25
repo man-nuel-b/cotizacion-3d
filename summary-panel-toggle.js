@@ -41,7 +41,7 @@
     setSummaryCollapsed(persistedState(),{persist:false});
     window.setSummaryPanelCollapsed=setSummaryCollapsed;
     window.toggleSummaryPanel=function(){setSummaryCollapsed(!shell.classList.contains('summary-panel-collapsed'));};
-    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:16};
+    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:17};
     return true;
   }
 
@@ -70,7 +70,7 @@
   }
 
   function loadProjectMetrics(){
-    loadScriptOnce('project-metrics-v1.js?v=20261025-metrics03','project-metrics-v1');
+    loadScriptOnce('project-metrics-v1.js?v=20261025-metrics04','project-metrics-v1');
   }
 
   function loadModelCostBridge(){
