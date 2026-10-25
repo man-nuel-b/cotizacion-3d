@@ -41,7 +41,7 @@
     setSummaryCollapsed(persistedState(),{persist:false});
     window.setSummaryPanelCollapsed=setSummaryCollapsed;
     window.toggleSummaryPanel=function(){setSummaryCollapsed(!shell.classList.contains('summary-panel-collapsed'));};
-    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:20};
+    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:21};
     return true;
   }
 
@@ -61,21 +61,10 @@
     loadScriptOnce('partition-obstacle-collision.js?v=20261024-collision01','partition-obstacle-collision');
   }
 
-  function loadSafeElectricalStage(){
-    loadScriptOnce('electrical-ui-stage1.js?v=20261025-safe01','electrical-ui-stage1');
-  }
-
-  function loadSupabaseCloud(){
-    loadScriptOnce('supabase-cloud.js?v=20261025-cloud02','supabase-cloud');
-  }
-
-  function loadProjectMetrics(){
-    loadScriptOnce('project-metrics-v1.js?v=20261025-metrics04','project-metrics-v1');
-  }
-
-  function loadModelCostBridge(){
-    loadScriptOnce('model-cost-bridge-v1.js?v=20261025-costbridge01','model-cost-bridge-v1');
-  }
+  function loadSafeElectricalStage(){loadScriptOnce('electrical-ui-stage1.js?v=20261025-safe01','electrical-ui-stage1');}
+  function loadSupabaseCloud(){loadScriptOnce('supabase-cloud.js?v=20261025-cloud02','supabase-cloud');}
+  function loadProjectMetrics(){loadScriptOnce('project-metrics-v1.js?v=20261025-metrics04','project-metrics-v1');}
+  function loadModelCostBridge(){loadScriptOnce('model-cost-bridge-v1.js?v=20261025-costbridge01','model-cost-bridge-v1');}
 
   function loadExcelApuCatalog(){
     loadScriptOnce('apu-excel-resources-1.js?v=20261025-library01','apu-excel-resources-1');
@@ -87,18 +76,11 @@
     loadScriptOnce('apu-excel-catalog-core-v1.js?v=20261025-library01','apu-excel-catalog-core-v1');
   }
 
-  function loadExcelApuMethod(){
-    loadScriptOnce('apu-excel-method-v1.js?v=20261025-apuexcel01','apu-excel-method-v1');
-  }
+  function loadExcelApuMethod(){loadScriptOnce('apu-excel-method-v1.js?v=20261025-apuexcel01','apu-excel-method-v1');}
+  function loadExcelApuAccounting(){loadScriptOnce('apu-excel-accounting-v1.js?v=20261025-apuaccount01','apu-excel-accounting-v1');}
+  function loadApu3dMapping(){loadScriptOnce('apu-3d-mapping-v1.js?v=20261025-map01','apu-3d-mapping-v1');}
+  function loadApuSurfaceMapping(){loadScriptOnce('apu-surface-mapping-v1.js?v=20261025-surface01','apu-surface-mapping-v1');}
 
-  function loadExcelApuAccounting(){
-    loadScriptOnce('apu-excel-accounting-v1.js?v=20261025-apuaccount01','apu-excel-accounting-v1');
-  }
-
-  function loadApu3dMapping(){
-    loadScriptOnce('apu-3d-mapping-v1.js?v=20261025-map01','apu-3d-mapping-v1');
-  }
-
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuCatalog,2150);setTimeout(loadExcelApuMethod,3200);setTimeout(loadExcelApuAccounting,3500);setTimeout(loadApu3dMapping,3900);},{once:true});
-  else{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuCatalog,2150);setTimeout(loadExcelApuMethod,3200);setTimeout(loadExcelApuAccounting,3500);setTimeout(loadApu3dMapping,3900);}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuCatalog,2150);setTimeout(loadExcelApuMethod,3200);setTimeout(loadExcelApuAccounting,3500);setTimeout(loadApu3dMapping,3900);setTimeout(loadApuSurfaceMapping,4300);},{once:true});
+  else{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuCatalog,2150);setTimeout(loadExcelApuMethod,3200);setTimeout(loadExcelApuAccounting,3500);setTimeout(loadApu3dMapping,3900);setTimeout(loadApuSurfaceMapping,4300);}
 })();
