@@ -333,4 +333,83 @@ deleteSelectedObject=function(){
   toast(`${typeLabel(type)} eliminado`);
 };
 
-// Remaining renderer/editor hooks intentionally preserved from the stable implementation.
+rebuild3D=function(){
+  if(!containerGroup) return;
+  ensureLayoutState();
+  ensureDimensionState();
+  clearInvalidLayoutEntries();
+  clearInvalidDimensionEntries();
+  disposeGroup(containerGroup);
+  editableObjects=[];
+
+  const c=DATA.containers[state.container],extColor=new THREE.Color(state.exteriorColor);
+  const materials={
+    exterior:mat(extColor,{roughness:.58,metalness:.2}),
+    interior:mat(state.finish==='sanitary'?0xf8fafc:0xf1f5f9,{roughness:state.finish==='sanitary'?.32:.82}),
+    frame:mat(new THREE.Color(extColor).multiplyScalar(.55),{roughness:.42,metalness:.48}),
+    floor:createFloorMaterial()
+  };
+  containerGroup.add(createContainerShell(c,materials));
+  addCargoDoorDetails(containerGroup,c);
+
+  for(const type of ['window','door']){
+    for(let i=0;i<(state.counts[type]||0);i++){
+      const p=actualLayout(type,i),dims=objectDimensions(type,i);
+      const obj=type==='window'?createWindow():createDoor();
+      fitObjectToDimensions(obj,type,dims);
+      mountedParametricPosition(obj,type,p,c,dims);
+      containerGroup.add(obj);
+      registerEditable(obj,type,i,{axis:(p.face==='A'||p.face==='B')?'x':'z',surface:mountedSurface(p.face),face:p.face});
+    }
+  }
+
+  for(let i=0;i<(state.counts.partition||0);i++){
+    const p=actualLayout('partition',i),dims=objectDimensions('partition',i);
+    const obj=createPartition(c.width-.2,c.height-.15);
+    fitObjectToDimensions(obj,'partition',dims);
+    addGroup(containerGroup,obj,p.x,.08,0);
+    registerEditable(obj,'partition',i,{axis:'x',surface:'floor'});
+  }
+
+  for(const type of ['wc','sink','shower']){
+    for(let i=0;i<(state.counts[type]||0);i++){
+      const p=actualLayout(type,i),dims=objectDimensions(type,i);
+      const obj=type==='wc'?createWC():type==='sink'?createSink():createShower();
+      fitObjectToDimensions(obj,type,dims);
+      addGroup(containerGroup,obj,p.x,.08,p.z,type==='sink'?Math.PI:0);
+      registerEditable(obj,type,i,{axis:'xz',surface:'floor'});
+    }
+  }
+
+  for(let i=0;i<(state.counts.ac||0);i++){
+    const p=actualLayout('ac',i),dims=objectDimensions('ac',i);
+    const indoor=createSplitAC(),outdoor=createCondenser();
+    fitObjectToDimensions(indoor,'ac',dims);
+    mountedParametricPosition(indoor,'ac',p,c,dims);
+    positionCondenser(outdoor,p,c);
+    containerGroup.add(indoor,outdoor);
+    registerEditable(indoor,'ac',i,{axis:(p.face==='A'||p.face==='B')?'x':'z',surface:mountedSurface(p.face),face:p.face});
+  }
+
+  for(let i=0;i<(state.counts.electrical||0);i++){
+    const p=actualLayout('electrical',i),obj=createElectricalPoint();
+    positionMountedObject(obj,'electrical',p,c);
+    containerGroup.add(obj);
+    registerEditable(obj,'electrical',i,{axis:(p.face==='A'||p.face==='B')?'x':'z',surface:mountedSurface(p.face),face:p.face});
+  }
+
+  const lightCount=Math.max(1,Math.ceil((state.counts.electrical||0)/3));
+  for(let i=0;i<lightCount;i++) addGroup(containerGroup,createCeilingLight(),slotPosition(i,lightCount,c.length,.7),c.height-.1,0);
+
+  addFurnishings(containerGroup,c);
+  if(state.showPeople) addGroup(containerGroup,createHuman(),c.length*.28,.08,c.width/2+.75,-Math.PI/2);
+  addFaceLabels(containerGroup,c);
+  controls?.target.set(0,c.height*.45,0);
+  updateLighting();
+
+  if(selectedEditable){
+    const root=editableObjects.find(o=>o.userData.editor?.type===selectedEditable.type&&o.userData.editor?.index===selectedEditable.index);
+    if(root){ addSelectionOutline(root); showEditorPanel(root); }
+    else{ selectedEditable=null; hideEditorPanel(); }
+  }
+};
