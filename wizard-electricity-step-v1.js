@@ -1,9 +1,9 @@
 // Dedicated Electricity wizard step layered on top of the stable six-step wizard.
 // Moves the existing electrical UI without changing pricing/state logic.
 (function(){
-  if(window.BAT_KUBIQUEITOR_ELECTRICITY_STEP) return;
+  if(window.BAT_KUBIQUEITOR_ELECTRICITY_STEP?.version>=2) return;
 
-  const VERSION=1;
+  const VERSION=2;
   let installed=false;
 
   function panel(){return document.querySelector('.config-panel');}
@@ -34,14 +34,8 @@
   function ensureElectricityStep(){
     const root=panel();
     const walls=root?.querySelector('.wizard-step[data-step="4"]');
-    let extras=[...root?.querySelectorAll('.wizard-step')||[]].find(el=>{
-      const title=el.querySelector('h2')?.textContent||'';
-      return /extra/i.test(title);
-    });
-    let quote=[...root?.querySelectorAll('.wizard-step')||[]].find(el=>{
-      const title=el.querySelector('h2')?.textContent||'';
-      return /cotiz|presupuesto|resumen/i.test(title);
-    });
+    const extras=root?.querySelector('.wizard-step[data-step="5"]');
+    const quote=root?.querySelector('.wizard-step[data-step="6"]');
     if(!root||!walls||!extras||!quote) return false;
 
     let electricity=document.getElementById('electricity-wizard-step');
@@ -95,7 +89,6 @@
 
   function installNavigation(){
     if(typeof window.goStep!=='function'||typeof state==='undefined') return false;
-    const baseGoStep=window.goStep;
     window.goStep=function(step){
       const target=Math.min(Math.max(Number(step)||1,1),7);
       state.step=target;
@@ -110,9 +103,6 @@
       if(target===5){
         window.BAT_KUBIQUEITOR_ELECTRICAL_UI_STAGE1?.refresh?.();
         moveElectricalPanel();
-      }
-      if(target!==5&&typeof baseGoStep==='function'&&target<=4){
-        // Base wizard owns the first four steps; DOM state above remains authoritative.
       }
       if(window.innerWidth<821) document.querySelector('.config-panel')?.scrollIntoView({behavior:'smooth',block:'start'});
     };
@@ -131,6 +121,7 @@
     installed=true;
     const current=Math.min(Math.max(Number(state.step)||1,1),7);
     window.goStep(current);
+    window.BAT_KUBIQUEITOR_ELECTRICITY_STEP={version:VERSION,install,moveElectricalPanel};
     return true;
   }
 
