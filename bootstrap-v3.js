@@ -107,7 +107,8 @@
     {key:'apu-excel-editor-v1',src:'apu-excel-editor-v1.js?v=20261026-v3'},
     {key:'project-materials-list-v2',src:'project-materials-list-v2.js?v=20261026-v3'},
     {key:'project-material-plan-v1',src:'project-material-plan-v1.js?v=20261026-v3'},
-    {key:'project-material-plan-filtered-v2',src:'project-material-plan-filtered-v2.js?v=20261026-v3'}
+    {key:'project-material-plan-filtered-v2',src:'project-material-plan-filtered-v2.js?v=20261026-v3'},
+    {key:'bootstrap-v3-diagnostics',src:'bootstrap-v3-diagnostics.js?v=20261026-v3'}
   ];
 
   async function start(){
