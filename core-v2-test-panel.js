@@ -27,11 +27,11 @@
     function render(){
       const snapshot=surface.snapshot();
       const apu=window.BAT_APU_ENGINE_V2?.calculate?.()||{items:[],ready:false};
-      const guard=window.BAT_CORE_V2_REGRESSION_GUARD?.run?.()||{ok:false,checks:[],pending:true};
+      const guard=window.BAT_CORE_V2_GUARD?.run?.()||{ok:false,checks:[],pending:true};
       const project=core.store.get();
       const body=document.getElementById('bat-v2-body');if(!body)return;
       const apuRows=(apu.items||[]).map(item=>`<div class="r"><span>${esc(item.code)} · ${esc(item.name)}</span><strong>${m2(item.qty)}</strong></div><div class="r muted"><span>PU neto</span><span>${item.pricingReady?money(item.netUnit):'cargando APU…'}</span></div><div class="r"><span>Subtotal neto</span><strong>${item.pricingReady?money(item.netSubtotal):'—'}</strong></div>`).join('')||'<div class="muted" style="font-size:11px">Selecciona caras para generar P44/P45.</div>';
-      const checkRows=(guard.checks||[]).map(c=>`<div class="r"><span>${esc(c.label||c.id||'check')}</span><strong class="${c.ok?'ok':'bad'}">${c.ok?'OK':'FALLA'}</strong></div>`).join('');
+      const checkRows=(guard.checks||[]).map(c=>`<div class="r"><span>${esc(c.name||'check')}</span><strong class="${c.ok?'ok':'bad'}">${c.ok?'OK':'FALLA'}</strong></div>`).join('');
       body.innerHTML=`
         <div class="card"><div style="font-size:11px;font-weight:900">Pintura exterior · P45</div><div class="faces">${facesHtml('paint',snapshot.paint.faces)}</div><div class="r"><span>Área seleccionada</span><strong>${m2(snapshot.paint.m2)}</strong></div></div>
         <div class="card"><div style="font-size:11px;font-weight:900">Grateado / preparación · P44</div><div class="faces">${facesHtml('grateado',snapshot.grateado.faces)}</div><div class="r"><span>Área seleccionada</span><strong>${m2(snapshot.grateado.m2)}</strong></div></div>
@@ -45,7 +45,7 @@
     core.quantityEvents.on('quantities:changed',()=>setTimeout(render,0));
     const timer=setInterval(render,1000);
     window.addEventListener('beforeunload',()=>clearInterval(timer),{once:true});
-    window.BAT_CORE_V2_TEST_PANEL={version:1,render};
+    window.BAT_CORE_V2_TEST_PANEL={version:2,render};
     render();
   }
 
