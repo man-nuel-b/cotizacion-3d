@@ -50,6 +50,8 @@
     const script=document.createElement('script');script.src=src;script.setAttribute(`data-${datasetKey}`,'true');document.body.appendChild(script);
   }
 
+  function loadCoreV2(){loadScriptOnce('core-v2.js?v=20261026-foundation01','core-v2');}
+
   function loadWallModuleEngine(){
     if(!window.BAT_KUBIQUEITOR_WALL_MODULE_ENGINE) loadScriptOnce('wall-module-engine.js?v=20261024-refactor03','wall-module-engine');
     loadScriptOnce('wall-variant-registry.js?v=20261024-refactor05','wall-variant-registry');
@@ -82,6 +84,6 @@
   function loadProjectMaterialPlan(){loadScriptOnce('project-material-plan-v1.js?v=20261025-plan02','project-material-plan-v1');}
   function loadFilteredMaterialPlan(){loadScriptOnce('project-material-plan-filtered-v2.js?v=20261025-plan03','project-material-plan-filtered-v2');}
 
-  const runLoads=()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuCatalog,2150);setTimeout(loadExcelApuMethod,3200);setTimeout(loadExcelApuAccounting,3500);setTimeout(loadApu3dMapping,3900);setTimeout(loadApuSurfaceMapping,4300);setTimeout(loadApuExcelEditor,4700);setTimeout(loadProjectMaterialsList,5100);setTimeout(loadProjectMaterialPlan,5500);setTimeout(loadFilteredMaterialPlan,5900);};
+  const runLoads=()=>{setTimeout(loadCoreV2,15);setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuCatalog,2150);setTimeout(loadExcelApuMethod,3200);setTimeout(loadExcelApuAccounting,3500);setTimeout(loadApu3dMapping,3900);setTimeout(loadApuSurfaceMapping,4300);setTimeout(loadApuExcelEditor,4700);setTimeout(loadProjectMaterialsList,5100);setTimeout(loadProjectMaterialPlan,5500);setTimeout(loadFilteredMaterialPlan,5900);};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',runLoads,{once:true});else runLoads();
 })();
