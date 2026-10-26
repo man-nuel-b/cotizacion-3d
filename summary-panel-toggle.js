@@ -41,7 +41,7 @@
     setSummaryCollapsed(persistedState(),{persist:false});
     window.setSummaryPanelCollapsed=setSummaryCollapsed;
     window.toggleSummaryPanel=function(){setSummaryCollapsed(!shell.classList.contains('summary-panel-collapsed'));};
-    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:26};
+    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:27};
     return true;
   }
 
@@ -59,7 +59,10 @@
     loadScriptOnce('interior-fixture-collision.js?v=20261026-collision02','interior-fixture-collision');
   }
 
-  function loadSafeElectricalStage(){loadScriptOnce('electrical-ui-stage1.js?v=20261025-safe01','electrical-ui-stage1');}
+  function loadSafeElectricalStage(){
+    loadScriptOnce('electrical-ui-stage1.js?v=20261025-safe01','electrical-ui-stage1');
+    loadScriptOnce('wizard-electricity-step-v1.js?v=20261026-electricity01','wizard-electricity-step-v1');
+  }
   function loadSupabaseCloud(){loadScriptOnce('supabase-cloud.js?v=20261025-cloud02','supabase-cloud');}
   function loadProjectMetrics(){loadScriptOnce('project-metrics-v1.js?v=20261025-metrics04','project-metrics-v1');}
   function loadModelCostBridge(){loadScriptOnce('model-cost-bridge-v1.js?v=20261025-costbridge01','model-cost-bridge-v1');}
