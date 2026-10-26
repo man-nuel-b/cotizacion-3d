@@ -3,7 +3,7 @@
 (function(){
   if(window.BAT_CORE_V2) return;
 
-  const VERSION='2.0.0-foundation';
+  const VERSION='2.0.1-foundation';
   const deepClone=value=>JSON.parse(JSON.stringify(value));
   const number=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
   const clamp=(value,min,max)=>Math.min(max,Math.max(min,value));
@@ -72,6 +72,7 @@
   function registerQuantity(key,calculator){
     if(typeof calculator!=='function') throw new Error('Quantity calculator must be a function');
     quantities.set(key,calculator);
+    if(store.read()?.meta?.revision) calculateQuantities(store.read());
   }
 
   function calculateQuantities(project=store.read()){
@@ -137,7 +138,6 @@
     ['window','door'].forEach(type=>{
       project.components[type].forEach(item=>{
         if(item.face&&item.face!==face)return;
-        // If legacy layout does not yet expose a face, do not subtract it from a specific face.
         if(!item.face)return;
         total+=Math.max(0,number(item.dimensions?.width,defaultDimensions(type).width))*Math.max(0,number(item.dimensions?.height,defaultDimensions(type).height));
       });
@@ -163,7 +163,10 @@
       if(typeof state==='undefined'||typeof DATA==='undefined')return null;
       const c=DATA?.containers?.[state.container];
       if(!c)return null;
+      const current=store.read();
       const next=deepClone(DEFAULT_PROJECT);
+      // Domains already migrated to V2 remain owned by V2 and survive legacy synchronization.
+      next.surfaces=deepClone(current?.surfaces||next.surfaces);
       next.container={type:state.container,length:number(c.length),width:number(c.width),height:number(c.height)};
       next.solution=state.solution||'custom';
       next.finish=state.finish||'standard';
@@ -172,7 +175,8 @@
       next.commercial={marginPct:number(state.margin,25),transport:Math.max(0,number(state.transport,0)),taxPct:clamp(number(state.tax,19),0,100)};
       Object.keys(next.components).forEach(type=>{next.components[type]=componentArray(type,state.counts?.[type]);});
       if(state.surfaces){
-        next.surfaces={...next.surfaces,...deepClone(state.surfaces)};
+        const legacySurfaces=deepClone(state.surfaces);
+        next.surfaces={...next.surfaces,...legacySurfaces};
       }
       next.geometry=deriveGeometry(next);
       return next;
@@ -194,7 +198,6 @@
     if(!force&&fingerprint===lastLegacyFingerprint)return false;
     lastLegacyFingerprint=fingerprint;
     store.replace(snapshot,{source:'legacy-adapter'});
-    calculateQuantities(store.read());
     return true;
   }
 
@@ -212,7 +215,8 @@
   registerQuantity('hvac.ac.units',project=>project.components.ac.length);
   registerQuantity('electrical.points.units',project=>project.components.electrical.length);
 
-  store.on('project:changed',()=>{});
+  // Central reaction: project changes recalculate quantities. Feature modules never wrap render/calculate functions.
+  store.on('project:changed',()=>calculateQuantities(store.read()));
 
   // Passive compatibility bridge. It reads the legacy model; it never replaces or calls editor/render globals.
   const syncTimer=setInterval(()=>syncFromLegacy(),250);
