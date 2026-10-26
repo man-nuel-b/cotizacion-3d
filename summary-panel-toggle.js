@@ -53,9 +53,10 @@
   function loadWallModuleEngine(){
     if(!window.BAT_KUBIQUEITOR_WALL_MODULE_ENGINE) loadScriptOnce('wall-module-engine.js?v=20261024-refactor03','wall-module-engine');
     loadScriptOnce('wall-variant-registry.js?v=20261024-refactor05','wall-variant-registry');
-    loadScriptOnce('direct-editor-controller.js?v=20261024-editor-final01','direct-editor-controller');
+    loadScriptOnce('direct-editor-controller.js?v=20261026-editor-v3','direct-editor-controller');
     loadScriptOnce('spatial-occupancy.js?v=20261024-collision01','spatial-occupancy');
     loadScriptOnce('partition-obstacle-collision.js?v=20261024-collision01','partition-obstacle-collision');
+    loadScriptOnce('interior-fixture-collision.js?v=20261026-collision02','interior-fixture-collision');
   }
 
   function loadSafeElectricalStage(){loadScriptOnce('electrical-ui-stage1.js?v=20261025-safe01','electrical-ui-stage1');}
