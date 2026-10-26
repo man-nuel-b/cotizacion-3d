@@ -41,7 +41,7 @@
     setSummaryCollapsed(persistedState(),{persist:false});
     window.setSummaryPanelCollapsed=setSummaryCollapsed;
     window.toggleSummaryPanel=function(){setSummaryCollapsed(!shell.classList.contains('summary-panel-collapsed'));};
-    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:26};
+    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:27};
     return true;
   }
 
@@ -52,6 +52,8 @@
 
   function loadCoreV2(){loadScriptOnce('core-v2.js?v=20261026-foundation02','core-v2');}
   function loadSurfaceSystemV2(){loadScriptOnce('surface-system-v2.js?v=20261026-foundation01','surface-system-v2');}
+  function loadApuEngineV2(){loadScriptOnce('apu-engine-v2.js?v=20261026-test01','apu-engine-v2');}
+  function loadCoreV2TestPanel(){loadScriptOnce('core-v2-test-panel.js?v=20261026-test01','core-v2-test-panel');}
   function loadCoreV2Guard(){loadScriptOnce('core-v2-regression-guard.js?v=20261026-foundation01','core-v2-regression-guard');}
 
   function loadWallModuleEngine(){
@@ -86,6 +88,6 @@
   function loadProjectMaterialPlan(){loadScriptOnce('project-material-plan-v1.js?v=20261025-plan02','project-material-plan-v1');}
   function loadFilteredMaterialPlan(){loadScriptOnce('project-material-plan-filtered-v2.js?v=20261025-plan03','project-material-plan-filtered-v2');}
 
-  const runLoads=()=>{setTimeout(loadCoreV2,15);setTimeout(loadSurfaceSystemV2,25);setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuCatalog,2150);setTimeout(loadExcelApuMethod,3200);setTimeout(loadExcelApuAccounting,3500);setTimeout(loadApu3dMapping,3900);setTimeout(loadApuSurfaceMapping,4300);setTimeout(loadApuExcelEditor,4700);setTimeout(loadProjectMaterialsList,5100);setTimeout(loadProjectMaterialPlan,5500);setTimeout(loadFilteredMaterialPlan,5900);setTimeout(loadCoreV2Guard,6300);};
+  const runLoads=()=>{setTimeout(loadCoreV2,15);setTimeout(loadSurfaceSystemV2,25);setTimeout(loadApuEngineV2,28);setTimeout(loadCoreV2TestPanel,29);setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuCatalog,2150);setTimeout(loadExcelApuMethod,3200);setTimeout(loadExcelApuAccounting,3500);setTimeout(loadApu3dMapping,3900);setTimeout(loadApuSurfaceMapping,4300);setTimeout(loadApuExcelEditor,4700);setTimeout(loadProjectMaterialsList,5100);setTimeout(loadProjectMaterialPlan,5500);setTimeout(loadFilteredMaterialPlan,5900);setTimeout(loadCoreV2Guard,6300);};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',runLoads,{once:true});else runLoads();
 })();
