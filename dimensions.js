@@ -36,19 +36,14 @@ const OBJECT_DIMENSIONS={
     defaults:()=>({width:.80,height:1.00,depth:.55})
   },
   shower:{
-    fields:[
-      {key:'width',label:'Ancho',min:.65,max:1.20,step:.05},
-      {key:'depth',label:'Fondo',min:.65,max:1.20,step:.05},
-      {key:'height',label:'Alto',min:1.70,max:2.40,step:.05}
-    ],
-    defaults:()=>({width:.78,height:1.88,depth:.78})
+    fixed:true,
+    fields:[],
+    defaults:()=>({width:.80,height:1.90,depth:.80})
   },
   ac:{
-    fields:[
-      {key:'width',label:'Ancho',min:.60,max:1.40,step:.05},
-      {key:'height',label:'Alto',min:.20,max:.45,step:.01}
-    ],
-    defaults:()=>({width:.92,height:.28,depth:.19})
+    fixed:true,
+    fields:[],
+    defaults:()=>({width:.90,height:.30,depth:.20})
   }
 };
 
