@@ -19,7 +19,7 @@
       .summary-panel-collapsed #summary-panel-toggle{background:rgba(245,158,11,.95);color:#0f172a;border-color:#f59e0b}
       .summary-panel-collapsed #summary-panel-toggle i{color:#0f172a}
       .presentation-mode #summary-panel-toggle{display:none!important}
-      @media(max-width:1180px){.summary-panel-collapsed .main-grid{grid-template-columns:330px minmax(0,1fr) 0px}.summary-panel-collapsed .summary-panel{display:none!important}}
+      @media(max-width:1180px){.summary-panel-collapsed .main-grid{grid-template-columns:330px minmax(0,1fr)}.summary-panel-collapsed .summary-panel{display:none!important}}
       @media(max-width:820px){.summary-panel-collapsed .main-grid{display:block}.summary-panel-collapsed .summary-panel{display:none!important}#summary-panel-toggle{top:auto;bottom:78px;transform:none;padding:9px 10px}}
     `;
     document.head.appendChild(style);
