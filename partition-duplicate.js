@@ -4,23 +4,25 @@
 (function(){
   let partitionClipboard=null;
   const COPY_OFFSET=.35;
+  const PRODUCTIVITY_ASSET_VERSION='20261028-critical-1';
+  const productivityAsset=name=>`${name}?v=${PRODUCTIVITY_ASSET_VERSION}`;
 
   function loadFinalProductivityTools(){
     if(!document.querySelector('script[data-framing-visuals]')){
       const framing=document.createElement('script');
-      framing.src=(typeof finalVersionedAsset==='function'?finalVersionedAsset('framing-visuals.js'):'framing-visuals.js?v=20261022-17');
+      framing.src=productivityAsset('framing-visuals.js');
       framing.dataset.framingVisuals='true';
       document.body.appendChild(framing);
     }
     if(!document.querySelector('script[data-apu-price-master]')){
       const apu=document.createElement('script');
-      apu.src=(typeof finalVersionedAsset==='function'?finalVersionedAsset('apu-price-master.js'):'apu-price-master.js?v=20261022-17');
+      apu.src=productivityAsset('apu-price-master.js');
       apu.dataset.apuPriceMaster='true';
       document.body.appendChild(apu);
     }
     if(!document.querySelector('script[data-multi-select-copy]')){
       const multi=document.createElement('script');
-      multi.src=(typeof finalVersionedAsset==='function'?finalVersionedAsset('multi-select-copy.js'):'multi-select-copy.js?v=20261022-17');
+      multi.src=productivityAsset('multi-select-copy.js');
       multi.dataset.multiSelectCopy='true';
       document.body.appendChild(multi);
     }
