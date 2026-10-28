@@ -41,7 +41,7 @@
     setSummaryCollapsed(persistedState(),{persist:false});
     window.setSummaryPanelCollapsed=setSummaryCollapsed;
     window.toggleSummaryPanel=function(){setSummaryCollapsed(!shell.classList.contains('summary-panel-collapsed'));};
-    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:29};
+    window.BAT_KUBIQUEITOR_SUMMARY_TOGGLE={version:30};
     return true;
   }
 
@@ -83,7 +83,8 @@
   function loadFilteredMaterialPlan(){loadScriptOnce('project-material-plan-filtered-v2.js?v=20261025-plan03','project-material-plan-filtered-v2');}
   function loadProductionHardening(){loadScriptOnce('production-hardening-v1.js?v=20261028-hardening01','production-hardening-v1');}
   function loadProjectQA(){loadScriptOnce('project-qa-v1.js?v=20261028-qa01','project-qa-v1');}
+  function loadInteriorProduction(){loadScriptOnce('interior-production-v1.js?v=20261028-interior01','interior-production-v1');}
 
-  const runLoads=()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuCatalog,2150);setTimeout(loadExcelApuMethod,3200);setTimeout(loadExcelApuAccounting,3500);setTimeout(loadApu3dMapping,3900);setTimeout(loadApuSurfaceMapping,4300);setTimeout(loadApuExcelEditor,4700);setTimeout(loadProjectMaterialsList,5100);setTimeout(loadProjectMaterialPlan,5500);setTimeout(loadFilteredMaterialPlan,5900);setTimeout(loadProductionHardening,6500);setTimeout(loadProjectQA,7100);};
+  const runLoads=()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuCatalog,2150);setTimeout(loadExcelApuMethod,3200);setTimeout(loadExcelApuAccounting,3500);setTimeout(loadApu3dMapping,3900);setTimeout(loadApuSurfaceMapping,4300);setTimeout(loadApuExcelEditor,4700);setTimeout(loadProjectMaterialsList,5100);setTimeout(loadProjectMaterialPlan,5500);setTimeout(loadFilteredMaterialPlan,5900);setTimeout(loadProductionHardening,6500);setTimeout(loadProjectQA,7100);setTimeout(loadInteriorProduction,7600);};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',runLoads,{once:true});else runLoads();
 })();
