@@ -84,12 +84,6 @@ showEditorPanel=function(root){
   const meta=root.userData.editor,pos=actualLayout(meta.type,meta.index);
   document.getElementById('editor-title').textContent=typeLabel(meta.type);
   document.getElementById('editor-subtitle').textContent=`Elemento ${meta.index+1} · ${editorPositionLabel(meta.type,pos)}`;
-  const legacy=document.getElementById('window-face-editor'); if(legacy) legacy.classList.add('hidden');
-  const faceEditor=document.getElementById('mounted-face-editor');
-  if(faceEditor){
-    faceEditor.classList.toggle('hidden',!isMountedFaceType(meta.type));
-    if(isMountedFaceType(meta.type)) faceEditor.querySelectorAll('[data-face]').forEach(btn=>btn.classList.toggle('active-face',btn.dataset.face===pos.face));
-  }
   panel.classList.remove('hidden');
 };
 
@@ -236,7 +230,7 @@ installFaceUI=function(){
   if(!document.getElementById('face-ui-style')){
     const style=document.createElement('style'); style.id='face-ui-style'; style.textContent=`
       .zoom-control-stack{position:absolute;z-index:19;right:16px;top:50%;transform:translateY(-50%);display:grid;gap:8px}.zoom-control-btn{width:44px;height:44px;border-radius:14px;border:1px solid rgba(148,163,184,.28);background:rgba(15,23,42,.86);color:#fff;display:grid;place-items:center;box-shadow:0 10px 28px rgba(2,6,23,.24);backdrop-filter:blur(12px);font-size:15px;transition:.16s ease}.zoom-control-btn:hover{background:#f59e0b;color:#0f172a;border-color:#fbbf24;transform:scale(1.05)}.zoom-control-btn:active{transform:scale(.96)}
-      .face-card{border:1px solid #e2e8f0;border-radius:16px;padding:14px;text-align:left;background:white;transition:.16s ease}.face-card:hover{transform:translateY(-2px);border-color:#f59e0b;box-shadow:0 10px 28px rgba(15,23,42,.09)}.face-letter{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;color:#0f172a;font-weight:900;font-size:18px}.face-mini{display:grid;grid-template-columns:42px 1fr;gap:12px;align-items:center}.face-editor-row button{border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.07);border-radius:9px;padding:7px 0;font-size:11px;font-weight:800}.face-editor-row button.active-face{background:#f59e0b;color:#0f172a;border-color:#fbbf24}
+      .face-card{border:1px solid #e2e8f0;border-radius:16px;padding:14px;text-align:left;background:white;transition:.16s ease}.face-card:hover{transform:translateY(-2px);border-color:#f59e0b;box-shadow:0 10px 28px rgba(15,23,42,.09)}.face-letter{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;color:#0f172a;font-weight:900;font-size:18px}.face-mini{display:grid;grid-template-columns:42px 1fr;gap:12px;align-items:center}
       .presentation-mode .zoom-control-stack{right:24px}@media(max-width:820px){.zoom-control-stack{right:10px;top:auto;bottom:78px;transform:none}.zoom-control-btn{width:40px;height:40px;border-radius:12px}.presentation-mode .zoom-control-stack{right:12px;bottom:76px}}
     `; document.head.appendChild(style);
   }
@@ -250,11 +244,6 @@ installFaceUI=function(){
   if(toolbar&&!document.getElementById('face-label-toggle')){
     const btn=document.createElement('button'); btn.id='face-label-toggle'; btn.className='viewer-pill rounded-xl px-3 py-2 text-xs font-semibold'; btn.onclick=toggleFaceLabels; btn.innerHTML='<i class="fa-solid fa-compass mr-1"></i> Caras A-D'; toolbar.appendChild(btn);
   }
-  const panel=document.getElementById('object-editor');
-  const legacy=document.getElementById('window-face-editor'); if(legacy) legacy.remove();
-  if(panel&&!document.getElementById('mounted-face-editor')){
-    const faceEditor=document.createElement('div'); faceEditor.id='mounted-face-editor'; faceEditor.className='hidden mt-3 rounded-xl bg-white/5 border border-white/10 p-3';
-    faceEditor.innerHTML=`<div class="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-2">Cara de instalación</div><div class="face-editor-row grid grid-cols-4 gap-1.5">${['A','B','C','D'].map(f=>`<button data-face="${f}" onclick="changeSelectedMountedFace('${f}')">${f}</button>`).join('')}</div>`;
-    const deleteBtn=panel.querySelector('button[onclick*="deleteSelectedObject"]'); if(deleteBtn) panel.insertBefore(faceEditor,deleteBtn); else panel.appendChild(faceEditor);
-  }
+  // The direct-editor-controller is the single owner of A/B/C/D controls inside object-editor.
+  // Do not recreate mounted-face-editor/window-face-editor here.
 };
