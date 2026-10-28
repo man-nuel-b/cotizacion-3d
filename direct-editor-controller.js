@@ -1,7 +1,7 @@
 // Authoritative Universal Direct 3D Editor controller.
 // Owns close, movement controls, face changes, reset and delete visibility.
 (function(){
-  if(window.BAT_KUBIQUEITOR_DIRECT_EDITOR_CONTROLLER?.version>=3) return;
+  if(window.BAT_KUBIQUEITOR_DIRECT_EDITOR_CONTROLLER?.version>=4) return;
 
   const FLOOR_TYPES=new Set(['wc','sink','shower']);
 
@@ -28,6 +28,23 @@
   function removeLegacyFaceControls(panel){
     panel?.querySelector('#mounted-face-editor')?.remove();
     panel?.querySelector('#window-face-editor')?.remove();
+  }
+
+  function installLegacyFaceGuard(panel){
+    if(!panel||panel.dataset.legacyFaceGuard==='true') return;
+    panel.dataset.legacyFaceGuard='true';
+    const observer=new MutationObserver(mutations=>{
+      for(const mutation of mutations){
+        for(const node of mutation.addedNodes){
+          if(!(node instanceof Element)) continue;
+          if(node.id==='mounted-face-editor'||node.id==='window-face-editor'||node.querySelector?.('#mounted-face-editor,#window-face-editor')){
+            removeLegacyFaceControls(panel);
+            return;
+          }
+        }
+      }
+    });
+    observer.observe(panel,{childList:true,subtree:true});
   }
 
   function ensureControls(panel){
@@ -111,6 +128,7 @@
 
     removeLegacyMovementRows(panel);
     removeLegacyFaceControls(panel);
+    installLegacyFaceGuard(panel);
     ensureControls(panel);
 
     const closeButton=panel.querySelector('.fa-xmark')?.closest('button');
@@ -149,7 +167,7 @@
 
     window.closeDirect3DEditor=closeDirectEditor;
     window.syncDirect3DEditor=syncControls;
-    window.BAT_KUBIQUEITOR_DIRECT_EDITOR_CONTROLLER={version:3};
+    window.BAT_KUBIQUEITOR_DIRECT_EDITOR_CONTROLLER={version:4};
     syncControls();
     return true;
   }
