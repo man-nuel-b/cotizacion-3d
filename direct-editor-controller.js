@@ -1,7 +1,7 @@
 // Authoritative Universal Direct 3D Editor controller.
 // Owns close, movement controls, face changes, reset and delete visibility.
 (function(){
-  if(window.BAT_KUBIQUEITOR_DIRECT_EDITOR_CONTROLLER?.version>=2) return;
+  if(window.BAT_KUBIQUEITOR_DIRECT_EDITOR_CONTROLLER?.version>=3) return;
 
   const FLOOR_TYPES=new Set(['wc','sink','shower']);
 
@@ -23,6 +23,11 @@
 
   function actionButton(label,icon,action,extra=''){
     return `<button type="button" ${extra} onclick="${action}" class="rounded-lg bg-white/10 hover:bg-white/15 py-2 text-[11px] font-bold transition"><i class="fa-solid ${icon}${label?' mr-1':''}"></i>${label||''}</button>`;
+  }
+
+  function removeLegacyFaceControls(panel){
+    panel?.querySelector('#mounted-face-editor')?.remove();
+    panel?.querySelector('#window-face-editor')?.remove();
   }
 
   function ensureControls(panel){
@@ -71,6 +76,7 @@
   function syncControls(){
     const panel=document.getElementById('object-editor');
     if(!panel) return false;
+    removeLegacyFaceControls(panel);
     const selection=currentSelection();
     const root=ensureControls(panel);
     const depth=root.querySelector('[data-editor-depth-controls]');
@@ -104,6 +110,7 @@
     if(!panel) return false;
 
     removeLegacyMovementRows(panel);
+    removeLegacyFaceControls(panel);
     ensureControls(panel);
 
     const closeButton=panel.querySelector('.fa-xmark')?.closest('button');
@@ -119,14 +126,14 @@
       });
     }
 
-    if(typeof showEditorPanel==='function'&&!showEditorPanel.__universalEditorV2){
+    if(typeof showEditorPanel==='function'&&!showEditorPanel.__universalEditorV3){
       const baseShow=showEditorPanel;
       const wrapped=function(root){
         const result=baseShow(root);
         syncControls();
         return result;
       };
-      wrapped.__universalEditorV2=true;
+      wrapped.__universalEditorV3=true;
       showEditorPanel=wrapped;
     }
 
@@ -142,7 +149,7 @@
 
     window.closeDirect3DEditor=closeDirectEditor;
     window.syncDirect3DEditor=syncControls;
-    window.BAT_KUBIQUEITOR_DIRECT_EDITOR_CONTROLLER={version:2};
+    window.BAT_KUBIQUEITOR_DIRECT_EDITOR_CONTROLLER={version:3};
     syncControls();
     return true;
   }
