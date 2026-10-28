@@ -3,8 +3,8 @@
 (function(){
   if(window.BAT_KUBIQUEITOR_SIX_STEP_WIZARD) return;
 
-  const VERSION=7;
-  const ASSET_VERSION='20261024-mod01-13';
+  const VERSION=8;
+  const ASSET_VERSION='20261028-critical-1';
   let installed=false;
   let featureChainStarted=false;
   let featureChainWaiter=null;
@@ -73,31 +73,49 @@
       'interiorSystems',
       ()=>typeof ensureInteriorSystem==='function'&&typeof INTERIOR_SYSTEMS!=='undefined',
       ()=>{
+        // The opening variants depend on the WallModule registry. Load both
+        // authorities before openings-extras so the chain cannot stop early.
         loadVerified(
-          'script[data-opening-extras]',
-          'openings-extras.js',
-          'openingExtras',
-          ()=>Boolean(DATA.extras?.opening&&DATA.extras?.openingFrame&&OBJECT_DIMENSIONS?.opening&&OBJECT_DIMENSIONS?.openingFrame),
+          'script[data-wall-module-engine]',
+          'wall-module-engine.js',
+          'wallModuleEngine',
+          ()=>Boolean(window.BAT_KUBIQUEITOR_WALL_MODULE_ENGINE&&typeof window.registerWallModule==='function'&&typeof window.wallModuleDefinition==='function'),
           ()=>{
             loadVerified(
-              'script[data-partition-duplicate]',
-              'partition-duplicate.js',
-              'partitionDuplicate',
-              ()=>Boolean(window.BAT_KUBIQUEITOR_PARTITION_DUPLICATE),
+              'script[data-wall-variant-registry]',
+              'wall-variant-registry.js',
+              'wallVariantRegistry',
+              ()=>Boolean(window.BAT_KUBIQUEITOR_WALL_VARIANT_REGISTRY&&typeof window.registerWallVariant==='function'),
               ()=>{
                 loadVerified(
-                  'script[data-interior-ux]',
-                  'interior-ux.js',
-                  'interiorUx',
-                  ()=>Boolean(window.BAT_KUBIQUEITOR_INTERIOR_UX&&typeof window.renderInteriorSystemUI==='function'),
+                  'script[data-opening-extras]',
+                  'openings-extras.js',
+                  'openingExtras',
+                  ()=>Boolean(DATA.extras?.opening&&DATA.extras?.openingFrame&&OBJECT_DIMENSIONS?.opening&&OBJECT_DIMENSIONS?.openingFrame),
                   ()=>{
-                    renderWallControls();
                     loadVerified(
-                      'script[data-production-suite]',
-                      'production-suite.js',
-                      'productionSuite',
-                      ()=>Boolean(window.BAT_KUBIQUEITOR_PRODUCTION_SUITE),
-                      ()=>renderWallControls()
+                      'script[data-partition-duplicate]',
+                      'partition-duplicate.js',
+                      'partitionDuplicate',
+                      ()=>Boolean(window.BAT_KUBIQUEITOR_PARTITION_DUPLICATE),
+                      ()=>{
+                        loadVerified(
+                          'script[data-interior-ux]',
+                          'interior-ux.js',
+                          'interiorUx',
+                          ()=>Boolean(window.BAT_KUBIQUEITOR_INTERIOR_UX&&typeof window.renderInteriorSystemUI==='function'),
+                          ()=>{
+                            renderWallControls();
+                            loadVerified(
+                              'script[data-production-suite]',
+                              'production-suite.js',
+                              'productionSuite',
+                              ()=>Boolean(window.BAT_KUBIQUEITOR_PRODUCTION_SUITE),
+                              ()=>renderWallControls()
+                            );
+                          }
+                        );
+                      }
                     );
                   }
                 );
