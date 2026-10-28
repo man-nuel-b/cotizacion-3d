@@ -3,133 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="description" content="bat-kubiqueitor · configurador 3D comercial de contenedores habilitados." />
-  <title>bat-kubiqueitor</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
-  <link rel="stylesheet" href="styles.css?v=20261024-1" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Sitio temporalmente no disponible</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#020617;color:#e2e8f0;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:24px}.card{width:min(560px,100%);padding:42px 32px;border:1px solid rgba(148,163,184,.18);border-radius:24px;background:rgba(15,23,42,.92);box-shadow:0 24px 80px rgba(0,0,0,.35);text-align:center}.icon{width:64px;height:64px;margin:0 auto 18px;border-radius:18px;display:grid;place-items:center;background:#f59e0b;color:#0f172a;font-size:30px;font-weight:900}h1{margin:0;font-size:clamp(24px,5vw,34px);line-height:1.1}p{margin:14px auto 0;color:#94a3b8;line-height:1.65;max-width:430px}.badge{display:inline-flex;margin-top:22px;padding:9px 14px;border-radius:999px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.22);color:#fbbf24;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+  </style>
 </head>
-<body class="overflow-hidden">
-<div id="app-shell" class="app-shell">
-  <header class="topbar bg-slate-950 text-white px-4 lg:px-6 flex items-center justify-between shadow-lg relative z-30">
-    <div class="flex items-center gap-3 min-w-0">
-      <div class="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 grid place-items-center text-lg"><i class="fa-solid fa-cube"></i></div>
-      <div class="min-w-0">
-        <div class="flex gap-2 items-center"><h1 class="font-black truncate">bat-kubiqueitor</h1><span class="hidden md:inline-flex text-[9px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-400/20 px-2 py-1 rounded-full">Editor 3D · Caras A-E</span></div>
-        <div class="text-[11px] text-slate-400 flex items-center gap-2"><span class="status-dot"></span><span>Diseña y cotiza en una sola conversación</span></div>
-      </div>
-    </div>
-    <div class="flex gap-2 no-presentation">
-      <button onclick="undo()" class="hidden sm:inline-flex px-3 py-2 rounded-lg bg-slate-900 text-xs" title="Deshacer"><i class="fa-solid fa-rotate-left"></i></button>
-      <button onclick="redo()" class="hidden sm:inline-flex px-3 py-2 rounded-lg bg-slate-900 text-xs" title="Rehacer"><i class="fa-solid fa-rotate-right"></i></button>
-      <button onclick="saveProject()" class="hidden md:inline-flex px-3 py-2 rounded-lg bg-slate-900 text-xs font-semibold"><i class="fa-solid fa-floppy-disk text-amber-400 mr-1"></i> Guardar</button>
-      <button onclick="openCompanyMode()" class="px-3 py-2 rounded-lg border border-slate-700 text-xs font-semibold"><i class="fa-solid fa-briefcase text-amber-400 mr-1"></i> Empresa</button>
-    </div>
-  </header>
-
-  <div class="main-grid">
-    <aside class="config-panel bg-white border-r border-slate-200 panel-scroll">
-      <div class="p-4 border-b sticky top-0 bg-white z-10">
-        <div class="grid grid-cols-4 gap-1.5">
-          <button class="step-chip active border rounded-xl py-2 text-[11px] font-bold" onclick="goStep(1)">1. Uso</button>
-          <button class="step-chip border rounded-xl py-2 text-[11px] font-bold text-slate-500" onclick="goStep(2)">2. Base</button>
-          <button class="step-chip border rounded-xl py-2 text-[11px] font-bold text-slate-500" onclick="goStep(3)">3. Extras</button>
-          <button class="step-chip border rounded-xl py-2 text-[11px] font-bold text-slate-500" onclick="goStep(4)">4. Cotizar</button>
-        </div>
-      </div>
-      <div class="p-4 lg:p-5">
-        <section data-step="1" class="wizard-step">
-          <div class="text-[11px] font-black uppercase tracking-widest text-amber-600">Paso 1</div>
-          <h2 class="text-xl font-black mt-1">¿Qué necesitas?</h2>
-          <p class="text-sm text-slate-500 mt-1 mb-4">Elige el tipo de proyecto y constrúyelo desde un contenedor vacío.</p>
-          <div id="solution-list" class="grid gap-2"></div>
-          <button onclick="goStep(2)" class="mt-5 w-full bg-slate-950 text-white py-3 rounded-xl font-bold text-sm">Continuar <i class="fa-solid fa-arrow-right ml-1"></i></button>
-        </section>
-        <section data-step="2" class="wizard-step hidden">
-          <div class="text-[11px] font-black uppercase tracking-widest text-amber-600">Paso 2</div>
-          <h2 class="text-xl font-black mt-1">Elige la base</h2>
-          <p class="text-sm text-slate-500 mt-1 mb-4">Tamaño y color exterior.</p>
-          <div id="container-list" class="grid gap-2"></div>
-          <label class="block text-xs font-bold text-slate-600 mt-5">Terminación interior</label><div id="finish-list" class="grid gap-2 mt-2"></div>
-          <label class="block text-xs font-bold text-slate-600 mt-5">Color exterior</label><div id="color-list" class="flex gap-2 mt-2 flex-wrap"></div>
-          <div class="flex gap-2 mt-5"><button onclick="goStep(1)" class="w-1/3 bg-slate-100 py-3 rounded-xl font-bold text-sm">Atrás</button><button onclick="goStep(3)" class="flex-1 bg-slate-950 text-white py-3 rounded-xl font-bold text-sm">Personalizar</button></div>
-        </section>
-        <section data-step="3" class="wizard-step hidden">
-          <div class="text-[11px] font-black uppercase tracking-widest text-amber-600">Paso 3</div>
-          <h2 class="text-xl font-black mt-1">Agrega lo necesario</h2>
-          <p class="text-sm text-slate-500 mt-1 mb-4">Agrega cada elemento a medida que construyes el proyecto con el cliente.</p>
-          <div id="extras-list" class="space-y-2"></div>
-          <div class="flex gap-2 mt-5"><button onclick="goStep(2)" class="w-1/3 bg-slate-100 py-3 rounded-xl font-bold text-sm">Atrás</button><button onclick="goStep(4)" class="flex-1 bg-amber-500 text-slate-950 py-3 rounded-xl font-black text-sm">Cotizar</button></div>
-        </section>
-        <section data-step="4" class="wizard-step hidden">
-          <div class="text-[11px] font-black uppercase tracking-widest text-amber-600">Paso 4</div>
-          <h2 class="text-xl font-black mt-1">Datos del cliente</h2>
-          <p class="text-sm text-slate-500 mt-1 mb-4">Opcional para la propuesta.</p>
-          <div class="space-y-3">
-            <input id="customer-name" oninput="setCustomer('name',this.value)" class="w-full border rounded-xl px-3 py-2.5 text-sm" placeholder="Nombre y apellido" />
-            <input id="customer-company" oninput="setCustomer('company',this.value)" class="w-full border rounded-xl px-3 py-2.5 text-sm" placeholder="Empresa" />
-            <input id="customer-phone" oninput="setCustomer('phone',this.value)" type="tel" class="w-full border rounded-xl px-3 py-2.5 text-sm" placeholder="Teléfono" />
-            <input id="customer-email" oninput="setCustomer('email',this.value)" type="email" class="w-full border rounded-xl px-3 py-2.5 text-sm" placeholder="Correo" />
-          </div>
-          <button onclick="openQuote()" class="mt-5 w-full bg-amber-500 py-3 rounded-xl font-black text-sm"><i class="fa-solid fa-file-pdf mr-1"></i> Generar propuesta</button>
-          <button onclick="shareWhatsApp()" class="mt-2 w-full bg-emerald-600 text-white py-3 rounded-xl font-bold text-sm"><i class="fa-brands fa-whatsapp mr-1"></i> Compartir resumen</button>
-          <button onclick="goStep(3)" class="mt-2 w-full bg-slate-100 py-3 rounded-xl font-bold text-sm">Volver a editar</button>
-        </section>
-      </div>
-    </aside>
-
-    <main class="viewer-wrap">
-      <div id="canvas-container"></div>
-      <div class="viewer-toolbar">
-        <button class="viewer-pill rounded-xl px-3 py-2 text-xs font-semibold" onclick="setView('exterior')"><i class="fa-solid fa-cube mr-1"></i> Exterior</button>
-        <button class="viewer-pill rounded-xl px-3 py-2 text-xs font-semibold" onclick="setView('cutaway')"><i class="fa-solid fa-house-chimney-window mr-1"></i> Corte 3D</button>
-        <button class="viewer-pill rounded-xl px-3 py-2 text-xs font-semibold" onclick="setView('interior')"><i class="fa-solid fa-person-shelter mr-1"></i> Interior</button>
-        <button class="viewer-pill rounded-xl px-3 py-2 text-xs font-semibold" onclick="setView('top')"><i class="fa-solid fa-border-all mr-1"></i> Planta</button>
-        <button class="viewer-pill rounded-xl px-3 py-2 text-xs" onclick="toggleDayNight()"><i id="day-icon" class="fa-solid fa-sun"></i></button>
-        <button class="viewer-pill rounded-xl px-3 py-2 text-xs" onclick="togglePeople()"><i id="people-icon" class="fa-solid fa-person"></i></button>
-        <button class="viewer-pill presentation-trigger rounded-xl px-3 py-2 text-xs font-semibold" onclick="togglePresentation()"><i class="fa-solid fa-expand mr-1"></i> Presentación</button>
-      </div>
-
-      <div id="object-editor" class="hidden absolute z-20 left-4 top-20 w-72 rounded-2xl border border-amber-400/30 bg-slate-950/90 text-white shadow-2xl backdrop-blur-xl p-4">
-        <div class="flex items-start justify-between gap-3"><div><div class="text-[10px] font-black uppercase tracking-widest text-amber-400">Editor directo 3D</div><div id="editor-title" class="font-black text-sm mt-1">Elemento</div><div id="editor-subtitle" class="text-[11px] text-slate-400 mt-0.5">Selecciona y arrastra</div></div><button onclick="selectedEditable=null;hideEditorPanel();rebuild3D()" class="w-7 h-7 rounded-lg bg-white/10"><i class="fa-solid fa-xmark"></i></button></div>
-        <div class="mt-3 rounded-xl bg-white/5 border border-white/10 p-3 text-[11px] text-slate-300">Arrastra el elemento. El sistema limita el movimiento y evita posiciones demasiado juntas.</div>
-        <div class="grid grid-cols-3 gap-2 mt-3"><button onclick="nudgeSelected(-0.05,0)" class="rounded-lg bg-white/10 py-2"><i class="fa-solid fa-arrow-left"></i></button><button onclick="resetSelectedPosition()" class="rounded-lg bg-white/10 py-2" title="Posición automática"><i class="fa-solid fa-wand-magic-sparkles"></i></button><button onclick="nudgeSelected(0.05,0)" class="rounded-lg bg-white/10 py-2"><i class="fa-solid fa-arrow-right"></i></button></div>
-        <div class="grid grid-cols-2 gap-2 mt-2"><button onclick="nudgeSelected(0,-0.05)" class="rounded-lg bg-white/10 py-2 text-[11px]"><i class="fa-solid fa-arrow-up mr-1"></i> Fondo</button><button onclick="nudgeSelected(0,0.05)" class="rounded-lg bg-white/10 py-2 text-[11px]"><i class="fa-solid fa-arrow-down mr-1"></i> Frente</button></div>
-        <button onclick="deleteSelectedObject()" class="mt-3 w-full rounded-xl bg-red-500/15 border border-red-400/20 text-red-200 py-2 text-xs font-bold"><i class="fa-solid fa-trash mr-1"></i> Eliminar elemento</button>
-      </div>
-
-      <div class="viewer-help rounded-xl px-4 py-3 text-xs shadow-xl"><div id="viewer-project-name" class="font-bold text-white mb-1">Proyecto modular</div><div id="viewer-dims" class="text-slate-300">—</div><div class="mt-1 text-slate-400">Arrastra el fondo para girar · usa + / − para acercar y alejar.</div></div>
-      <div class="scene-badge"><span><i class="fa-solid fa-hand-pointer text-amber-400"></i> Editor inteligente</span><span class="scene-dot"></span><span id="scene-mode-label">Exterior</span></div>
-    </main>
-
-    <aside class="summary-panel bg-white border-l border-slate-200 panel-scroll p-4 lg:p-5">
-      <div class="price-card rounded-2xl p-4 shadow-lg"><div class="text-[11px] uppercase tracking-widest text-slate-300 font-bold">Estimación actual</div><div id="customer-total" class="text-3xl font-black mt-1">$0</div><div class="text-[11px] text-slate-400">IVA incluido · referencial</div><div class="mt-4 pt-3 border-t border-slate-700 text-xs flex justify-between"><span>Módulo</span><strong id="summary-container">—</strong></div><div class="mt-2 text-xs flex justify-between"><span>Solución</span><strong id="summary-solution">—</strong></div></div>
-      <div class="mt-5 flex justify-between"><h3 class="font-black text-sm">Tu proyecto</h3><button onclick="resetProject()" class="text-[11px] text-slate-500">Reiniciar</button></div><div id="summary-items" class="mt-3 space-y-2 text-xs"></div>
-      <button onclick="goStep(6)" class="mt-4 w-full bg-amber-500 py-3 rounded-xl font-black text-sm">Cotizar este diseño</button>
-    </aside>
-  </div>
-</div>
-
-<div id="company-modal" class="fixed inset-0 z-50 modal-backdrop hidden items-center justify-center p-4"><div class="modal-panel bg-white w-full max-w-5xl rounded-2xl shadow-2xl flex flex-col"><div class="px-5 py-4 border-b flex justify-between"><div><h3 class="font-black text-lg">Modo empresa</h3><p class="text-xs text-slate-500">Costos, margen y cubicación interna.</p></div><button onclick="closeModal('company-modal')" class="w-9 h-9 rounded-full bg-slate-100"><i class="fa-solid fa-xmark"></i></button></div><div class="modal-body p-5"><div class="grid md:grid-cols-4 gap-3 mb-5"><div class="rounded-xl bg-slate-50 border p-3"><div class="text-[11px] text-slate-500">Materiales + estructura</div><div id="admin-materials" class="font-black text-lg">$0</div></div><div class="rounded-xl bg-slate-50 border p-3"><div class="text-[11px] text-slate-500">Mano de obra</div><div id="admin-labor" class="font-black text-lg">$0</div></div><div class="rounded-xl bg-slate-50 border p-3"><div class="text-[11px] text-slate-500">Costo directo</div><div id="admin-direct" class="font-black text-lg">$0</div></div><div class="rounded-xl bg-slate-950 text-white p-3"><div class="text-[11px] text-slate-400">Venta IVA incluido</div><div id="admin-total" class="font-black text-lg">$0</div></div></div><div class="grid md:grid-cols-3 gap-3 mb-5"><label class="text-xs font-bold">Margen (%)<input id="margin-input" onchange="updateAdminNumber('margin',this.value)" type="number" class="mt-1 w-full border rounded-xl px-3 py-2"></label><label class="text-xs font-bold">Transporte<input id="transport-input" onchange="updateAdminNumber('transport',this.value)" type="number" class="mt-1 w-full border rounded-xl px-3 py-2"></label><label class="text-xs font-bold">IVA (%)<input id="tax-input" onchange="updateAdminNumber('tax',this.value)" type="number" class="mt-1 w-full border rounded-xl px-3 py-2"></label></div><div class="overflow-x-auto rounded-xl border"><table class="table-clean w-full text-xs"><thead><tr><th>Ítem</th><th>Cantidad</th><th>Unidad</th><th>Costo unit.</th><th>Subtotal</th></tr></thead><tbody id="bom-table"></tbody></table></div></div></div></div>
-
-<div id="quote-modal" class="fixed inset-0 z-50 modal-backdrop hidden items-center justify-center p-4"><div class="modal-panel bg-white w-full max-w-4xl rounded-2xl shadow-2xl flex flex-col"><div class="px-5 py-4 border-b flex justify-between no-print"><div><h3 class="font-black text-lg">Propuesta comercial</h3><p class="text-xs text-slate-500">Vista previa para cliente.</p></div><div class="flex gap-2"><button onclick="window.print()" class="bg-amber-500 px-4 py-2 rounded-xl text-sm font-black">Imprimir / PDF</button><button onclick="closeModal('quote-modal')" class="w-9 h-9 rounded-full bg-slate-100"><i class="fa-solid fa-xmark"></i></button></div></div><div class="modal-body"><div id="quote-print" class="p-7 md:p-9"><div class="flex justify-between border-b pb-5"><div><div class="text-2xl font-black">PROPUESTA MODULAR</div><div class="text-xs text-slate-500">Configuración preliminar 3D · bat-kubiqueitor</div></div><div class="text-right text-xs"><div id="quote-number" class="font-black text-amber-600">—</div><div id="quote-date" class="text-slate-500">—</div></div></div><div class="grid md:grid-cols-2 gap-6 mt-6"><div><div class="text-[11px] font-black uppercase text-slate-400 mb-2">Cliente</div><div id="quote-customer" class="text-sm"></div></div><div><div class="text-[11px] font-black uppercase text-slate-400 mb-2">Proyecto</div><div id="quote-project" class="text-sm"></div></div></div><div class="mt-6 rounded-xl overflow-hidden border bg-slate-950"><img id="quote-render" class="w-full h-64 object-contain" alt="Render 3D"></div><div class="grid md:grid-cols-2 gap-6 mt-6"><div><div class="text-[11px] font-black uppercase text-slate-400 mb-2">Configuración</div><div id="quote-items" class="space-y-2 text-xs"></div></div><div class="rounded-2xl bg-slate-950 text-white p-5"><div class="text-[11px] uppercase text-slate-400">Total estimado</div><div id="quote-total" class="text-3xl font-black">$0</div><div class="text-xs text-slate-400">IVA incluido</div></div></div><div class="mt-7 pt-4 border-t text-[11px] text-slate-500">Representación comercial preliminar; requiere validación técnica antes de fabricación.</div></div></div></div></div>
-
-<div id="toast" class="toast"></div>
-<script src="app.js?v=20261024-1"></script>
-<script src="progressive-build-start.js?v=20261024-1"></script>
-<script src="container-realism.js?v=20261024-1"></script>
-<script src="editor.js?v=20261024-1"></script>
-<script src="faces-mounted.js?v=20261024-1"></script>
-<script src="face-paints.js?v=20261024-mod01"></script>
-<script src="partition-face-loader.js?v=20261024-mod02-16"></script>
-<script src="summary-panel-toggle.js?v=20261024-1"></script>
-<script src="module-presets.js?v=20261024-mod01"></script>
-<script src="floor-finishes.js?v=20261024-mod01"></script>
-<script src="wizard-interior-step.js?v=20261024-mod01c"></script>
+<body>
+  <main class="card">
+    <div class="icon">■</div>
+    <h1>Sitio temporalmente no disponible</h1>
+    <p>El configurador se encuentra temporalmente fuera de línea.</p>
+    <div class="badge">Acceso suspendido</div>
+  </main>
 </body>
 </html>
