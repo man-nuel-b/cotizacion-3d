@@ -78,11 +78,37 @@
 
   window.getApuMaster=()=>clone(master);window.getApuUnitPrice=apuUnitPrice;window.getApuProjectQty=apuProjectQty;
 
+  function appendExternalBOMItems(target,items){
+    if(!Array.isArray(items)) return;
+    items.forEach(item=>{
+      const qty=n(item?.qty);
+      if(!item||qty<=0) return;
+      const unitCost=n(item.unitCost);
+      const subtotal=Number.isFinite(Number(item.subtotal))?Number(item.subtotal):qty*unitCost;
+      const normalized={...item,qty,unitCost,subtotal};
+      const existing=target.find(row=>row.key===normalized.key);
+      if(existing){
+        existing.qty=n(existing.qty)+qty;
+        existing.subtotal=n(existing.subtotal)+subtotal;
+      }else target.push(normalized);
+    });
+  }
+
   const buildBOMBeforeApu=buildBOM;
   buildBOM=function(){
     applyResourcePrices();
     const base=buildBOMBeforeApu();
-    const filtered=base.filter(item=>!['window','door','wc','sink','shower','ac','electrical'].includes(item.key));
+    const legacyFloorKey=DATA.finishes?.[state.finish]?.flooring||null;
+    const useDedicatedFloor=typeof window.getFloorBOMItems==='function';
+    const filtered=base.filter(item=>{
+      if(['window','door','wc','sink','shower','ac','electrical'].includes(item.key)) return false;
+      if(useDedicatedFloor&&legacyFloorKey&&item.key===legacyFloorKey) return false;
+      return true;
+    });
+
+    if(useDedicatedFloor) appendExternalBOMItems(filtered,window.getFloorBOMItems());
+    if(typeof window.getBathroomModuleBOMItems==='function') appendExternalBOMItems(filtered,window.getBathroomModuleBOMItems());
+
     for(const id of MANAGED_APUS){
       const qty=apuProjectQty(id);if(qty<=0)continue;const apu=master.apus[id];if(!apu)continue;const unitCost=apuUnitPrice(id);
       filtered.push({key:`apu:${id}`,apuId:id,name:`A.P.U. · ${apu.name}`,qty:Math.ceil(qty*100)/100,unit:apu.unit,unitCost,subtotal:qty*unitCost,pendingCost:pendingResourcesForApu(id).length>0});
@@ -137,6 +163,6 @@
 
   applyResourcePrices();
   const renderAllBeforeApu=renderAll;renderAll=function(){applyResourcePrices();renderAllBeforeApu();installButton();updateCompanyLabels();};
-  window.BAT_KUBIQUEITOR_APU_MASTER={version:3};
+  window.BAT_KUBIQUEITOR_APU_MASTER={version:4};
   if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',()=>{ensureModal();installButton();renderAll();},{once:true});else{ensureModal();installButton();renderAll();}
 })();
