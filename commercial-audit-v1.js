@@ -31,6 +31,25 @@
         apuProfit+=(finite(qty)?qty:0)*(finite(item.apuBreakdown.profit)?num(item.apuBreakdown.profit):0);
       }
     }
+    // La base de recursos permite detectar APU con insumos sin valor aunque su
+    // precio final sea mayor que cero gracias a la mano de obra.
+    let apuMaster=null;
+    try{apuMaster=typeof root.getApuMaster==='function'?root.getApuMaster():null;}catch(e){}
+    for(const [index,item] of bom.entries()){
+      if(!(item?.excelApu&&item.apuId))continue;
+      const apu=apuMaster?.apus?.[item.apuId];
+      if(!apu)continue;
+      const pending=(apu.components||[]).filter(c=>{
+        const r=apuMaster?.resources?.[c.resourceId];
+        return !r||!finite(r.price)||num(r.price)<=0;
+      });
+      if(pending.length)add(errors,'APU_RESOURCE_UNPRICED',`Partida ${index+1}: el APU tiene ${pending.length} recursos faltantes o sin precio.`);
+    }
+    const mandatoryCodes=new Set(bom.filter(x=>x?.excelCode).map(x=>x.excelCode));
+    const hasElectricity=num(counts.electrical)>0||num(state?.electrical?.points?.length)>0;
+    if(hasElectricity&&!mandatoryCodes.has('P73'))add(warnings,'BOARD_TO_VERIFY','Confirmar tablero general P73 y protección eléctrica; no se añade automáticamente.');
+    if(hasElectricity&&!mandatoryCodes.has('P74'))add(warnings,'GROUND_TO_VERIFY','Confirmar puesta a tierra P74; no se añade automáticamente.');
+    if((num(counts.wc)>0||num(counts.shower)>0)&&!mandatoryCodes.has('P67'))add(warnings,'VENT_TO_VERIFY','Verificar ventilación/extractor P67 cuando sea requerido por el diseño.');
     const duplicates=[...apuTypes].filter(type=>legacyKeys.has(type));
     if(duplicates.length)add(errors,'DUPLICATED_MATERIAL',`Partidas genéricas y APU de los mismos elementos: ${duplicates.join(', ')}. Revisa si están cobradas dos veces.`,{types:duplicates});
     const overlapping=[...apuTypes].filter(type=>num(counts[type])>0&&finite(catalogLabor[type])&&num(catalogLabor[type])>0);
