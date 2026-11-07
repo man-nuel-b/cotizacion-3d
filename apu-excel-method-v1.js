@@ -123,7 +123,9 @@
       return window.BAT_KUBIQUEITOR_PRICING_INTEGRITY.calculate({
         bom,externalLabor:baseLabor+unmanagedLabor+floorLabor+bathroomLabor,
         transport:state.transport,overheadPct:settings.overheadPct,
-        profitPct:settings.profitPct,taxPct:settings.taxPct
+        profitPct:settings.profitPct,taxPct:settings.taxPct,
+        contingencyPct:window.BAT_KUBIQUEITOR_CONSTRUCTION_RULES?.snapshot?.()?.enabled?
+          n(state?.constructionRules?.contingencyPct):0
       });
     };
     window.getApuExcelBreakdown=apuBreakdown;
