@@ -73,19 +73,20 @@
     loadScriptOnce('apu-excel-catalog-core-v1.js?v=20261025-library02','apu-excel-catalog-core-v1');
   }
 
-  function loadExcelApuMethod(){loadScriptOnce('apu-excel-method-v1.js?v=20261025-apuexcel02','apu-excel-method-v1');}
-  function loadExcelApuAccounting(){loadScriptOnce('apu-excel-accounting-v1.js?v=20261025-apuaccount02','apu-excel-accounting-v1');}
-  function loadApu3dMapping(){loadScriptOnce('apu-3d-mapping-v1.js?v=20261025-map02','apu-3d-mapping-v1');}
-  function loadApuSurfaceMapping(){loadScriptOnce('apu-surface-mapping-v1.js?v=20261025-surface02','apu-surface-mapping-v1');}
+  function loadPricingIntegrity(){loadScriptOnce('pricing-integrity-v1.js?v=20261107-costfix01','pricing-integrity-v1');}
+  function loadExcelApuMethod(){loadScriptOnce('apu-excel-method-v1.js?v=20261107-costfix01','apu-excel-method-v1');}
+  function loadExcelApuAccounting(){loadScriptOnce('apu-excel-accounting-v1.js?v=20261107-costfix01','apu-excel-accounting-v1');}
+  function loadApu3dMapping(){loadScriptOnce('apu-3d-mapping-v1.js?v=20261107-costfix01','apu-3d-mapping-v1');}
+  function loadApuSurfaceMapping(){loadScriptOnce('apu-surface-mapping-v1.js?v=20261107-costfix01','apu-surface-mapping-v1');}
   function loadApuExcelEditor(){loadScriptOnce('apu-excel-editor-v1.js?v=20261025-editor02','apu-excel-editor-v1');}
   function loadProjectMaterialsList(){loadScriptOnce('project-materials-list-v2.js?v=20261025-materials03','project-materials-list-v2');}
   function loadProjectMaterialPlan(){loadScriptOnce('project-material-plan-v1.js?v=20261025-plan02','project-material-plan-v1');}
   function loadFilteredMaterialPlan(){loadScriptOnce('project-material-plan-filtered-v2.js?v=20261025-plan03','project-material-plan-filtered-v2');}
   function loadProductionHardening(){loadScriptOnce('production-hardening-v1.js?v=20261028-hardening01','production-hardening-v1');}
   function loadProjectQA(){loadScriptOnce('project-qa-v1.js?v=20261028-qa01','project-qa-v1');}
-  function loadInteriorProduction(){loadScriptOnce('interior-production-v1.js?v=20261028-interior01','interior-production-v1');}
+  function loadInteriorProduction(){loadScriptOnce('interior-production-v1.js?v=20261107-costfix01','interior-production-v1');}
   function loadCommercialAudit(){loadScriptOnce('commercial-audit-v1.js?v=20261107-audit01','commercial-audit-v1');}
 
-  const runLoads=()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuCatalog,2150);setTimeout(loadExcelApuMethod,3200);setTimeout(loadExcelApuAccounting,3500);setTimeout(loadApu3dMapping,3900);setTimeout(loadApuSurfaceMapping,4300);setTimeout(loadApuExcelEditor,4700);setTimeout(loadProjectMaterialsList,5100);setTimeout(loadProjectMaterialPlan,5500);setTimeout(loadFilteredMaterialPlan,5900);setTimeout(loadProductionHardening,6500);setTimeout(loadProjectQA,7100);setTimeout(loadInteriorProduction,7600);setTimeout(loadCommercialAudit,8200);};
+  const runLoads=()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuCatalog,2150);setTimeout(loadPricingIntegrity,2950);setTimeout(loadExcelApuMethod,3200);setTimeout(loadExcelApuAccounting,3500);setTimeout(loadApu3dMapping,3900);setTimeout(loadApuSurfaceMapping,4300);setTimeout(loadApuExcelEditor,4700);setTimeout(loadProjectMaterialsList,5100);setTimeout(loadProjectMaterialPlan,5500);setTimeout(loadFilteredMaterialPlan,5900);setTimeout(loadProductionHardening,6500);setTimeout(loadProjectQA,7100);setTimeout(loadInteriorProduction,7600);setTimeout(loadCommercialAudit,8200);};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',runLoads,{once:true});else runLoads();
 })();
