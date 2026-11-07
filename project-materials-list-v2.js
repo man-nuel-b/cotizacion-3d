@@ -20,7 +20,13 @@
       return Array.isArray(c?.bom)?c.bom:[];
     }catch(e){console.warn('[BAT materials v2] BOM',e);return [];}
   }
-  function buyQty(qty){return Math.ceil(Math.max(0,n(qty)));}
+  function buyQty(qty,unit){
+    const safe=Math.max(0,n(qty)),u=String(unit||'').trim().toLowerCase();
+    // Metros lineales y m² representan cantidades teóricas; el largo de barras o formato
+    // real del proveedor debe informarse antes de convertir a unidades comerciales.
+    if(['ml','m','m²','m2','kg','l'].includes(u))return Math.ceil(safe*100)/100;
+    return Math.ceil(safe);
+  }
 
   function consolidate(){
     const m=master(),bom=currentBom(),map=new Map();
@@ -56,7 +62,7 @@
     });
 
     const tax=taxPct()/100;
-    const rows=[...map.values()].map(row=>{const purchaseQty=buyQty(row.finalQty),totalNet=purchaseQty*row.unitPriceNet;return {...row,partidas:[...row.partidas],purchaseQty,totalNet,totalGross:totalNet*(1+tax),effectiveWastePct:row.calculatedQty>0?(row.wasteQty/row.calculatedQty*100):0};}).sort((a,b)=>(a.code||'').localeCompare(b.code||'',undefined,{numeric:true})||(a.name||'').localeCompare(b.name||''));
+    const rows=[...map.values()].map(row=>{const purchaseQty=buyQty(row.finalQty,row.unit),totalNet=purchaseQty*row.unitPriceNet;return {...row,partidas:[...row.partidas],purchaseQty,totalNet,totalGross:totalNet*(1+tax),effectiveWastePct:row.calculatedQty>0?(row.wasteQty/row.calculatedQty*100):0};}).sort((a,b)=>(a.code||'').localeCompare(b.code||'',undefined,{numeric:true})||(a.name||'').localeCompare(b.name||''));
     return {rows,apuLineCount,bomLineCount:bom.length};
   }
 
