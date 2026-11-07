@@ -164,8 +164,11 @@
   }
 
   function apuResource(code,fallback){
+    const master=typeof getApuMaster==='function'?getApuMaster():null;
+    const live=master?.resources?.['excel:'+code];
     const row=(window.BAT_EXCEL_APU_R||[]).find(item=>item?.[0]===code);
-    return {code,name:row?.[2]||fallback.name,unit:row?.[3]||fallback.unit,cost:Math.max(0,n(row?.[4],fallback.cost))};
+    return {code,name:live?.name||row?.[2]||fallback.name,unit:live?.unit||row?.[3]||fallback.unit,
+      cost:Math.max(0,n(live?.price,row?.[4]??fallback.cost))};
   }
   function halfMeterWaste(value){return Math.ceil(Math.max(0,n(value))*1.10*2)/2;}
   function sanitaryCostAdditions(){
@@ -203,9 +206,14 @@
       const materialLines=addition.lines.filter(x=>!x.laborOnly),laborLines=addition.lines.filter(x=>x.laborOnly);
       bom.push(...addition.lines);
       const addedMaterials=materialLines.reduce((s,x)=>s+n(x.subtotal),0),addedLabor=laborLines.reduce((s,x)=>s+n(x.subtotal),0);
-      const materials=n(result.materials)+addedMaterials,labor=n(result.labor)+addedLabor,direct=materials+labor+n(state.transport);
-      const net=direct*(1+n(state.margin)/100),taxAmount=net*(n(state.tax)/100),total=net+taxAmount;
-      return {...result,bom,materials,labor,direct,net,taxAmount,total,sanitaryRouting:addition.metrics,sanitaryRoutingMaterials:addedMaterials,sanitaryRoutingLabor:addedLabor};
+      const settings=typeof getApuExcelSettings==='function'?getApuExcelSettings():null;
+      if(!window.BAT_KUBIQUEITOR_PRICING_INTEGRITY||!settings)return {...result,bom};
+      const total=window.BAT_KUBIQUEITOR_PRICING_INTEGRITY.calculate({
+        bom,externalLabor:n(result.externalLabor,0),
+        transport:state.transport,overheadPct:settings.overheadPct,
+        profitPct:settings.profitPct,taxPct:settings.taxPct
+      });
+      return {...result,...total,sanitaryRouting:addition.metrics,sanitaryRoutingMaterials:addedMaterials,sanitaryRoutingLabor:addedLabor};
     };
     wrapped.__batInteriorProduction=true;wrapped.__previous=before;calculate=wrapped;
   }
