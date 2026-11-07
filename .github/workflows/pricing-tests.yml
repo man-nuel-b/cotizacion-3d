@@ -1,0 +1,29 @@
+name: Validar costos APU
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pricing-integrity-v1.js'
+      - 'apu-*.js'
+      - 'interior-production-v1.js'
+      - 'commercial-audit-v1.js'
+      - 'summary-panel-toggle.js'
+      - 'tests/**'
+      - '.github/workflows/pricing-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pricing-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Ejecutar pruebas financieras
+        run: node --test tests/pricing-integrity.test.cjs
