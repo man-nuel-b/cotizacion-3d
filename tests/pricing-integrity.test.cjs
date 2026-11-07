@@ -58,3 +58,21 @@ test('All project cost JS parses in Node (no execution)',()=>{
   const src=fs.readFileSync(path.join(root,f),'utf8');new vm.Script(src,{filename:f});
  }
 });
+
+
+test('Commercial audit: canonical totals agree even when legacy margin differs',()=>{
+ const audit=require('../commercial-audit-v1.js');
+ const bom=[item('P60',1,breakdown(100000,40000))];
+ const x=pricing.calculate({bom,externalLabor:600000,transport:0,overheadPct:15,profitPct:10,taxPct:19});
+ const report=audit.analyze(x,{margin:99,tax:5,transport:0,counts:{wc:1}},{labor:{wc:120000}});
+ assert.equal(report.errors.some(e=>['DIRECT_MISMATCH','NET_MISMATCH','TAX_MISMATCH','GROSS_MISMATCH'].includes(e.code)),false);
+ assert.equal(report.warnings.some(w=>w.code==='LABOR_OVERLAP'),false);
+});
+test('Commercial audit: invalid material specification blocks validation',()=>{
+ const audit=require('../commercial-audit-v1.js');
+ const bom=[{...item('P83',1,breakdown(80000,30000)),specificationMismatch:'vidrio monolitico vs termopanel'}];
+ const x=pricing.calculate({bom,externalLabor:100000,overheadPct:15,profitPct:10,taxPct:19});
+ const report=audit.analyze(x,{transport:0,margin:25,tax:19,counts:{window:1}},{labor:{}});
+ assert.equal(report.ok,false);
+ assert.ok(report.errors.find(e=>e.code==='SPECIFICATION_MISMATCH'));
+});
