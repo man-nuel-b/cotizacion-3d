@@ -92,7 +92,7 @@ function render(){
   '<div class="bat-w-simple-line" style="font-weight:900;color:#047857"><span>Precio neto</span><b>'+money(t.net)+'</b></div></div></div>'+
   '<div style="background:#f8fafc;border-radius:10px;padding:12px;margin-top:12px" class="bat-w-hint">Los precios son referenciales. Cambiar el metrado de arriba solo simula un valor; para cambiar materiales, mermas o rendimientos entra en «Planilla técnica».</div>';
  target.innerHTML='<div class="bat-worksheet"><aside><div style="padding:12px;background:#f1f5f9"><b>Selecciona una partida</b><input id="bat-w-search" value="'+esc(query)+'" placeholder="Buscar P01, WC, piso…" style="margin-top:8px;width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:8px"></div><div class="bat-w-list" id="bat-w-list">'+choices(m)+'</div></aside>'+
- '<section><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px"><div><b style="color:#b45309;font-size:12px">'+esc(code)+' · ANÁLISIS DE PRECIO UNITARIO</b><h3 style="font-size:18px;font-weight:900;margin:6px 0">'+esc(name(a))+'</h3><div class="bat-w-hint">Precio por '+esc(a.unit||'unidad')+' · Maestro APU del proyecto</div></div>'+
+ '<section><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px"><div><b style="color:#b45309;font-size:12px">'+esc(code)+' · '+(simpleMode?'TRABAJO Y PRECIO':'ANÁLISIS DE PRECIO UNITARIO')+'</b><h3 style="font-size:18px;font-weight:900;margin:6px 0">'+esc(name(a))+'</h3><div class="bat-w-hint">Precio por '+esc(a.unit||'unidad')+' · Maestro APU del proyecto</div></div>'+
  '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap"><button type="button" class="bat-w-action" data-toggle-mode>'+ (simpleMode?'Ver planilla técnica':'Volver a vista simple') +'</button></div></div>'+ 
  (simpleMode?'':'<div class="bat-w-hint" style="background:#eff6ff;border-radius:8px;padding:10px;margin-bottom:10px"><b>Cómo leerlo:</b> cantidad con pérdida = cantidad base × (1 + merma %). Subtotal = cantidad con pérdida × precio del recurso. La mano de obra se convierte en jornadas según rendimiento de la cuadrilla.</div>')+
  '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><label style="font-size:12px"><b>4. ¿Cuántas unidades necesitas?</b> <input id="bat-w-meter" type="number" min="0" step=".01" value="'+measured+'" style="width:98px;border:1px solid #94a3b8;border-radius:6px;padding:7px"></label><span class="bat-w-hint">'+(isSimulation?'Simulación: no cambia el diseño.':actual>0?'Obtenido del modelo 3D.':'No está incluida en el modelo; puedes simularla.')+'</span>'+
@@ -128,7 +128,7 @@ function ensure(){
  let panel=document.getElementById('apu-view-spreadsheet');
  if(!panel){panel=document.createElement('section');panel.id='apu-view-spreadsheet';panel.className='hidden';panel.innerHTML='<div id="bat-w-root"></div>';modal.querySelector('.modal-body')?.appendChild(panel);}
  if(!document.getElementById('apu-tab-spreadsheet')){
-  const btn=document.createElement('button');btn.className='apu-tab';btn.id='apu-tab-spreadsheet';btn.textContent='APU · Planilla';btn.onclick=show;modal.querySelector('.px-5.py-3.border-b')?.prepend(btn);
+  const btn=document.createElement('button');btn.className='apu-tab';btn.id='apu-tab-spreadsheet';btn.textContent='APU fácil';btn.onclick=show;modal.querySelector('.px-5.py-3.border-b')?.prepend(btn);
  }
  const host=document.getElementById('bat-w-root');
  if(host&&!host.dataset.events){
