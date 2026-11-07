@@ -79,7 +79,7 @@
   function loadApu3dMapping(){loadScriptOnce('apu-3d-mapping-v1.js?v=20261107-costfix01','apu-3d-mapping-v1');}
   function loadApuSurfaceMapping(){loadScriptOnce('apu-surface-mapping-v1.js?v=20261107-costfix01','apu-surface-mapping-v1');}
   function loadApuExcelEditor(){loadScriptOnce('apu-excel-editor-v1.js?v=20261025-editor02','apu-excel-editor-v1');}
-  function loadApuSpreadsheet(){loadScriptOnce('apu-spreadsheet-view-v1.js?v=20261107-sheet01','apu-spreadsheet-view-v1');}
+  function loadApuSpreadsheet(){loadScriptOnce('apu-spreadsheet-view-v1.js?v=20261107-simple02','apu-spreadsheet-view-v1');}
   function loadProjectMaterialsList(){loadScriptOnce('project-materials-list-v2.js?v=20261107-costfix02','project-materials-list-v2');}
   function loadProjectMaterialPlan(){loadScriptOnce('project-material-plan-v1.js?v=20261025-plan02','project-material-plan-v1');}
   function loadFilteredMaterialPlan(){loadScriptOnce('project-material-plan-filtered-v2.js?v=20261025-plan03','project-material-plan-filtered-v2');}
