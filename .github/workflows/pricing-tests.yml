@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'pricing-integrity-v1.js'
+      - 'construction-apu-rules-v1.js'
       - 'apu-*.js'
       - 'interior-production-v1.js'
       - 'commercial-audit-v1.js'
@@ -26,4 +27,4 @@ jobs:
         with:
           node-version: '22'
       - name: Ejecutar pruebas financieras
-        run: node --test tests/pricing-integrity.test.cjs
+        run: node --test tests/*.test.cjs
