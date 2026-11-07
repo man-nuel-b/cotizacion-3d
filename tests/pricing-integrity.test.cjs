@@ -76,3 +76,13 @@ test('Commercial audit: invalid material specification blocks validation',()=>{
  assert.equal(report.ok,false);
  assert.ok(report.errors.find(e=>e.code==='SPECIFICATION_MISMATCH'));
 });
+
+test('Excel-style 5% contingency applies after GG/utilidad and before IVA',()=>{
+ const bom=[item('P47',10,breakdown(10000,5000))];
+ const base=pricing.calculate({bom,overheadPct:15,profitPct:10,taxPct:19});
+ const plus=pricing.calculate({bom,overheadPct:15,profitPct:10,taxPct:19,contingencyPct:5});
+ near(plus.contingency,base.net*.05);
+ near(plus.net,base.net*1.05);
+ near(plus.total,plus.net*1.19);
+ near(plus.direct,base.direct);
+});
