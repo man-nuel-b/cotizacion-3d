@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="description" content="bat-kubiqueitor · configurador 3D comercial de contenedores habilitados." />
+  <title>BAT-Kubiqueitor · Pruebas internas</title>
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <style id="bat-preview-gate-style">
+    body:not(.bat-preview-ready) #app-shell,
+    body:not(.bat-preview-ready) .modal-backdrop,
+    body:not(.bat-preview-ready) #toast {display:none!important}
+    body:not(.bat-preview-ready){overflow:auto!important;background:#020617!important}
+    #bat-preview-gate{position:fixed;inset:0;z-index:1000;background:#020617;color:#e2e8f0;display:flex;align-items:center;justify-content:center;padding:20px;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+    body.bat-preview-ready #bat-preview-gate{display:none!important}
+    .bat-pv-box{width:min(440px,100%);background:#0f172a;border:1px solid #334155;border-radius:24px;padding:32px;box-shadow:0 30px 80px #0008}
+    .bat-pv-brand{color:#f59e0b;font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+    .bat-pv-box h1{font-size:27px;margin:12px 0 8px;font-weight:850;line-height:1.2}
+    .bat-pv-box p{color:#94a3b8;font-size:13px;line-height:1.55}
+    .bat-pv-box label{display:block;color:#cbd5e1;font-weight:700;font-size:12px;margin:18px 0 6px}
+    .bat-pv-box input{width:100%;padding:12px 14px;background:#020617;border:1px solid #475569;border-radius:10px;color:#fff;font-size:15px}
+    .bat-pv-box input:focus{outline:2px solid #f59e0b;outline-offset:1px}
+    #bat-preview-submit{width:100%;padding:13px;background:#f59e0b;color:#0f172a;border:0;border-radius:11px;font-weight:850;margin-top:20px;cursor:pointer}
+    #bat-preview-submit:disabled{opacity:.55;cursor:progress}
+    #bat-preview-status{min-height:18px;font-size:12px;color:#fbbf24;margin:12px 0 0}
+    .bat-pv-note{margin-top:16px;padding-top:14px;border-top:1px solid #334155;color:#94a3b8;font-size:11px;line-height:1.5}
+    #bat-preview-test-banner{position:fixed;z-index:90;top:60px;left:50%;transform:translateX(-50%);background:#f59e0b;color:#0f172a;border-radius:0 0 12px 12px;padding:6px 10px;font:800 10px Inter,system-ui,sans-serif;box-shadow:0 8px 24px #0006}
+    #bat-preview-signout{margin-left:8px;text-decoration:underline;font-weight:900;background:none;border:none;cursor:pointer;color:#0f172a}
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link rel="stylesheet" href="styles.css?v=20261024-1" />
+  </head>
+<body class="overflow-hidden">
+<section id="bat-preview-gate" aria-labelledby="bat-preview-title">
+  <div class="bat-pv-box">
+    <div class="bat-pv-brand">BAT-Kubiqueitor · Acceso de pruebas</div>
+    <h1 id="bat-preview-title">Área de desarrollo</h1>
+    <p>Accede con una cuenta autorizada de la empresa. El configurador no está disponible al público.</p>
+    <form id="bat-preview-form" autocomplete="on">
+      <label for="bat-preview-email">Correo electrónico</label>
+      <input type="email" id="bat-preview-email" name="username" autocomplete="username" placeholder="correo@empresa.cl" required />
+      <label for="bat-preview-password">Contraseña</label>
+      <input type="password" id="bat-preview-password" name="password" autocomplete="current-password" required />
+      <button type="submit" id="bat-preview-submit">Entrar al configurador</button>
+    </form>
+    <div id="bat-preview-status" role="status" aria-live="polite">Verificando acceso…</div>
+    <div class="bat-pv-note">Acceso restringido a los roles propietario o administrador configurados en Supabase. La base de datos aplica sus propias políticas de seguridad.</div>
+  </div>
+</section>
+
+<div id="app-shell" class="app-shell">
+  <header class="topbar bg-slate-950 text-white px-4 lg:px-6 flex items-center justify-between shadow-lg relative z-30">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 grid place-items-center text-lg"><i class="fa-solid fa-cube"></i></div>
+      <div class="min-w-0">
+        <div class="flex gap-2 items-center"><h1 class="font-black truncate">bat-kubiqueitor</h1><span class="hidden md:inline-flex text-[9px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-400/20 px-2 py-1 rounded-full">Editor 3D · Caras A-E</span></div>
+        <div class="text-[11px] text-slate-400 flex items-center gap-2"><span class="status-dot"></span><span>Diseña y cotiza en una sola conversación</span></div>
+      </div>
+    </div>
+    <div class="flex gap-2 no-presentation">
+      <button onclick="undo()" class="hidden sm:inline-flex px-3 py-2 rounded-lg bg-slate-900 text-xs" title="Deshacer"><i class="fa-solid fa-rotate-left"></i></button>
+      <button onclick="redo()" class="hidden sm:inline-flex px-3 py-2 rounded-lg bg-slate-900 text-xs" title="Rehacer"><i class="fa-solid fa-rotate-right"></i></button>
+      <button onclick="saveProject()" class="hidden md:inline-flex px-3 py-2 rounded-lg bg-slate-900 text-xs font-semibold"><i class="fa-solid fa-floppy-disk text-amber-400 mr-1"></i> Guardar</button>
+      <button onclick="openCompanyMode()" class="px-3 py-2 rounded-lg border border-slate-700 text-xs font-semibold"><i class="fa-solid fa-briefcase text-amber-400 mr-1"></i> Empresa</button>
+    </div>
+  </header>
+
+  <div class="main-grid">
+    <aside class="config-panel bg-white border-r border-slate-200 panel-scroll">
+      <div class="p-4 border-b sticky top-0 bg-white z-10">
+        <div class="grid grid-cols-4 gap-1.5">
+          <button class="step-chip active border rounded-xl py-2 text-[11px] font-bold" onclick="goStep(1)">1. Uso</button>
+          <button class="step-chip border rounded-xl py-2 text-[11px] font-bold text-slate-500" onclick="goStep(2)">2. Base</button>
+          <button class="step-chip border rounded-xl py-2 text-[11px] font-bold text-slate-500" onclick="goStep(3)">3. Extras</button>
+          <button class="step-chip border rounded-xl py-2 text-[11px] font-bold text-slate-500" onclick="goStep(4)">4. Cotizar</button>
+        </div>
+      </div>
+      <div class="p-4 lg:p-5">
+        <section data-step="1" class="wizard-step">
+          <div class="text-[11px] font-black uppercase tracking-widest text-amber-600">Paso 1</div>
+          <h2 class="text-xl font-black mt-1">¿Qué necesitas?</h2>
+          <p class="text-sm text-slate-500 mt-1 mb-4">Elige el tipo de proyecto y constrúyelo desde un contenedor vacío.</p>
+          <div id="solution-list" class="grid gap-2"></div>
+          <button onclick="goStep(2)" class="mt-5 w-full bg-slate-950 text-white py-3 rounded-xl font-bold text-sm">Continuar <i class="fa-solid fa-arrow-right ml-1"></i></button>
+        </section>
+        <section data-step="2" class="wizard-step hidden">
+          <div class="text-[11px] font-black uppercase tracking-widest text-amber-600">Paso 2</div>
+          <h2 class="text-xl font-black mt-1">Elige la base</h2>
+          <p class="text-sm text-slate-500 mt-1 mb-4">Tamaño y color exterior.</p>
+          <div id="container-list" class="grid gap-2"></div>
+          <label class="block text-xs font-bold text-slate-600 mt-5">Terminación interior</label><div id="finish-list" class="grid gap-2 mt-2"></div>
+          <label class="block text-xs font-bold text-slate-600 mt-5">Color exterior</label><div id="color-list" class="flex gap-2 mt-2 flex-wrap"></div>
+          <div class="flex gap-2 mt-5"><button onclick="goStep(1)" class="w-1/3 bg-slate-100 py-3 rounded-xl font-bold text-sm">Atrás</button><button onclick="goStep(3)" class="flex-1 bg-slate-950 text-white py-3 rounded-xl font-bold text-sm">Personalizar</button></div>
+        </section>
+        <section data-step="3" class="wizard-step hidden">
+          <div class="text-[11px] font-black uppercase tracking-widest text-amber-600">Paso 3</div>
+          <h2 class="text-xl font-black mt-1">Agrega lo necesario</h2>
+          <p class="text-sm text-slate-500 mt-1 mb-4">Agrega cada elemento a medida que construyes el proyecto con el cliente.</p>
+          <div id="extras-list" class="space-y-2"></div>
+          <div class="flex gap-2 mt-5"><button onclick="goStep(2)" class="w-1/3 bg-slate-100 py-3 rounded-xl font-bold text-sm">Atrás</button><button onclick="goStep(4)" class="flex-1 bg-amber-500 text-slate-950 py-3 rounded-xl font-black text-sm">Cotizar</button></div>
+        </section>
+        <section data-step="4" class="wizard-step hidden">
+          <div class="text-[11px] font-black uppercase tracking-widest text-amber-600">Paso 4</div>
+          <h2 class="text-xl font-black mt-1">Datos del cliente</h2>
+          <p class="text-sm text-slate-500 mt-1 mb-4">Opcional para la propuesta.</p>
+          <div class="space-y-3">
+            <input id="customer-name" oninput="setCustomer('name',this.value)" class="w-full border rounded-xl px-3 py-2.5 text-sm" placeholder="Nombre y apellido" />
+            <input id="customer-company" oninput="setCustomer('company',this.value)" class="w-full border rounded-xl px-3 py-2.5 text-sm" placeholder="Empresa" />
+            <input id="customer-phone" oninput="setCustomer('phone',this.value)" type="tel" class="w-full border rounded-xl px-3 py-2.5 text-sm" placeholder="Teléfono" />
+            <input id="customer-email" oninput="setCustomer('email',this.value)" type="email" class="w-full border rounded-xl px-3 py-2.5 text-sm" placeholder="Correo" />
+          </div>
+          <button onclick="openQuote()" class="mt-5 w-full bg-amber-500 py-3 rounded-xl font-black text-sm"><i class="fa-solid fa-file-pdf mr-1"></i> Generar propuesta</button>
+          <button onclick="shareWhatsApp()" class="mt-2 w-full bg-emerald-600 text-white py-3 rounded-xl font-bold text-sm"><i class="fa-brands fa-whatsapp mr-1"></i> Compartir resumen</button>
+          <button onclick="goStep(3)" class="mt-2 w-full bg-slate-100 py-3 rounded-xl font-bold text-sm">Volver a editar</button>
+        </section>
+      </div>
+    </aside>
+
+    <main class="viewer-wrap">
+      <div id="canvas-container"></div>
+      <div class="viewer-toolbar">
+        <button class="viewer-pill rounded-xl px-3 py-2 text-xs font-semibold" onclick="setView('exterior')"><i class="fa-solid fa-cube mr-1"></i> Exterior</button>
+        <button class="viewer-pill rounded-xl px-3 py-2 text-xs font-semibold" onclick="setView('cutaway')"><i class="fa-solid fa-house-chimney-window mr-1"></i> Corte 3D</button>
+        <button class="viewer-pill rounded-xl px-3 py-2 text-xs font-semibold" onclick="setView('interior')"><i class="fa-solid fa-person-shelter mr-1"></i> Interior</button>
+        <button class="viewer-pill rounded-xl px-3 py-2 text-xs font-semibold" onclick="setView('top')"><i class="fa-solid fa-border-all mr-1"></i> Planta</button>
+        <button class="viewer-pill rounded-xl px-3 py-2 text-xs" onclick="toggleDayNight()"><i id="day-icon" class="fa-solid fa-sun"></i></button>
+        <button class="viewer-pill rounded-xl px-3 py-2 text-xs" onclick="togglePeople()"><i id="people-icon" class="fa-solid fa-person"></i></button>
+        <button class="viewer-pill presentation-trigger rounded-xl px-3 py-2 text-xs font-semibold" onclick="togglePresentation()"><i class="fa-solid fa-expand mr-1"></i> Presentación</button>
+      </div>
+
+      <div id="object-editor" class="hidden absolute z-20 left-4 top-20 w-72 rounded-2xl border border-amber-400/30 bg-slate-950/90 text-white shadow-2xl backdrop-blur-xl p-4">
+        <div class="flex items-start justify-between gap-3"><div><div class="text-[10px] font-black uppercase tracking-widest text-amber-400">Editor directo 3D</div><div id="editor-title" class="font-black text-sm mt-1">Elemento</div><div id="editor-subtitle" class="text-[11px] text-slate-400 mt-0.5">Selecciona y arrastra</div></div><button onclick="selectedEditable=null;hideEditorPanel();rebuild3D()" class="w-7 h-7 rounded-lg bg-white/10"><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="mt-3 rounded-xl bg-white/5 border border-white/10 p-3 text-[11px] text-slate-300">Arrastra el elemento. El sistema limita el movimiento y evita posiciones demasiado juntas.</div>
+        <div class="grid grid-cols-3 gap-2 mt-3"><button onclick="nudgeSelected(-0.05,0)" class="rounded-lg bg-white/10 py-2"><i class="fa-solid fa-arrow-left"></i></button><button onclick="resetSelectedPosition()" class="rounded-lg bg-white/10 py-2" title="Posición automática"><i class="fa-solid fa-wand-magic-sparkles"></i></button><button onclick="nudgeSelected(0.05,0)" class="rounded-lg bg-white/10 py-2"><i class="fa-solid fa-arrow-right"></i></button></div>
+        <div class="grid grid-cols-2 gap-2 mt-2"><button onclick="nudgeSelected(0,-0.05)" class="rounded-lg bg-white/10 py-2 text-[11px]"><i class="fa-solid fa-arrow-up mr-1"></i> Fondo</button><button onclick="nudgeSelected(0,0.05)" class="rounded-lg bg-white/10 py-2 text-[11px]"><i class="fa-solid fa-arrow-down mr-1"></i> Frente</button></div>
+        <button onclick="deleteSelectedObject()" class="mt-3 w-full rounded-xl bg-red-500/15 border border-red-400/20 text-red-200 py-2 text-xs font-bold"><i class="fa-solid fa-trash mr-1"></i> Eliminar elemento</button>
+      </div>
+
+      <div class="viewer-help rounded-xl px-4 py-3 text-xs shadow-xl"><div id="viewer-project-name" class="font-bold text-white mb-1">Proyecto modular</div><div id="viewer-dims" class="text-slate-300">—</div><div class="mt-1 text-slate-400">Arrastra el fondo para girar · usa + / − para acercar y alejar.</div></div>
+      <div class="scene-badge"><span><i class="fa-solid fa-hand-pointer text-amber-400"></i> Editor inteligente</span><span class="scene-dot"></span><span id="scene-mode-label">Exterior</span></div>
+    </main>
+
+    <aside class="summary-panel bg-white border-l border-slate-200 panel-scroll p-4 lg:p-5">
+      <div class="price-card rounded-2xl p-4 shadow-lg"><div class="text-[11px] uppercase tracking-widest text-slate-300 font-bold">Estimación actual</div><div id="customer-total" class="text-3xl font-black mt-1">$0</div><div class="text-[11px] text-slate-400">IVA incluido · referencial</div><div class="mt-4 pt-3 border-t border-slate-700 text-xs flex justify-between"><span>Módulo</span><strong id="summary-container">—</strong></div><div class="mt-2 text-xs flex justify-between"><span>Solución</span><strong id="summary-solution">—</strong></div></div>
+      <div class="mt-5 flex justify-between"><h3 class="font-black text-sm">Tu proyecto</h3><button onclick="resetProject()" class="text-[11px] text-slate-500">Reiniciar</button></div><div id="summary-items" class="mt-3 space-y-2 text-xs"></div>
+      <button onclick="goStep(6)" class="mt-4 w-full bg-amber-500 py-3 rounded-xl font-black text-sm">Cotizar este diseño</button>
+    </aside>
+  </div>
+</div>
+
+<div id="company-modal" class="fixed inset-0 z-50 modal-backdrop hidden items-center justify-center p-4"><div class="modal-panel bg-white w-full max-w-5xl rounded-2xl shadow-2xl flex flex-col"><div class="px-5 py-4 border-b flex justify-between"><div><h3 class="font-black text-lg">Modo empresa</h3><p class="text-xs text-slate-500">Costos, margen y cubicación interna.</p></div><button onclick="closeModal('company-modal')" class="w-9 h-9 rounded-full bg-slate-100"><i class="fa-solid fa-xmark"></i></button></div><div class="modal-body p-5"><div class="grid md:grid-cols-4 gap-3 mb-5"><div class="rounded-xl bg-slate-50 border p-3"><div class="text-[11px] text-slate-500">Materiales + estructura</div><div id="admin-materials" class="font-black text-lg">$0</div></div><div class="rounded-xl bg-slate-50 border p-3"><div class="text-[11px] text-slate-500">Mano de obra</div><div id="admin-labor" class="font-black text-lg">$0</div></div><div class="rounded-xl bg-slate-50 border p-3"><div class="text-[11px] text-slate-500">Costo directo</div><div id="admin-direct" class="font-black text-lg">$0</div></div><div class="rounded-xl bg-slate-950 text-white p-3"><div class="text-[11px] text-slate-400">Venta IVA incluido</div><div id="admin-total" class="font-black text-lg">$0</div></div></div><div class="grid md:grid-cols-3 gap-3 mb-5"><label class="text-xs font-bold">Margen (%)<input id="margin-input" onchange="updateAdminNumber('margin',this.value)" type="number" class="mt-1 w-full border rounded-xl px-3 py-2"></label><label class="text-xs font-bold">Transporte<input id="transport-input" onchange="updateAdminNumber('transport',this.value)" type="number" class="mt-1 w-full border rounded-xl px-3 py-2"></label><label class="text-xs font-bold">IVA (%)<input id="tax-input" onchange="updateAdminNumber('tax',this.value)" type="number" class="mt-1 w-full border rounded-xl px-3 py-2"></label></div><div class="overflow-x-auto rounded-xl border"><table class="table-clean w-full text-xs"><thead><tr><th>Ítem</th><th>Cantidad</th><th>Unidad</th><th>Costo unit.</th><th>Subtotal</th></tr></thead><tbody id="bom-table"></tbody></table></div></div></div></div>
+
+<div id="quote-modal" class="fixed inset-0 z-50 modal-backdrop hidden items-center justify-center p-4"><div class="modal-panel bg-white w-full max-w-4xl rounded-2xl shadow-2xl flex flex-col"><div class="px-5 py-4 border-b flex justify-between no-print"><div><h3 class="font-black text-lg">Propuesta comercial</h3><p class="text-xs text-slate-500">Vista previa para cliente.</p></div><div class="flex gap-2"><button onclick="window.print()" class="bg-amber-500 px-4 py-2 rounded-xl text-sm font-black">Imprimir / PDF</button><button onclick="closeModal('quote-modal')" class="w-9 h-9 rounded-full bg-slate-100"><i class="fa-solid fa-xmark"></i></button></div></div><div class="modal-body"><div id="quote-print" class="p-7 md:p-9"><div class="flex justify-between border-b pb-5"><div><div class="text-2xl font-black">PROPUESTA MODULAR</div><div class="text-xs text-slate-500">Configuración preliminar 3D · bat-kubiqueitor</div></div><div class="text-right text-xs"><div id="quote-number" class="font-black text-amber-600">—</div><div id="quote-date" class="text-slate-500">—</div></div></div><div class="grid md:grid-cols-2 gap-6 mt-6"><div><div class="text-[11px] font-black uppercase text-slate-400 mb-2">Cliente</div><div id="quote-customer" class="text-sm"></div></div><div><div class="text-[11px] font-black uppercase text-slate-400 mb-2">Proyecto</div><div id="quote-project" class="text-sm"></div></div></div><div class="mt-6 rounded-xl overflow-hidden border bg-slate-950"><img id="quote-render" class="w-full h-64 object-contain" alt="Render 3D"></div><div class="grid md:grid-cols-2 gap-6 mt-6"><div><div class="text-[11px] font-black uppercase text-slate-400 mb-2">Configuración</div><div id="quote-items" class="space-y-2 text-xs"></div></div><div class="rounded-2xl bg-slate-950 text-white p-5"><div class="text-[11px] uppercase text-slate-400">Total estimado</div><div id="quote-total" class="text-3xl font-black">$0</div><div class="text-xs text-slate-400">IVA incluido</div></div></div><div class="mt-7 pt-4 border-t text-[11px] text-slate-500">Representación comercial preliminar; requiere validación técnica antes de fabricación.</div></div></div></div></div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+(function(){
+  'use strict';
+  const SCRIPTS=["https://cdn.tailwindcss.com","https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js","https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js","app.js?v=20261024-1","progressive-build-start.js?v=20261024-1","container-realism.js?v=20261024-1","editor.js?v=20261024-1","faces-mounted.js?v=20261024-1","face-paints.js?v=20261024-mod01","partition-face-loader.js?v=20261024-mod02-16","summary-panel-toggle.js?v=20261024-1","module-presets.js?v=20261024-mod01","floor-finishes.js?v=20261024-mod01","wizard-interior-step.js?v=20261024-mod01c"];
+  const DB_URL='https://whnxaepqfrsgjfzfyppt.supabase.co';
+  const PUBLISHABLE_KEY='sb_publishable_Y3QHA9vbc2J7HE90PxAnzA_-BzmYgmR';
+  const AUTH_SDK='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js';
+  const STATUS=document.getElementById('bat-preview-status');
+  const FORM=document.getElementById('bat-preview-form');
+  const SUBMIT=document.getElementById('bat-preview-submit');
+  let client=null,started=false,loading=false;
+  function message(text){STATUS.textContent=text;}
+  function loadScript(src){
+    return new Promise((resolve,reject)=>{
+      const script=document.createElement('script');script.src=src;script.async=false;
+      script.onload=resolve;script.onerror=()=>reject(new Error('No fue posible cargar '+src));
+      document.body.appendChild(script);
+    });
+  }
+  async function authorized(){
+    if(!client)return false;
+    const check=await client.auth.getUser();
+    if(check.error||!check.data?.user)return false;
+    const result=await client.from('organization_members')
+      .select('organization_id,role')
+      .eq('user_id',check.data.user.id)
+      .in('role',['owner','admin'])
+      .limit(1).maybeSingle();
+    if(result.error)throw new Error('No fue posible comprobar tu autorización. Consulta la configuración de Supabase.');
+    return Boolean(result.data?.organization_id);
+  }
+  async function startEditor(){
+    if(started||loading)return;
+    loading=true;SUBMIT.disabled=true;message('Cargando entorno de pruebas…');
+    try{
+      for(const script of SCRIPTS)await loadScript(script);
+      document.body.classList.add('bat-preview-ready');
+      // Scripts históricos esperan DOMContentLoaded: disparar después de cargarlos.
+      document.dispatchEvent(new Event('DOMContentLoaded',{bubbles:true}));
+      const badge=document.createElement('div');
+      badge.id='bat-preview-test-banner';
+      badge.innerHTML='VERSIÓN DE PRUEBAS · VALORES REFERENCIALES <button type="button" id="bat-preview-signout">Salir</button>';
+      document.body.appendChild(badge);
+      badge.querySelector('button').addEventListener('click',async()=>{
+        try{await client.auth.signOut();}finally{location.reload();}
+      });
+      started=true;message('');
+    }catch(error){
+      console.error('[BAT Preview]',error);
+      document.body.classList.remove('bat-preview-ready');
+      message('No se pudo iniciar el configurador. Actualiza la página e inténtalo nuevamente.');
+      SUBMIT.disabled=true;
+    }finally{loading=false;if(!started)SUBMIT.disabled=false;}
+  }
+  async function authenticate(){
+    SUBMIT.disabled=true;message('Verificando permisos…');
+    try{
+      if(!await authorized()){
+        message('La cuenta no tiene autorización de propietario o administrador para esta versión de pruebas.');
+        return;
+      }
+      await startEditor();
+    }catch(error){console.error('[BAT Preview]',error);message('No se pudo validar el acceso. Revisa la conexión con Supabase.');}
+    finally{if(!started&&!loading)SUBMIT.disabled=false;}
+  }
+  FORM.addEventListener('submit',async(event)=>{
+    event.preventDefault();SUBMIT.disabled=true;message('Iniciando sesión…');
+    try{
+      if(!client)throw new Error('Servidor de autenticación no disponible');
+      const email=document.getElementById('bat-preview-email').value.trim();
+      const password=document.getElementById('bat-preview-password').value;
+      const {error}=await client.auth.signInWithPassword({email,password});
+      if(error)throw error;
+      document.getElementById('bat-preview-password').value='';
+      await authenticate();
+    }catch(error){console.warn('[BAT Preview] Inicio de sesión rechazado',error);message('No se pudo iniciar sesión con esas credenciales o permisos.');}
+    finally{if(!started&&!loading)SUBMIT.disabled=false;}
+  });
+  async function init(){
+    try{
+      await loadScript(AUTH_SDK);
+      if(!window.supabase?.createClient)throw new Error('SDK de Supabase no disponible');
+      client=window.supabase.createClient(DB_URL,PUBLISHABLE_KEY,{
+        auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}
+      });
+      client.auth.onAuthStateChange((event)=>{if(event==='SIGNED_OUT'&&started){document.body.classList.remove('bat-preview-ready');location.reload();}});
+      const {data}=await client.auth.getSession();
+      if(data?.session){await authenticate();}
+      else message('Inicia sesión para abrir la versión de pruebas.');
+    }catch(error){console.error('[BAT Preview] Init',error);message('No se pudo conectar con Supabase. Verifica la red e intenta recargar.');}
+  }
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible'&&started)authorized().then(ok=>{if(!ok)location.reload();}).catch(()=>location.reload());
+  });
+  init();
+})();
+</script>
+</body>
+</html>
