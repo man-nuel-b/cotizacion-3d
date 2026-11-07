@@ -12,3 +12,13 @@ test('Preview loader refreshes APU view script',()=>{
  const s=fs.readFileSync(path.join(root,'pruebas.html'),'utf8');
  assert.match(s,/summary-panel-toggle\.js\?v=20261107-apu-ui03/);
 });
+
+test('Simple APU first: full worksheet remains accessible by a toggle',()=>{
+ const src=fs.readFileSync(path.join(root,'apu-spreadsheet-view-v1.js'),'utf8');
+ assert.match(src,/simpleMode=true/);
+ assert.match(src,/data-toggle-mode/);
+ assert.match(src,/easyMarkup/);
+ assert.match(src,/Ver planilla técnica/);
+ assert.match(src,/Volver a vista simple/);
+ new vm.Script(src,{filename:'apu-spreadsheet-view-v1.js'});
+});
