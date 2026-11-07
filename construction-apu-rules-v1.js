@@ -28,7 +28,7 @@
   }
   function optionsFor(state){
     const o=state?.constructionRules||{};
-    return {enabled:o.enabled===true,wetPartitions:integer(o.wetPartitions),waterproofM2:round2(o.waterproofM2),
+    return {enabled:o.enabled===true,contingencyPct:round2(o.contingencyPct),wetPartitions:integer(o.wetPartitions),waterproofM2:round2(o.waterproofM2),
       ceramicM2:round2(o.ceramicM2),waterHeaterCount:integer(o.waterHeaterCount),
       extractorCount:integer(o.extractorCount),bathroomKitCount:integer(o.bathroomKitCount),
       kitchenetteCount:integer(o.kitchenetteCount),board:o.board===true,ground:o.ground===true,
@@ -157,6 +157,7 @@
     renderPanel();
   }
   const configs=[
+    ['contingencyPct','Imprevistos (% adicional neto)','number',.5],
     ['wetPartitions','Tabiques húmedos P13','number',1],
     ['waterproofM2','Impermeabilización P37 (m²)','number',.1],
     ['ceramicM2','Cerámica en muro P36 (m²)','number',.1],
