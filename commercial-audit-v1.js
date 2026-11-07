@@ -45,6 +45,14 @@
       });
       if(pending.length)add(errors,'APU_RESOURCE_UNPRICED',`Partida ${index+1}: el APU tiene ${pending.length} recursos faltantes o sin precio.`);
     }
+    const technicalRules=root?.BAT_KUBIQUEITOR_CONSTRUCTION_RULES?.snapshot?.();
+    if(technicalRules?.enabled){
+      for(const message of technicalRules.warnings||[]){
+        if(/no se puede valorar|no disponible/i.test(message))add(errors,'RULE_APU_UNPRICED',message);
+        else add(warnings,'RULE_SCOPE_REVIEW',message);
+      }
+      add(checks,'APU_RULE_SCOPE','Reglas constructivas Excel activas en este proyecto; comprobar recorridos y decisiones técnicas.');
+    }
     const mandatoryCodes=new Set(bom.filter(x=>x?.excelCode).map(x=>x.excelCode));
     const hasElectricity=num(counts.electrical)>0||num(state?.electrical?.points?.length)>0;
     if(hasElectricity&&!mandatoryCodes.has('P73'))add(warnings,'BOARD_TO_VERIFY','Confirmar tablero general P73 y protección eléctrica; no se añade automáticamente.');
