@@ -61,7 +61,11 @@
     const add=(code,qty,meta)=>{const x=excelItem(code,qty,meta);if(x)items.push(x);};
 
     // Muros interiores perimetrales. P14/P17 already include structure, insulation and lining.
-    if(state?.finish==='sanitary') add('P17',g.wallNet,{surface:'walls',sourceObject:'containerWalls'});
+    if(state?.finish==='sanitary'){
+      add('P17',g.wallNet,{surface:'walls',sourceObject:'containerWalls'});
+      // La solución sanitaria promete PVC lavable: P17 incluye soporte RH; P35 lo reviste.
+      add('P35',g.wallNet,{surface:'walls-pvc-lavable',sourceObject:'containerWalls'});
+    }
     else if(state?.finish==='basic'){
       add('P10',g.wallNet,{surface:'walls-structure',sourceObject:'containerWalls'});
       add('P22',g.wallNet,{surface:'walls-insulation',sourceObject:'containerWalls'});
