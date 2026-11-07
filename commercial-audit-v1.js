@@ -20,7 +20,8 @@
       if(!finite(cost)||cost<0)add(errors,'INVALID_UNIT_COST',`Partida ${index+1}: costo unitario inválido.`);
       if(!finite(subtotal)||subtotal<0)add(errors,'INVALID_SUBTOTAL',`Partida ${index+1}: subtotal inválido.`);
       if(finite(qty)&&finite(cost)&&finite(subtotal)&&Math.abs(qty*cost-subtotal)>Math.max(2,.003*Math.abs(subtotal)))add(warnings,'ROW_MISMATCH',`Partida ${index+1}: cantidad × costo no coincide con subtotal.`);
-      if(qty>0&&(!finite(cost)||cost===0||item?.pendingCost))add(warnings,'PRICE_PENDING',`Partida ${index+1}: precio pendiente o igual a $0.`);
+      if(qty>0&&(!finite(cost)||cost===0||item?.pendingCost))add(errors,'PRICE_PENDING',`Partida ${index+1}: precio pendiente o igual a $0.`);
+      if(qty>0&&item?.specificationMismatch)add(errors,'SPECIFICATION_MISMATCH',`Partida ${index+1}: ${item.specificationMismatch}.`);
       if(COUNT_TYPES.includes(item?.key))legacyKeys.add(item.key);
       if(item?.excelApu&&item?.apuBreakdown){
         const type=mappedType(item.sourceObject);
@@ -34,7 +35,8 @@
     if(duplicates.length)add(errors,'DUPLICATED_MATERIAL',`Partidas genéricas y APU de los mismos elementos: ${duplicates.join(', ')}. Revisa si están cobradas dos veces.`,{types:duplicates});
     const overlapping=[...apuTypes].filter(type=>num(counts[type])>0&&finite(catalogLabor[type])&&num(catalogLabor[type])>0);
     const exposure=overlapping.reduce((sum,type)=>sum+num(catalogLabor[type])*Math.max(0,num(counts[type])),0);
-    if(overlapping.length&&apuLabor>0)add(warnings,'LABOR_OVERLAP',`El APU incluye mano de obra y el cálculo base cobra mano de obra por ${overlapping.join(', ')}. Posible duplicación: hasta $${Math.round(exposure).toLocaleString('es-CL')} de mano de obra base por revisar.`,{types:overlapping,legacyLaborExposure:round(exposure)});
+    // El motor APU canónico excluye la mano de obra de extras gestionados por APU.
+    // Su presencia en DATA.labor no indica un cobro duplicado.
     const subtotalSum=bom.reduce((s,item)=>s+(finite(item?.subtotal)?num(item.subtotal):0),0);
     const directFromComponents=num(totals.materials)+num(totals.labor)+num(state?.transport||0);
     const direct=num(totals.direct),net=num(totals.net),taxAmount=num(totals.taxAmount),total=num(totals.total);
@@ -42,21 +44,26 @@
       if(!finite(value)||num(value)<0)add(errors,'INVALID_TOTAL',`El campo financiero ${key} no es un monto válido.`);
     }
     if(finite(direct)&&finite(directFromComponents)&&Math.abs(direct-directFromComponents)>2)add(errors,'DIRECT_MISMATCH',`Costo directo inconsistente: declarado $${Math.round(direct).toLocaleString('es-CL')}; componentes $${Math.round(directFromComponents).toLocaleString('es-CL')}.`);
-    const markup=num(state?.margin||0),tax=num(state?.tax||0);
+    const isCanonical=totals.method==='canonical-apu-v1';
+    const currentSettings=typeof root.getApuExcelSettings==='function'?root.getApuExcelSettings():null;
+    const markup=num(isCanonical?(totals.profitPct??currentSettings?.profitPct):state?.margin);
+    const overheadPct=num(isCanonical?(totals.overheadPct??currentSettings?.overheadPct):0);
+    const tax=num(isCanonical?(totals.taxPct??currentSettings?.taxPct):state?.tax);
     if(!finite(markup)||markup<0||markup>200)add(errors,'INVALID_MARKUP','Porcentaje de recargo comercial fuera de rango.');
     if(!finite(tax)||tax<0||tax>100)add(errors,'INVALID_TAX','Tasa de IVA inválida.');
-    if(finite(direct)&&finite(net)&&finite(markup)&&Math.abs(net-direct*(1+markup/100))>2)add(errors,'NET_MISMATCH','El precio neto no coincide con el costo directo y el recargo configurado.');
+    if(finite(direct)&&finite(net)&&finite(markup)&&finite(overheadPct)&&Math.abs(net-direct*(1+(markup+overheadPct)/100))>2)add(errors,'NET_MISMATCH','El precio neto no coincide con costo directo, gastos generales y utilidad configurados.');
     if(finite(net)&&finite(taxAmount)&&finite(tax)&&Math.abs(taxAmount-net*tax/100)>2)add(errors,'TAX_MISMATCH','El monto IVA no coincide con la tasa configurada.');
     if(finite(net)&&finite(taxAmount)&&finite(total)&&Math.abs(total-(net+taxAmount))>2)add(errors,'GROSS_MISMATCH','Precio total no coincide con precio neto más IVA.');
-    if(apuProfit>0&&markup>0)add(warnings,'MULTIPLE_PROFIT_LAYERS','Los APU contienen utilidad interna y además existe un recargo comercial global. Confirmar política de margen antes de ofertar.');
+    if(apuProfit>0&&markup>0&&!isCanonical)add(warnings,'MULTIPLE_PROFIT_LAYERS','Posible duplicación de utilidades en una metodología no conciliada.');
     if(apuOverhead>0)add(checks,'APU_OVERHEAD',`Gastos generales identificados en APU: $${Math.round(apuOverhead).toLocaleString('es-CL')}.`);
-    if(markup>0)add(checks,'MARKUP','El porcentaje comercial es recargo sobre costo, no margen sobre venta.');
+    if(markup>0)add(checks,'MARKUP','La utilidad se aplica como recargo sobre costo directo, no como margen sobre venta.');
+    if(isCanonical)add(checks,'CANONICAL_CALCULATION','Costos, cuadrillas, gastos generales e IVA conciliados en el motor financiero único.');
     if(!root?.BAT_KUBIQUEITOR_SUPABASE_CLOUD?.getSession?.()?.user)add(warnings,'CLOUD_UNVERIFIED','No se confirma una sesión de respaldo en nube; conserva también un respaldo local.');
     add(checks,'BOM_SIZE',`${bom.length} partidas inspeccionadas.`);
     add(checks,'TOTAL_BOM',`Suma de subtotales: $${Math.round(subtotalSum).toLocaleString('es-CL')}.`);
     details.apuTypes=[...apuTypes];details.apuLabor=round(apuLabor);details.apuOverhead=round(apuOverhead);details.apuProfit=round(apuProfit);
     details.legacyLaborExposure=round(exposure);details.subtotalSum=round(subtotalSum);details.directFromComponents=finite(directFromComponents)?round(directFromComponents):null;
-    return{ok:errors.length===0&&warnings.every(w=>!['LABOR_OVERLAP','MULTIPLE_PROFIT_LAYERS','PRICE_PENDING'].includes(w.code)),errors,warnings,checks,details};
+    return{ok:errors.length===0&&!warnings.some(w=>w.code==='MULTIPLE_PROFIT_LAYERS'),errors,warnings,checks,details};
   }
   function snapshot(){
     if(typeof calculate!=='function'||typeof state==='undefined'||typeof DATA==='undefined')throw new Error('El motor de precios aún no está disponible');
