@@ -42,7 +42,7 @@
   lastTotal=data.total;
   const issueCount=report?data.errors:data.problems;
   const difference=lastChange===null?'':'<div class="bat-live-delta">Último cambio: '+(lastChange>=0?'+':'−')+money(Math.abs(lastChange))+'</div>';
-  card.innerHTML='<div class="bat-live-help"><b>Precio del diseño actual · IVA incluido</b></div><strong>'+money(data.total)+'</strong>'+
+  card.innerHTML='<div class="bat-live-help"><b>Presupuesto conectado al diseño 3D</b></div>'+ 
    difference+'<p class="bat-live-help" style="margin-top:7px">'+data.lines+' partidas de costo, '+data.excelLines+' APU del Excel. No es una cotización definitiva.</p>'+
    (issueCount?
     '<div class="bat-live-qa"><b>Revisión pendiente: '+issueCount+' incidencia(s)</b><div>Hay costos, especificaciones o partidas por validar.</div><button type="button" data-live-audit>Revisar antes de entregar</button></div>':
@@ -88,6 +88,12 @@
     '<div class="bat-live-tools">'+ACTIONS.map(a=>'<button class="bat-live-tool" type="button" data-live-add="'+a.key+'"><i class="fa-solid '+a.icon+'" aria-hidden="true"></i><span><b>+ '+esc(a.label)+'</b><small>'+esc(a.help)+'</small><small data-live-count>En proyecto: 0</small></span></button>').join('')+'</div>'+
     '<p class="bat-live-help" style="margin-top:8px">Los vanos con marco y las especificaciones especiales pueden necesitar revisión del costo de corte y refuerzo.</p>';
    step.insertBefore(box,document.getElementById('extras-list')||step.firstChild);
+   const oldExtras=document.getElementById('extras-list');
+   if(oldExtras&&!document.getElementById('bat-live-old-extras')){
+    const details=document.createElement('details');details.id='bat-live-old-extras';details.style.marginTop='12px';
+    const title=document.createElement('summary');title.textContent='Ver controles anteriores y quitar elementos';title.className='bat-live-help';title.style.cursor='pointer';title.style.fontWeight='800';
+    oldExtras.parentNode.insertBefore(details,oldExtras);details.appendChild(title);details.appendChild(oldExtras);
+   }
    box.addEventListener('click',event=>{const b=event.target.closest('button[data-live-add]');if(b&&!b.disabled)add(b.dataset.liveAdd);});
   }
   if(!document.getElementById('bat-live-goto')){
