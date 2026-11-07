@@ -16,8 +16,31 @@
 
   function esc(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[c]));}
   function notify(message){if(typeof window.toast==='function') window.toast(message); else console.info(message);}
-  function getCurrentProjectId(){try{return localStorage.getItem(CURRENT_PROJECT_KEY)||null;}catch(e){return null;}}
-  function setCurrentProjectId(id){currentProjectId=id||null;try{if(id)localStorage.setItem(CURRENT_PROJECT_KEY,id);else localStorage.removeItem(CURRENT_PROJECT_KEY);}catch(e){}}
+  // Asociación remota aislada por usuario + organización + proyecto local.
+  const CLOUD_PROJECT_MAP_KEY='bat-cubikeitor-cloud-project-map-v2';
+  function cloudMapKey(){
+    const localId=String(state?.projectMeta?.id||'').trim();
+    if(!session?.user?.id||!organizationId||!localId)return null;
+    return [session.user.id,organizationId,localId].join('::');
+  }
+  function readCloudMap(){
+    try{const saved=JSON.parse(localStorage.getItem(CLOUD_PROJECT_MAP_KEY)||'{}');return saved&&typeof saved==='object'&&!Array.isArray(saved)?saved:{};}catch(e){return {};}
+  }
+  function getCurrentProjectId(){
+    const key=cloudMapKey();return key?readCloudMap()[key]||null:null;
+  }
+  function setCurrentProjectId(id){
+    currentProjectId=id||null;
+    const key=cloudMapKey();if(!key||!id)return;
+    try{const map=readCloudMap();map[key]=id;localStorage.setItem(CLOUD_PROJECT_MAP_KEY,JSON.stringify(map));}
+    catch(e){console.warn('[BAT Cloud] No se pudo guardar vínculo local-nube',e);}
+  }
+  function ensureLocalProjectId(){
+    if(!state.projectMeta?.id){
+      state.projectMeta={...(state.projectMeta||{}),id:'BK-'+Date.now().toString(36).toUpperCase()+'-'+Math.random().toString(36).slice(2,8).toUpperCase(),revision:0,title:projectName()};
+    }
+    return state.projectMeta.id;
+  }
   function projectName(){
     const solution=(window.DATA||typeof DATA!=='undefined'?DATA:null)?.solutions?.[state?.solution]?.name||'Proyecto modular';
     const customer=state?.customer?.company||state?.customer?.name;
@@ -146,10 +169,11 @@
     if(!session?.user){openCloudModal();notify('Inicia sesión para guardar en la nube');return false;}
     try{
       if(!organizationId)await initializeMembership();
+      ensureLocalProjectId();
       const payload={organization_id:organizationId,name:projectName(),container_type:state.container,solution_type:state.solution,project_state:clone(state),updated_by:session.user.id};
-      const id=currentProjectId||getCurrentProjectId();
+      const id=getCurrentProjectId();
       let result;
-      if(id) result=await client.from('projects').update(payload).eq('id',id).select('id').single();
+      if(id) result=await client.from('projects').update(payload).eq('id',id).eq('organization_id',organizationId).select('id').single();
       else result=await client.from('projects').insert({...payload,created_by:session.user.id}).select('id').single();
       if(result.error)throw result.error;
       setCurrentProjectId(result.data.id);notify('Proyecto guardado en la nube');refreshCloudProjects();return true;
@@ -168,7 +192,7 @@
 
   async function openCloudProject(id){
     try{const {data,error}=await client.from('projects').select('id,project_state').eq('id',id).single();if(error)throw error;if(!data?.project_state)throw new Error('Proyecto sin estado guardado');
-      mergeLoadedState(data.project_state);setCurrentProjectId(data.id);try{localStorage.setItem('modular-config-v3',JSON.stringify(state));}catch(e){}closeCloudModal();notify('Proyecto abierto desde la nube');
+      mergeLoadedState(data.project_state);ensureLocalProjectId();setCurrentProjectId(data.id);try{localStorage.setItem('modular-config-v3',JSON.stringify(state));}catch(e){}closeCloudModal();notify('Proyecto abierto desde la nube');
     }catch(error){notify(`Nube: ${error.message||'error al abrir proyecto'}`);}
   }
 
