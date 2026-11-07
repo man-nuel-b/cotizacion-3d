@@ -3,7 +3,7 @@
   'use strict';
   const number=(v,fallback=0)=>{const n=Number(v);return Number.isFinite(n)?n:fallback;};
   const nonnegative=v=>Math.max(0,number(v));
-  function calculate({bom=[],externalLabor=0,transport=0,overheadPct=0,profitPct=0,taxPct=19}={}){
+  function calculate({bom=[],externalLabor=0,transport=0,overheadPct=0,profitPct=0,taxPct=19,contingencyPct=0}={}){
     if(!Array.isArray(bom))throw new TypeError('La cubicacion debe ser un arreglo');
     let apuMaterial=0,apuLabor=0,nonApuMaterials=0,nonApuLabor=0,equipment=0;
     const invalid=[];
@@ -30,13 +30,17 @@
     const direct=materials+labor+haul;
     const overhead=direct*nonnegative(overheadPct)/100;
     const profit=direct*nonnegative(profitPct)/100;
-    const net=direct+overhead+profit;
+    // El Excel aplica imprevistos a la suma de precios APU netos, tras GG/utilidad.
+    const baseNet=direct+overhead+profit;
+    const contingency=baseNet*nonnegative(contingencyPct)/100;
+    const net=baseNet+contingency;
     const taxAmount=net*nonnegative(taxPct)/100;
     return {bom,materials,labor,transport:haul,direct,overhead,profit,net,taxAmount,total:net+taxAmount,
       externalLabor:nonnegative(externalLabor),apuMaterials:apuMaterial+equipment,apuLabor,
       nonApuMaterials,nonApuLabor,apuDirect:apuMaterial+equipment+apuLabor,
       nonApuDirect:nonApuMaterials+nonApuLabor,
       overheadPct:nonnegative(overheadPct),profitPct:nonnegative(profitPct),taxPct:nonnegative(taxPct),
+      contingencyPct:nonnegative(contingencyPct),contingency,baseNet,
       method:'canonical-apu-v1',invalid:[]};
   }
   const api=Object.freeze({version:1,calculate});
