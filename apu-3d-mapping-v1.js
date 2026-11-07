@@ -39,7 +39,7 @@
 
   function count(type){return Math.max(0,Math.round(n(state?.counts?.[type])));}
   function partitionArea(){
-    try{return Math.max(0,n(getPartitionCostMetrics?.()?.singleFaceArea));}catch(e){}
+    try{const m=getPartitionCostMetrics?.();if(m)return Math.max(0,n(m.singleFaceArea)-n(m.doorOpeningArea));}catch(e){}
     const c=DATA?.containers?.[state?.container];
     return c?count('partition')*n(c.width)*n(c.height):0;
   }
@@ -96,12 +96,17 @@
     add('P82',count('door'),{sourceObject:'door'});
     add('P40',count('door'),{sourceObject:'doorOpening'});
     const wc=windowCounts();
-    add('P83',wc.P83,{sourceObject:'window'}); add('P41',wc.P83,{sourceObject:'windowOpening'});
-    add('P84',wc.P84,{sourceObject:'window'}); add('P42',wc.P84,{sourceObject:'windowOpening'});
-    add('P85',wc.P85,{sourceObject:'window'}); add('P43',wc.P85,{sourceObject:'windowOpening'});
+    // El catálogo comercial ofrece termopanel, mientras M178-M180 son vidrios monolíticos.
+    // Bloquear oferta final hasta homologar especificación y precio, sin inventar valor.
+    add('P83',wc.P83,{sourceObject:'window',specificationMismatch:'Ventana ofertada como termopanel; recurso M178 es vidrio monolítico'});
+    add('P41',wc.P83,{sourceObject:'windowOpening'});
+    add('P84',wc.P84,{sourceObject:'window',specificationMismatch:'Ventana ofertada como termopanel; recurso M179 es vidrio monolítico'});
+    add('P42',wc.P84,{sourceObject:'windowOpening'});
+    add('P85',wc.P85,{sourceObject:'window',specificationMismatch:'Ventanal ofertado como termopanel; recurso M180 es vidrio monolítico'});
+    add('P43',wc.P85,{sourceObject:'windowOpening'});
 
     // Climatización.
-    add('P75',count('ac'),{sourceObject:'ac'});
+    add('P75',count('ac'),{sourceObject:'ac',specificationMismatch:'Catálogo inicial indica 9.000 BTU; APU P75 es de 12.000 BTU'});
 
     // Electricidad semántica del editor.
     const e=electricalCounts();
