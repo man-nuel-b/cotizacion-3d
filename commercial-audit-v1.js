@@ -75,10 +75,13 @@
     const currentSettings=typeof root.getApuExcelSettings==='function'?root.getApuExcelSettings():null;
     const markup=num(isCanonical?(totals.profitPct??currentSettings?.profitPct):state?.margin);
     const overheadPct=num(isCanonical?(totals.overheadPct??currentSettings?.overheadPct):0);
+    const contingencyPct=num(isCanonical?(totals.contingencyPct??0):0);
     const tax=num(isCanonical?(totals.taxPct??currentSettings?.taxPct):state?.tax);
     if(!finite(markup)||markup<0||markup>200)add(errors,'INVALID_MARKUP','Porcentaje de recargo comercial fuera de rango.');
     if(!finite(tax)||tax<0||tax>100)add(errors,'INVALID_TAX','Tasa de IVA inválida.');
-    if(finite(direct)&&finite(net)&&finite(markup)&&finite(overheadPct)&&Math.abs(net-direct*(1+(markup+overheadPct)/100))>2)add(errors,'NET_MISMATCH','El precio neto no coincide con costo directo, gastos generales y utilidad configurados.');
+    if(finite(direct)&&finite(net)&&finite(markup)&&finite(overheadPct)&&finite(contingencyPct)&&
+      Math.abs(net-direct*(1+(markup+overheadPct)/100)*(1+contingencyPct/100))>2)
+      add(errors,'NET_MISMATCH','El precio neto no coincide con costo directo, gastos generales, utilidad e imprevistos.');
     if(finite(net)&&finite(taxAmount)&&finite(tax)&&Math.abs(taxAmount-net*tax/100)>2)add(errors,'TAX_MISMATCH','El monto IVA no coincide con la tasa configurada.');
     if(finite(net)&&finite(taxAmount)&&finite(total)&&Math.abs(total-(net+taxAmount))>2)add(errors,'GROSS_MISMATCH','Precio total no coincide con precio neto más IVA.');
     if(apuProfit>0&&markup>0&&!isCanonical)add(warnings,'MULTIPLE_PROFIT_LAYERS','Posible duplicación de utilidades en una metodología no conciliada.');
