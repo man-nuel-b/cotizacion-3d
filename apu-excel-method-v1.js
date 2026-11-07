@@ -102,7 +102,7 @@
   }
 
   function installPricing(){
-    if(typeof buildBOM!=='function'||typeof calculate!=='function'||typeof getApuMaster!=='function')return false;
+    if(typeof buildBOM!=='function'||typeof calculate!=='function'||typeof getApuMaster!=='function'||!window.BAT_KUBIQUEITOR_PRICING_INTEGRITY)return false;
     if(!buildBOM.__batExcelApu){
       const before=buildBOM;
       buildBOM=function(){return enhanceBom(before.apply(this,arguments));};
@@ -110,23 +110,18 @@
     }
     calculate=function(){
       const bom=buildBOM();
-      let apuDirect=0,nonApuDirect=0;
-      bom.forEach(item=>{if(item?.excelApu)apuDirect+=n(item.directSubtotal);else nonApuDirect+=n(item.subtotal);});
       const baseLabor=state.container==='40hc'?n(DATA.labor?.base40):n(DATA.labor?.base20);
       const managed=new Set(['window','door','partition','wc','sink','shower','ac','electrical','opening','openingFrame']);
       const unmanagedLabor=Object.entries(state.counts||{}).reduce((s,[k,q])=>managed.has(k)?s:s+n(DATA.labor?.[k])*n(q),0);
-      const floorLabor=typeof getFloorLaborCost==='function'?n(getFloorLaborCost()):0;
+      // Los APU P47 y P01-P07 ya consideran cuadrilla de piso. Nunca cobrarla de nuevo.
+      const floorAlreadyInApu=bom.some(item=>item?.excelApu&&item.excelCode==='P47');
+      const floorLabor=floorAlreadyInApu?0:(typeof getFloorLaborCost==='function'?n(getFloorLaborCost()):0);
       const bathroomLabor=typeof getBathroomModuleLaborCost==='function'?n(getBathroomModuleLaborCost()):0;
-      const externalLabor=baseLabor+unmanagedLabor+floorLabor+bathroomLabor;
-      const transport=Math.max(0,n(state.transport));
-      const direct=apuDirect+nonApuDirect+externalLabor+transport;
-      const overhead=direct*pct(settings.overheadPct);
-      const profit=direct*pct(settings.profitPct);
-      const net=direct+overhead+profit;
-      const taxAmount=net*pct(settings.taxPct);
-      const total=net+taxAmount;
-      const materials=apuDirect+nonApuDirect;
-      return {bom,materials,labor:externalLabor,direct,overhead,profit,net,taxAmount,total,transport,apuDirect,nonApuDirect,method:'excel-apu-v1'};
+      return window.BAT_KUBIQUEITOR_PRICING_INTEGRITY.calculate({
+        bom,externalLabor:baseLabor+unmanagedLabor+floorLabor+bathroomLabor,
+        transport:state.transport,overheadPct:settings.overheadPct,
+        profitPct:settings.profitPct,taxPct:settings.taxPct
+      });
     };
     window.getApuExcelBreakdown=apuBreakdown;
     window.getApuExcelSettings=()=>clone(settings);
