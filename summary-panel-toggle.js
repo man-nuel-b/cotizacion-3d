@@ -85,7 +85,7 @@
   function loadProductionHardening(){loadScriptOnce('production-hardening-v1.js?v=20261028-hardening01','production-hardening-v1');}
   function loadProjectQA(){loadScriptOnce('project-qa-v1.js?v=20261028-qa01','project-qa-v1');}
   function loadInteriorProduction(){loadScriptOnce('interior-production-v1.js?v=20261107-rulefix01','interior-production-v1');}
-  function loadCommercialAudit(){loadScriptOnce('commercial-audit-v1.js?v=20261107-rulefix01','commercial-audit-v1');}
+  function loadCommercialAudit(){loadScriptOnce('commercial-audit-v1.js?v=20261107-rulefix02','commercial-audit-v1');}
   function loadConstructionRules(){loadScriptOnce('construction-apu-rules-v1.js?v=20261107-rulefix01','construction-apu-rules-v1');}
 
   const runLoads=()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuCatalog,2150);setTimeout(loadPricingIntegrity,2950);setTimeout(loadExcelApuMethod,3200);setTimeout(loadExcelApuAccounting,3500);setTimeout(loadApu3dMapping,3900);setTimeout(loadApuSurfaceMapping,4300);setTimeout(loadApuExcelEditor,4700);setTimeout(loadProjectMaterialsList,5100);setTimeout(loadProjectMaterialPlan,5500);setTimeout(loadFilteredMaterialPlan,5900);setTimeout(loadProductionHardening,6500);setTimeout(loadProjectQA,7100);setTimeout(loadInteriorProduction,7600);setTimeout(loadConstructionRules,8000);setTimeout(loadCommercialAudit,8600);};
