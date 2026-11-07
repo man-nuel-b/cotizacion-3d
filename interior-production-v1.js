@@ -202,7 +202,11 @@
     const before=calculate;
     const wrapped=function(){
       const result=before.apply(this,arguments)||{};
-      const addition=sanitaryCostAdditions(),bom=Array.isArray(result.bom)?result.bom.slice():[];
+      const rules=window.BAT_KUBIQUEITOR_CONSTRUCTION_RULES?.snapshot?.();
+      // P64-P66 contienen puntos sanitarios completos: no sumar las tuberías
+      // parametrizadas por separado. Modo anterior permanece al desactivar reglas.
+      const addition=rules?.enabled?{metrics:sanitaryRoutingMetrics(),lines:[]}:sanitaryCostAdditions();
+      const bom=Array.isArray(result.bom)?result.bom.slice():[];
       const materialLines=addition.lines.filter(x=>!x.laborOnly),laborLines=addition.lines.filter(x=>x.laborOnly);
       bom.push(...addition.lines);
       const addedMaterials=materialLines.reduce((s,x)=>s+n(x.subtotal),0),addedLabor=laborLines.reduce((s,x)=>s+n(x.subtotal),0);
@@ -213,7 +217,7 @@
         transport:state.transport,overheadPct:settings.overheadPct,
         profitPct:settings.profitPct,taxPct:settings.taxPct
       });
-      return {...result,...total,sanitaryRouting:addition.metrics,sanitaryRoutingMaterials:addedMaterials,sanitaryRoutingLabor:addedLabor};
+      return {...result,...total,sanitaryRouting:addition.metrics,sanitaryRoutingMaterials:addedMaterials,sanitaryRoutingLabor:addedLabor,constructionRulesWarnings:rules?.warnings||[]};
     };
     wrapped.__batInteriorProduction=true;wrapped.__previous=before;calculate=wrapped;
   }
