@@ -25,8 +25,7 @@
     #bat-preview-submit:disabled{opacity:.55;cursor:progress}
     #bat-preview-status{min-height:18px;font-size:12px;color:#fbbf24;margin:12px 0 0}
     .bat-pv-note{margin-top:16px;padding-top:14px;border-top:1px solid #334155;color:#94a3b8;font-size:11px;line-height:1.5}
-    #bat-preview-test-banner{position:fixed;z-index:90;top:60px;left:50%;transform:translateX(-50%);background:#f59e0b;color:#0f172a;border-radius:0 0 12px 12px;padding:6px 10px;font:800 10px Inter,system-ui,sans-serif;box-shadow:0 8px 24px #0006}
-    #bat-preview-signout{margin-left:8px;text-decoration:underline;font-weight:900;background:none;border:none;cursor:pointer;color:#0f172a}
+    #bat-preview-signout{position:fixed;z-index:90;right:16px;bottom:16px;border-radius:9px;padding:8px 12px;background:#0f172a;color:#f8fafc;border:1px solid #475569;font:600 11px Inter,system-ui,sans-serif;cursor:pointer;opacity:.9}
   </style>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -197,11 +196,10 @@
       document.body.classList.add('bat-preview-ready');
       // Scripts históricos esperan DOMContentLoaded: disparar después de cargarlos.
       document.dispatchEvent(new Event('DOMContentLoaded',{bubbles:true}));
-      const badge=document.createElement('div');
-      badge.id='bat-preview-test-banner';
-      badge.innerHTML='VERSIÓN DE PRUEBAS · VALORES REFERENCIALES <button type="button" id="bat-preview-signout">Salir</button>';
-      document.body.appendChild(badge);
-      badge.querySelector('button').addEventListener('click',async()=>{
+      const signout=document.createElement('button');
+      signout.type='button';signout.id='bat-preview-signout';signout.textContent='Salir';
+      signout.title='Cerrar sesión';document.body.appendChild(signout);
+      signout.addEventListener('click',async()=>{
         try{await client.auth.signOut();}finally{location.reload();}
       });
       started=true;message('');
