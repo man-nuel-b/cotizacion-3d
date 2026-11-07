@@ -26,7 +26,7 @@
       studs+=Math.max(2,Math.ceil(length/.60)+1);
       tracksMeters+=length*2;
       const door=Array.isArray(state?.interiorDoors)?state.interiorDoors[i]:null;
-      if(door){
+      if(door&&door.enabled!==false){
         const width=Math.max(0,n(door.width,.82));
         const doorHeight=Math.max(0,n(door.height,2.05));
         doorOpeningArea+=Math.min(length*height,width*doorHeight);
