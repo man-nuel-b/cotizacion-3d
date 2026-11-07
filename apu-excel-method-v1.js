@@ -116,7 +116,10 @@
       // Los APU P47 y P01-P07 ya consideran cuadrilla de piso. Nunca cobrarla de nuevo.
       const floorAlreadyInApu=bom.some(item=>item?.excelApu&&item.excelCode==='P47');
       const floorLabor=floorAlreadyInApu?0:(typeof getFloorLaborCost==='function'?n(getFloorLaborCost()):0);
-      const bathroomLabor=typeof getBathroomModuleLaborCost==='function'?n(getBathroomModuleLaborCost()):0;
+      const moduleRulesActive=window.BAT_KUBIQUEITOR_CONSTRUCTION_RULES?.snapshot?.()?.enabled===true;
+      // Los componentes de baños prearmados se valorizan como P60-P62 completos.
+      // Con reglas activas no repetir su mano de obra exterior.
+      const bathroomLabor=moduleRulesActive?0:(typeof getBathroomModuleLaborCost==='function'?n(getBathroomModuleLaborCost()):0);
       return window.BAT_KUBIQUEITOR_PRICING_INTEGRITY.calculate({
         bom,externalLabor:baseLabor+unmanagedLabor+floorLabor+bathroomLabor,
         transport:state.transport,overheadPct:settings.overheadPct,
