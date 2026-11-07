@@ -19,7 +19,7 @@ test('Worksheet shows separate materials, crew and tools equal to canonical dire
  assert.equal(view.rows.filter(x=>x.type==='Equipo').length,1);
  assert.ok(view.variance<.001);
  assert.equal(view.rows[0].amount,1.05);
- assert.equal(view.rows[0].total,12.6);
+ assert.ok(Math.abs(view.rows[0].total-12.6)<1e-8);
  assert.equal(view.missing,false);
 });
 test('Worksheet identifies unpriced resources without hiding them',()=>{
