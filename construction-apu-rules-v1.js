@@ -176,7 +176,7 @@
     modal.className='fixed inset-0 z-[91] modal-backdrop hidden items-center justify-center p-4';
     modal.innerHTML='<div class="modal-panel bg-white w-full max-w-3xl rounded-2xl shadow-2xl flex flex-col" style="max-height:94vh"><div class="px-5 py-4 border-b flex items-center justify-between"><div><h3 class="font-black text-lg">Reglas constructivas APU</h3><p class="text-xs text-slate-500">Se activan por proyecto. No modifican cotizaciones anteriores automáticamente.</p></div><button id="close-construction-rules" type="button" class="px-3 py-2 rounded-lg bg-slate-100">Cerrar</button></div><div class="modal-body overflow-auto p-5" id="construction-rules-body"></div></div>';
     document.body.appendChild(modal);
-    modal.querySelector('#close-construction-rules').onclick=()=>modal.classList.add('hidden');
+    modal.querySelector('#close-construction-rules').onclick=()=>{modal.classList.add('hidden');modal.classList.remove('flex');};
     return modal;
   }
   function renderPanel(){
@@ -202,11 +202,11 @@
     const btn=document.createElement('button');
     btn.id='construction-rules-button';btn.type='button';btn.textContent='Reglas APU';
     btn.className='px-3 py-2 rounded-xl border border-amber-400 bg-amber-50 font-bold text-amber-900 text-xs';
-    btn.onclick=()=>{renderPanel();ensurePanel().classList.remove('hidden');};
+    btn.onclick=()=>{renderPanel();const modal=ensurePanel();modal.classList.remove('hidden');modal.classList.add('flex');};
     head.insertBefore(btn,head.querySelector('button:last-of-type')||null);
   }
   const api={version:1,optional:OPTIONAL,derive,countsFor,optionsFor,enhanceBOM,routingMode:()=>typeof state==='undefined'?'parametric':derive(state).routingMode,
-    snapshot:()=>typeof state==='undefined'?null:runtimePlan(state),open:()=>{renderPanel();ensurePanel().classList.remove('hidden');}};
+    snapshot:()=>typeof state==='undefined'?null:runtimePlan(state),open:()=>{renderPanel();const modal=ensurePanel();modal.classList.remove('hidden');modal.classList.add('flex');}};
   root.BAT_KUBIQUEITOR_CONSTRUCTION_RULES=api;
   if(typeof module==='object'&&module.exports)module.exports=api;
   if(typeof document!=='undefined'){let retries=0;const timer=setInterval(()=>{retries++;if(install()||retries>160)clearInterval(timer);},100);}
