@@ -215,7 +215,8 @@
       const total=window.BAT_KUBIQUEITOR_PRICING_INTEGRITY.calculate({
         bom,externalLabor:n(result.externalLabor,0),
         transport:state.transport,overheadPct:settings.overheadPct,
-        profitPct:settings.profitPct,taxPct:settings.taxPct
+        profitPct:settings.profitPct,taxPct:settings.taxPct,
+        contingencyPct:rules?.enabled?n(state?.constructionRules?.contingencyPct):0
       });
       return {...result,...total,sanitaryRouting:addition.metrics,sanitaryRoutingMaterials:addedMaterials,sanitaryRoutingLabor:addedLabor,constructionRulesWarnings:rules?.warnings||[]};
     };
