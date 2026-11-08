@@ -79,8 +79,16 @@
   const action=ACTIONS.find(a=>a.key===key),config=DATA.extras?.[key];if(!action||!config){root.alert('El editor de este elemento todavía no está disponible.');return;}
   if(n(state.counts?.[key])>=n(config.max)){root.alert('Alcanzaste la cantidad máxima permitida.');return;}
   if(key==='openingFrame'){
-   if(typeof openMountedFacePicker!=='function'||!root.BAT_KUBIQUEITOR_OPENING_SHELL){
-    root.alert('El editor de vanos todavía no terminó de cargar.');return;
+   // El motor vigente es WallModule + variantes (no el shell heredado).
+   // BAT_KUBIQUEITOR_OPENING_SHELL no se carga en esta ruta y bloquearía
+   // la instalación incluso cuando el vano ya está listo para renderizarse.
+   const registered=Boolean(root.BAT_KUBIQUEITOR_OPENING_VARIANTS?.version>=2
+     &&root.BAT_KUBIQUEITOR_WALL_MODULE_ENGINE?.version>=1
+     &&root.wallModuleDefinition?.('openingFrame')
+     &&DATA.extras?.openingFrame
+     &&MOUNTED_FACE_TYPES?.openingFrame);
+   if(!registered||typeof openMountedFacePicker!=='function'){
+    root.alert('El componente de vano todavía no está disponible. Revisa la carga del catálogo técnico.');return;
    }
    openMountedFacePicker('openingFrame');return;
   }
