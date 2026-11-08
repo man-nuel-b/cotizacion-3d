@@ -43,13 +43,12 @@
   if(lastTotal!==null&&Math.abs(data.total-lastTotal)>.5)lastChange=data.total-lastTotal;
   lastTotal=data.total;
   const woodSelected=typeof state!=='undefined'&&state?.interiorSystem?.lining==='plywood';
-  const woodMaterialPriced=typeof DATA!=='undefined'&&n(DATA.catalog?.plywood?.cost)>0;
-  const issueCount=(report?data.errors:data.problems)+(woodSelected&&!woodMaterialPriced?1:0);
+  const issueCount=(report?data.errors:data.problems)+(woodSelected?1:0);
   const difference=lastChange===null?'':'<div class="bat-live-delta">Último cambio: '+(lastChange>=0?'+':'−')+money(Math.abs(lastChange))+'</div>';
   card.innerHTML='<div class="bat-live-help"><b>Presupuesto conectado al diseño 3D</b></div>'+ 
    difference+'<p class="bat-live-help" style="margin-top:7px">'+data.lines+' partidas de costo, '+data.excelLines+' APU del Excel. No es una cotización definitiva.</p>'+
    (issueCount?
-    '<div class="bat-live-qa"><b>Revisión pendiente: '+issueCount+' incidencia(s)</b><div>'+(woodSelected?'Revestimiento de madera: falta confirmar tipo, precio del material, fijaciones y mano de obra. ':'')+'Hay costos, especificaciones o partidas por validar.</div><button type="button" data-live-audit>Revisar antes de entregar</button></div>':
+    '<div class="bat-live-qa"><b>Revisión pendiente: '+issueCount+' incidencia(s)</b><div>'+(woodSelected?'Revestimiento de madera: verificar material, fijaciones y APU completo de instalación; el acabado visual no equivale a un precio validado. ':'')+'Hay costos, especificaciones o partidas por validar.</div><button type="button" data-live-audit>Revisar antes de entregar</button></div>':
     '<div class="bat-live-qa" style="background:#f0fdf4;color:#166534;border-color:#bbf7d0">Sin errores automáticos detectados. Validar el alcance técnico antes de ofertar.</div>');
   const e=document.getElementById('bat-live-controls');
   if(e&&typeof DATA!=='undefined'){
@@ -72,7 +71,7 @@
    const fallback=DATA.finishes?.[state.finish]?.lining||'gypsum';
    const next=current==='plywood'?fallback:'plywood';
    selectInteriorLining(next);
-   if(next==='plywood'&&n(DATA.catalog?.plywood?.cost)<=0){
+   if(next==='plywood'){
     root.alert('Se aplicó visualmente el revestimiento terciado al 3D. La madera aún no tiene precio de material ni APU de instalación validado. No emitas una cotización definitiva hasta definirlos.');
    }
    return;
