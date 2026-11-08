@@ -17,13 +17,16 @@
       type:'outlet',circuit:'Enchufes',face:null,position:null,height:null};
   }
   function reconcileElectrical(project){
+    if(!project||typeof project!=='object')return {ok:false,reason:'Proyecto inválido'};
+    const expected=count(project,'electrical');
+    const current=Array.isArray(project.electrical?.points)?project.electrical.points:[];
+    // Fail without ANY changes if a legacy counter would destroy typed points.
+    if(current.length>expected)
+      return {ok:false,reason:'Los puntos eléctricos superan el contador; revisar antes de modificar para evitar perder datos.'};
     ensureCollections(project);
     if(!project.electrical||typeof project.electrical!=='object')project.electrical={version:1,points:[]};
     if(!Array.isArray(project.electrical.points))project.electrical.points=[];
-    const expected=count(project,'electrical'),points=project.electrical.points;
-    if(points.length>expected){
-      return {ok:false,reason:'Los puntos eléctricos superan el contador; revisar antes de modificar para evitar perder datos.'};
-    }
+    const points=project.electrical.points;
     while(points.length<expected)points.push(legacyPoint(points.length));
     return {ok:true,points};
   }
@@ -41,7 +44,6 @@
   }
   function removeAt(project,type,index){
     if(!project||!type||!Number.isInteger(index))return {ok:false,reason:'Índice inválido'};
-    ensureCollections(project);
     const original=count(project,type);
     if(original===0||index<0||index>=original)return {ok:false,reason:'El componente no existe'};
     if(type==='electrical'){
@@ -49,6 +51,7 @@
       if(!check.ok)return check;
       check.points.splice(index,1);
     }
+    ensureCollections(project);
     const layout=project.layout[type];
     if(Array.isArray(layout))layout.splice(index,1);
     const dimensions=project.dimensions[type];
