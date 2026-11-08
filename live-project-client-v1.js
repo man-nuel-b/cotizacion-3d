@@ -88,13 +88,16 @@
   adjustCount(key,1);
  }
  function start(){
-  if(typeof goStep==='function')goStep(3);
+  // La interfaz puede tener 4 o 6 pasos; abrir el que contiene los Extras reales.
+  const extrasStep=document.getElementById('extras-list')?.closest('.wizard-step');
+  if(typeof goStep==='function')goStep(Number(extrasStep?.dataset?.step)||3);
   root.setSummaryPanelCollapsed?.(false);
   document.getElementById('bat-live-controls')?.scrollIntoView?.({behavior:'smooth',block:'nearest'});
   refresh();
  }
  function install(){
-  const shell=document.getElementById('app-shell'),step=document.querySelector('.wizard-step[data-step="3"]');
+  const shell=document.getElementById('app-shell'),extrasRoot=document.getElementById('extras-list');
+  const step=extrasRoot?.closest('.wizard-step')||document.querySelector('.wizard-step[data-step="3"]');
   if(!shell||!step||typeof renderSummary!=='function'||typeof calculate!=='function')return false;
   if(!document.getElementById('bat-live-style')){const style=document.createElement('style');style.id='bat-live-style';style.textContent=CSS;document.head.appendChild(style);}
   if(!document.getElementById('bat-live-controls')){
@@ -103,7 +106,11 @@
     '<p class="bat-live-help">Agrega lo que te pida. Luego selecciona la pieza en el 3D para cambiar su posición o tamaño. El presupuesto del proyecto real se recalcula automáticamente.</p>'+
     '<div class="bat-live-tools">'+ACTIONS.map(a=>'<button class="bat-live-tool" type="button" data-live-add="'+a.key+'"><i class="fa-solid '+a.icon+'" aria-hidden="true"></i><span><b>+ '+esc(a.label)+'</b><small>'+esc(a.help)+'</small><small data-live-count>En proyecto: 0</small></span></button>').join('')+'</div>'+
     '<p class="bat-live-help" style="margin-top:8px">Los vanos con marco y las especificaciones especiales pueden necesitar revisión del costo de corte y refuerzo.</p>';
-   step.insertBefore(box,document.getElementById('extras-list')||step.firstChild);
+   // extras-list puede estar anidado, y los pasos se renumeran en el asistente de 6 etapas.
+   // insertBefore sólo acepta un nodo hijo DIRECTO del elemento step.
+   let anchor=extrasRoot;
+   while(anchor&&anchor.parentElement!==step)anchor=anchor.parentElement;
+   step.insertBefore(box,anchor||step.firstChild);
    const oldExtras=document.getElementById('extras-list');
    if(oldExtras&&!document.getElementById('bat-live-old-extras')){
     const details=document.createElement('details');details.id='bat-live-old-extras';details.style.marginTop='12px';
