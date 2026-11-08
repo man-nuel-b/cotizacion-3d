@@ -95,6 +95,14 @@
       }
     }catch(e){errors.push('No fue posible ejecutar la validación del presupuesto.');}
 
+    // La validación eléctrica es un prediseño; NO reemplaza proyecto SEC.
+    const electric=window.BAT_KUBIQUEITOR_ELECTRICAL_CIRCUITS_UI?.snapshot?.();
+    if(electric){
+      electric.errors.forEach(item=>errors.push('Instalación eléctrica: '+item.message));
+      electric.warnings.forEach(item=>warnings.push('Instalación eléctrica: '+item.message));
+      checks.push(electric.circuits.length+' circuito(s) preliminar(es) y '+electric.points+' punto(s) eléctrico(s) revisados.');
+    }
+
     if(!String(state?.customer?.name||'').trim()&&!String(state?.customer?.company||'').trim()) warnings.push('La cotización todavía no tiene nombre de cliente o empresa.');
     if(!String(state?.customer?.email||'').trim()&&!String(state?.customer?.phone||'').trim()) warnings.push('No hay teléfono ni correo de contacto del cliente.');
 
