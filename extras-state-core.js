@@ -27,6 +27,18 @@
     while(points.length<expected)points.push(legacyPoint(points.length));
     return {ok:true,points};
   }
+  function addMountedAt(project,type,face,x,max){
+    if(!project||!type||!['A','B','C','D'].includes(face)||!Number.isFinite(Number(x)))
+      return {ok:false,reason:'Ubicación de montaje inválida'};
+    ensureCollections(project);
+    const old=count(project,type),limit=Number(max);
+    if(!Number.isSafeInteger(limit)||old>=limit)
+      return {ok:false,reason:'Se alcanzó el máximo de componentes'};
+    if(!Array.isArray(project.layout[type]))project.layout[type]=[];
+    project.layout[type][old]={face,x:Number(x)};
+    project.counts[type]=old+1;
+    return {ok:true,type,index:old,face};
+  }
   function removeAt(project,type,index){
     if(!project||!type||!Number.isInteger(index))return {ok:false,reason:'Índice inválido'};
     ensureCollections(project);
@@ -87,7 +99,7 @@
     }
     return result;
   }
-  const api={version:1,count,reconcileElectrical,removeAt,removeElectricalType,
+  const api={version:1,count,reconcileElectrical,addMountedAt,removeAt,removeElectricalType,
     addElectricalPoint,partitionArea,bathroomFixtures};
   if(typeof module==='object'&&module.exports)module.exports=api;
   if(root)root.BAT_CUBIKEITOR_EXTRAS_STATE_CORE=api;
