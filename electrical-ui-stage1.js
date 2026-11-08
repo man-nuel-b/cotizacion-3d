@@ -141,7 +141,7 @@
         <div class="el1-total" title="Total de puntos eléctricos">${total}</div>
       </div>
       <div class="el1-grid">${cards}</div>
-      <div class="el1-footer"><i class="fa-solid fa-circle-check"></i><span>Etapa segura: todavía no modifica el modelo 3D ni el editor. Las posiciones se agregarán en la siguiente etapa.</span></div>`;
+      <div class="el1-footer"><i class="fa-solid fa-circle-check"></i><span>Los puntos quedan asociados al modelo 3D y pueden moverse desde su editor. Asigna sus circuitos en el panel siguiente; falta validar el proyecto eléctrico.</span></div>`;
   }
 
   function ensurePanel(){
