@@ -116,7 +116,10 @@
   }
   function mount(){
     if(panel&&doc.contains(panel))return;
-    var step=doc.querySelector('.wizard-step[data-step="3"]');if(!step)return;
+    // La sección Extras era el paso 3 y ahora suele ser el 5; seguir el nodo real.
+    var extrasRoot=doc.getElementById('extras-list');
+    var step=extrasRoot?.closest('.wizard-step')||doc.querySelector('.wizard-step[data-step="3"]');
+    if(!step)return;
     panel=doc.createElement('section');panel.id='bat-supabase-bom';
     panel.setAttribute('aria-label','Cubicación del modelo 3D');
     panel.style.cssText='margin-top:16px;border:1px solid #cbd5e1;border-radius:15px;padding:14px;background:#f8fafc;color:#0f172a';
