@@ -22,6 +22,16 @@
  const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','"':'&#39;'}[c]));
  let lastTotal=null,lastChange=null,openingRequestToken=0;
  const CSS='.bat-live-controls{padding:13px;background:#fffbeb;border:1px solid #fcd34d;border-radius:14px;margin:12px 0}.bat-live-tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.bat-live-tool{background:#fff;border:1px solid #e2e8f0;border-radius:11px;padding:10px;text-align:left;cursor:pointer;min-height:66px;display:flex;align-items:flex-start;gap:8px;color:#0f172a}.bat-live-tool:hover,.bat-live-tool:focus-visible{border-color:#f59e0b;background:#fff9ed}.bat-live-tool:disabled{opacity:.5;cursor:not-allowed}.bat-live-tool i{color:#b45309;font-size:15px;margin-top:2px}.bat-live-tool b{font-size:12px;display:block}.bat-live-tool small{font-size:10px;color:#64748b;display:block;margin-top:2px}.bat-live-help{font-size:11px;color:#64748b;line-height:1.55}.bat-live-price{border:1px solid #e2e8f0;border-radius:12px;padding:12px;margin-top:12px;background:#fff}.bat-live-price strong{font-size:21px;font-weight:900;color:#0f172a}.bat-live-delta{display:inline-block;margin-top:5px;border-radius:999px;background:#fef3c7;padding:3px 8px;font-size:11px;color:#92400e;font-weight:750}.bat-live-qa{margin-top:9px;font-size:11px;border:1px solid #fcd34d;background:#fffbeb;color:#92400e;border-radius:9px;padding:9px}.bat-live-qa button{display:block;text-decoration:underline;font-weight:850;margin-top:6px}.bat-live-go{background:#f59e0b;color:#0f172a;border:0;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:900;white-space:nowrap}.presentation-mode .bat-live-go{display:none!important}@media(max-width:700px){.bat-live-tool{padding:8px;min-height:62px}.bat-live-go{padding:7px;font-size:11px}}';
+ const EXTRAS_UI_CSS=[
+  '.bat-live-item{display:flex;gap:6px;align-items:stretch;min-width:0}',
+  '.bat-live-item .bat-live-tool{flex:1;min-width:0}',
+  '.bat-live-remove{flex:0 0 38px;border:1px solid #fecaca;color:#b91c1c;background:#fff7f7;border-radius:10px;font-size:20px;font-weight:800;cursor:pointer}',
+  '.bat-live-remove:disabled{opacity:.35;cursor:not-allowed}',
+  '.bat-live-remove:not(:disabled):hover{background:#fee2e2}',
+  '#bat-live-old-extras #extras-list > [data-legacy-extra-key]{display:none!important}',
+  '#bat-live-old-extras{padding:9px 11px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px}',
+  '@media(max-width:700px){.bat-live-tools{grid-template-columns:1fr}}'
+ ].join('');
  function catalogActions(project,data){
   return ACTIONS.map(a=>({...a,
    count:a.key==='woodLining'?(project?.interiorSystem?.lining==='plywood'?1:0):Math.max(0,Math.floor(n(project?.counts?.[a.key]))),
@@ -64,6 +74,10 @@
     if(!d)return;
     btn.disabled=d.key==='woodLining'?false:d.count>=d.max;
     const x=btn.querySelector('[data-live-count]');if(x)x.textContent=d.key==='woodLining'?(d.count?'Seleccionado · clic para quitar':'Aún no seleccionado'):'En proyecto: '+d.count;
+   });
+   e.querySelectorAll('[data-live-remove]').forEach(btn=>{
+     const d=entries.find(x=>x.key===btn.dataset.liveRemove);
+     btn.disabled=!d||d.count<=0;
    });
   }
  }
@@ -118,6 +132,30 @@
   if(typeof adjustCount!=='function'){root.alert('El editor 3D todavía no está listo.');return;}
   adjustCount(key,1);
  }
+ function remove(key){
+   if(typeof DATA==='undefined'||typeof state==='undefined')return;
+   if(!ACTIONS.some(a=>a.key===key))return;
+   if(key==='woodLining')return add(key);
+   const core=root.BAT_CUBIKEITOR_EXTRAS_STATE_CORE;
+   const total=Math.floor(n(state.counts?.[key]));
+   if(!core?.canRemoveAt||typeof pushHistory!=='function'||typeof renderAll!=='function'){
+     if(typeof toast==='function')toast('El editor de Extras todavía no está listo.');
+     return;
+   }
+   const result=core.canRemoveAt(state,key,total-1);
+   if(!result.ok){if(typeof toast==='function')toast(result.reason);return;}
+   openingRequestToken++;
+   pushHistory();
+   const removed=core.removeAt(state,key,total-1);
+   if(!removed.ok){if(typeof toast==='function')toast(removed.reason);return;}
+   if(typeof selectedEditable!=='undefined'&&selectedEditable?.type===key
+     &&selectedEditable.index>=state.counts[key]){
+     selectedEditable=null;
+     if(typeof hideEditorPanel==='function')hideEditorPanel();
+   }
+   renderAll();
+   if(typeof toast==='function')toast('Último '+(DATA.extras[key]?.name||key)+' eliminado');
+ }
  function start(){
   // La interfaz puede tener 4 o 6 pasos; abrir el que contiene los Extras reales.
   const extrasStep=document.getElementById('extras-list')?.closest('.wizard-step');
@@ -130,13 +168,15 @@
   const shell=document.getElementById('app-shell'),extrasRoot=document.getElementById('extras-list');
   const step=extrasRoot?.closest('.wizard-step')||document.querySelector('.wizard-step[data-step="3"]');
   if(!shell||!step||typeof renderSummary!=='function'||typeof calculate!=='function')return false;
-  if(!document.getElementById('bat-live-style')){const style=document.createElement('style');style.id='bat-live-style';style.textContent=CSS;document.head.appendChild(style);}
+  if(!document.getElementById('bat-live-style')){const style=document.createElement('style');style.id='bat-live-style';style.textContent=CSS+EXTRAS_UI_CSS;document.head.appendChild(style);}
   if(!document.getElementById('bat-live-controls')){
    const box=document.createElement('section');box.id='bat-live-controls';box.className='bat-live-controls';
    box.innerHTML='<div style="font-weight:900;font-size:14px">Diseña con tu cliente</div>'+
-    '<p class="bat-live-help">Agrega lo que te pida. Luego selecciona la pieza en el 3D para cambiar su posición o tamaño. El presupuesto del proyecto real se recalcula automáticamente.</p>'+
-    '<div class="bat-live-tools">'+ACTIONS.map(a=>'<button class="bat-live-tool" type="button" data-live-add="'+a.key+'"><i class="fa-solid '+a.icon+'" aria-hidden="true"></i><span><b>+ '+esc(a.label)+'</b><small>'+esc(a.help)+'</small><small data-live-count>En proyecto: 0</small></span></button>').join('')+'</div>'+
-    '<p class="bat-live-help" style="margin-top:8px">Los vanos con marco y las especificaciones especiales pueden necesitar revisión del costo de corte y refuerzo.</p>';
+    '<p class="bat-live-help">Agrega cada componente y, cuando corresponda, elige la cara A–D. Usa el botón − para quitar el último de ese tipo; para quitar uno específico, selecciónalo en el 3D. Las cantidades y la cubicación se actualizarán juntas.</p>'+
+    '<div class="bat-live-tools">'+ACTIONS.map(a=>
+      '<div class="bat-live-item"><button class="bat-live-tool" type="button" data-live-add="'+a.key+'" aria-label="Agregar '+esc(a.label)+'"><i class="fa-solid '+a.icon+'" aria-hidden="true"></i><span><b>+ '+esc(a.label)+'</b><small>'+esc(a.help)+'</small><small data-live-count>En proyecto: 0</small></span></button>'+
+      (a.key==='woodLining'?'':'<button class="bat-live-remove" type="button" data-live-remove="'+a.key+'" aria-label="Quitar el último '+esc(a.label)+'" title="Quitar el último de este tipo" disabled>−</button>')+'</div>').join('')+'</div>'+
+    '<p class="bat-live-help" style="margin-top:8px">Vanos especiales, terminaciones y conexiones requieren revisión técnica y de costos antes de cotizar.</p>';
    // extras-list puede estar anidado, y los pasos se renumeran en el asistente de 6 etapas.
    // insertBefore sólo acepta un nodo hijo DIRECTO del elemento step.
    let anchor=extrasRoot;
@@ -145,10 +185,15 @@
    const oldExtras=document.getElementById('extras-list');
    if(oldExtras&&!document.getElementById('bat-live-old-extras')){
     const details=document.createElement('details');details.id='bat-live-old-extras';details.style.marginTop='12px';
-    const title=document.createElement('summary');title.textContent='Ver controles anteriores y quitar elementos';title.className='bat-live-help';title.style.cursor='pointer';title.style.fontWeight='800';
+    const title=document.createElement('summary');title.textContent='Herramientas técnicas: módulos prearmados, electricidad y circuitos';title.className='bat-live-help';title.style.cursor='pointer';title.style.fontWeight='800';
     oldExtras.parentNode.insertBefore(details,oldExtras);details.appendChild(title);details.appendChild(oldExtras);
    }
-   box.addEventListener('click',event=>{const b=event.target.closest('button[data-live-add]');if(b&&!b.disabled)add(b.dataset.liveAdd);});
+   box.addEventListener('click',event=>{
+     const plus=event.target.closest('button[data-live-add]');
+     const minus=event.target.closest('button[data-live-remove]');
+     if(plus&&!plus.disabled)add(plus.dataset.liveAdd);
+     else if(minus&&!minus.disabled)remove(minus.dataset.liveRemove);
+   });
   }
   if(!document.getElementById('bat-live-goto')){
    const company=document.querySelector('.topbar button[onclick="openCompanyMode()"]');
@@ -167,7 +212,7 @@
    const before=renderSummary;const patched=function(){const r=before.apply(this,arguments);refresh();return r;};
    patched.__liveProjectWrapped=true;renderSummary=patched;
   }
-  root.BAT_KUBIQUEITOR_LIVE_PROJECT={version:2,add,start,refresh,summarize,catalogActions};
+  root.BAT_KUBIQUEITOR_LIVE_PROJECT={version:3,add,remove,start,refresh,summarize,catalogActions};
   refresh();return true;
  }
  if(typeof module==='object'&&module.exports)module.exports={summarize,catalogActions};
