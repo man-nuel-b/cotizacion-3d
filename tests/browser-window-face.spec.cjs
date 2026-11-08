@@ -75,7 +75,7 @@ test('Real app browser: Ventana -> face D -> 3D window and Supabase BOM', {timeo
     browser=await chromium.launch({headless:true,args:['--enable-webgl','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage','--no-sandbox']});
     const page=await browser.newPage({viewport:{width:1440,height:900}});
     const browserErrors=[];
-    page.on('pageerror',error=>browserErrors.push(String(error)));
+    page.on('pageerror',error=>browserErrors.push(error.stack||String(error)));
     page.on('console',message=>{if(message.type()==='error')browserErrors.push(message.text())});
     await page.route('**/*',async route=>{
       const u=route.request().url();
@@ -126,7 +126,17 @@ test('Real app browser: Ventana -> face D -> 3D window and Supabase BOM', {timeo
       console.log('BROWSER_SMOKE_SUCCESS',JSON.stringify({initial,after,nonFatalBrowserErrors:browserErrors.slice(0,10)}));
     }catch(e){
       try{await page.screenshot({path:'/tmp/cubikeitor-window-smoke.png',fullPage:true});}catch{}
-      console.error('BROWSER_DIAGNOSTIC',JSON.stringify({error:String(e),errors:browserErrors.slice(0,15),pageTitle:await page.title()}));
+      const runtime=await page.evaluate(()=>({
+        gateOpen:document.body.classList.contains('bat-preview-ready'),
+        has3D:Boolean(document.querySelector('#canvas-container canvas')),
+        selector:Boolean(document.getElementById('mounted-face-modal')),
+        bridgeLoaded:Boolean(window.BAT_CUBIKEITOR_3D_SUPABASE),
+        bridgeState:window.BAT_CUBIKEITOR_3D_SUPABASE?.getState?.(),
+        panel:Boolean(document.getElementById('bat-supabase-bom')),
+        windowCount:typeof state!=='undefined'?state.counts.window:null,
+        extrasPresent:Boolean(document.getElementById('extras-list')?.children.length)
+      })).catch(err=>({evaluationError:String(err)}));
+      console.error('BROWSER_DIAGNOSTIC',JSON.stringify({error:String(e),errors:browserErrors.slice(0,8),runtime,pageTitle:await page.title()}));
       throw e;
     }finally{await page.close();}
   }finally{
