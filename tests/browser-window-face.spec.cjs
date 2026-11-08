@@ -103,6 +103,15 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
       assert.ok(initial.objects>=initial.windows,'Initial window meshes missing');
       const addWindow=page.locator('button[data-live-add="window"]');
       await addWindow.click({timeout:15000});
+      const choicePanel=page.locator('#bat-direct-face-choices');
+      assert.equal(await choicePanel.isVisible(),true,'accessible selection panel must appear');
+      assert.equal(await choicePanel.locator('button[data-face-choice]').count(),4,'all faces A-D should be available');
+      assert.equal(await page.evaluate(()=>state.counts.window),initial.windows,'choose face before insertion');
+      await choicePanel.locator('button[data-cancel-face]').click();
+      assert.equal(await choicePanel.isVisible(),false,'cancel should hide the selector');
+      assert.equal(await page.evaluate(()=>state.counts.window),initial.windows,'cancel must not create window');
+      await addWindow.click({timeout:15000});
+      assert.equal(await choicePanel.isVisible(),true,'selector must reopen');
       await page.waitForFunction(()=>faceSelectionActive&&faceTagObjects.some(x=>x.userData?.containerFace==='A'&&x.userData?.faceSelectable),null,{timeout:8000});
       const before=await page.evaluate(()=>state.counts.window);
       assert.equal(before,initial.windows,'Must not insert before choosing a face on the 3D');
@@ -134,6 +143,25 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
       assert.ok(after.selectionComplete,'face picker must finish after clicking A marker');
       assert.match(after.panel||'',/Modelo 3D conectado/,'BOM must appear in the visible Extras step');
       assert.ok((after.bomText||'').includes('4,62'),'Visible BOM should include 4,62 m of reference steel with waste');
+      // Simular móvil: el selector accesible no debe exigir precisión sobre letras 3D.
+      await page.setViewportSize({width:390,height:844});
+      await addWindow.click({timeout:15000});
+      assert.equal(await choicePanel.isVisible(),true,'mobile panel should be visible');
+      await choicePanel.locator('button[data-face-choice="B"]').click();
+      await page.waitForFunction(n=>state.counts.window===n+2,initial.windows,{timeout:8000});
+      const mobile=await page.evaluate(()=>({
+        windows:state.counts.window,
+        lastFace:state.layout.window[state.counts.window-1]?.face,
+        objects:editableObjects.filter(x=>x.userData?.editor?.type==='window').length,
+        bom:window.BAT_CUBIKEITOR_3D_SUPABASE.lastResult?.lines?.find(x=>x.sku==='EST-001')?.withWaste,
+        panelVisible:!document.getElementById('bat-direct-face-choices')?.hidden
+      }));
+      assert.equal(mobile.windows,initial.windows+2);
+      assert.equal(mobile.lastFace,'B');
+      assert.ok(mobile.objects>=mobile.windows,'both windows must be present in 3D on mobile');
+      assert.equal(mobile.bom,9.24,'two reference windows must recalculate 9.24 m of steel');
+      assert.equal(mobile.panelVisible,false,'mobile choices should hide once inserted');
+      console.log('BROWSER_MOBILE_SUCCESS',JSON.stringify(mobile));
       console.log('BROWSER_SMOKE_SUCCESS',JSON.stringify({initial,after,nonFatalBrowserErrors:browserErrors.slice(0,10)}));
     }catch(e){
       try{await page.screenshot({path:'/tmp/cubikeitor-window-smoke.png',fullPage:true});}catch{}
