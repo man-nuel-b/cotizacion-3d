@@ -103,6 +103,17 @@ test('Real app browser: Ventana -> face D -> 3D window and Supabase BOM', {timeo
       assert.ok(initial.objects>=initial.windows,'Initial window meshes missing');
       const addWindow=page.locator('button[data-live-add="window"]');
       await addWindow.click({timeout:15000});
+      console.log('BROWSER_AFTER_CLICK',JSON.stringify(await page.evaluate(()=>({
+        count:state.counts.window,
+        modalMounted:Boolean(document.getElementById('mounted-face-modal')),
+        modalWindow:Boolean(document.getElementById('window-face-modal')),
+        selectorClasses:document.getElementById('mounted-face-modal')?.className,
+        pendingType:typeof pendingMountedType!=='undefined'?pendingMountedType:null,
+        adjustCountCode:typeof adjustCount==='function'?String(adjustCount).slice(0,450):null,
+        installFaceUICode:typeof installFaceUI==='function'?String(installFaceUI).slice(0,450):null,
+        mountedPickerCode:typeof openMountedFacePicker==='function'?String(openMountedFacePicker).slice(0,300):null,
+        liveModule:window.BAT_KUBIQUEITOR_LIVE_PROJECT?.version||null
+      }))));
       await page.waitForFunction(()=>document.getElementById('mounted-face-modal')?.classList.contains('flex'),null,{timeout:8000});
       const before=await page.evaluate(()=>state.counts.window);
       assert.equal(before,initial.windows,'Must not insert before choosing face');
