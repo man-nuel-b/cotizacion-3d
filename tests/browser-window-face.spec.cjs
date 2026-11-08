@@ -193,6 +193,63 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
       assert.equal(openingPlaced.lastFace,'C','opening must be inserted on chosen face C');
       assert.ok(openingPlaced.rendered>=openingPlaced.count,'opening needs actual editable 3D geometry');
       assert.equal(openingPlaced.panelHidden,true,'selector should close after opening insertion');
+
+      // Auditoría exhaustiva del panel Extras; sesión y datos de proveedor simulados.
+      const extrasAudit=[];
+      for(const item of [
+        {key:'door',face:'B'}, {key:'partition'}, {key:'wc'},
+        {key:'sink'}, {key:'shower'}, {key:'electrical',face:'D'}, {key:'woodLining'}
+      ]){
+        const btn=page.locator('button[data-live-add="'+item.key+'"]');
+        const result={key:item.key};
+        try{
+          result.button=await btn.count();
+          if(result.button===0)throw new Error('No hay botón en panel de Extras');
+          const before=await page.evaluate(key=>({
+            count:state.counts[key]||0,
+            wood:state.interiorSystem?.lining,
+            elec:state.electrical?.points?.length,
+            objects:editableObjects.filter(x=>x.userData?.editor?.type===key).length
+          }),item.key);
+          await btn.click({timeout:6000});
+          const panel=page.locator('#bat-direct-face-choices');
+          result.faceMenu=await panel.isVisible();
+          if(item.face){
+            if(!result.faceMenu)throw new Error('No aparece selector A-D');
+            await panel.locator('button[data-face-choice="'+item.face+'"]').click({timeout:5000});
+          }
+          await page.waitForTimeout(200);
+          const after=await page.evaluate(key=>({
+            count:state.counts[key]||0,
+            wood:state.interiorSystem?.lining,
+            elec:state.electrical?.points?.length,
+            objects:editableObjects.filter(x=>x.userData?.editor?.type===key).length,
+            bomCodes:window.BAT_CUBIKEITOR_3D_SUPABASE.snapshot().items.map(x=>x.code),
+            warnings:window.BAT_CUBIKEITOR_3D_SUPABASE.snapshot().warnings
+          }),item.key);
+          result.before=before;result.after=after;
+          if(item.key==='woodLining'){
+            result.ok=before.wood!==after.wood;
+          }else{
+            result.ok=after.count===before.count+1&&after.objects>=after.count;
+          }
+          if(item.key==='electrical')result.syncElectrical=after.elec===after.count;
+          if(!result.ok)result.problem='Cantidad/objeto 3D no coinciden tras agregar';
+        }catch(error){result.ok=false;result.problem=String(error).slice(0,400)}
+        extrasAudit.push(result);
+      }
+      // Auditoría de funcionalidades que existen sólo en la lista heredada.
+      const hiddenExtras=await page.evaluate(()=>({
+        all:Object.keys(DATA.extras),
+        quick:Array.from(document.querySelectorAll('button[data-live-add]')).map(x=>x.dataset.liveAdd),
+        detail:Boolean(document.getElementById('bat-live-old-extras')),
+        count:state.counts
+      }));
+      console.log('ALL_EXTRAS_AUDIT',JSON.stringify(extrasAudit));
+      console.log('ALL_EXTRAS_COVERAGE',JSON.stringify(hiddenExtras));
+      const failed=extrasAudit.filter(x=>!x.ok);
+      assert.deepEqual(failed.map(x=>({key:x.key,problem:x.problem})),[],
+        'Los extras deben actualizar contador, geometría y flujo previsto');
       console.log('BROWSER_SMOKE_SUCCESS',JSON.stringify({initial,after,nonFatalBrowserErrors:browserErrors.slice(0,10)}));
     }catch(e){
       try{await page.screenshot({path:'/tmp/cubikeitor-window-smoke.png',fullPage:true});}catch{}
