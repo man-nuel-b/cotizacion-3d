@@ -196,17 +196,26 @@ function openMountedFacePicker(type){
   pendingMountedType=type; installFaceUI();
   const modal=document.getElementById('mounted-face-modal');
   const title=document.getElementById('mounted-face-title'),desc=document.getElementById('mounted-face-desc');
+  const feedback=document.getElementById('mounted-face-feedback');
+  if(feedback) feedback.textContent='';
+  if(!modal){pendingMountedType=null;toast('No se pudo abrir el selector de cara. Recarga el editor.');return;}
   if(title) title.textContent=`¿En qué cara se instalará ${type==='ac'?'el':'la'} ${typeLabel(type).toLowerCase()}?`;
   if(desc) desc.textContent=`Selecciona A, B, C o D. ${typeLabel(type)} quedará asociado a esa cara.`;
   modal?.classList.remove('hidden'); modal?.classList.add('flex');
 }
 function closeMountedFacePicker(){ const modal=document.getElementById('mounted-face-modal'); modal?.classList.add('hidden'); modal?.classList.remove('flex'); pendingMountedType=null; }
 function addMountedToFace(face){
-  const type=pendingMountedType; if(!type||!isMountedFaceType(type)) return;
+  const type=pendingMountedType;
+  if(!type||!isMountedFaceType(type)) return toast('Selecciona primero un componente.');
+  if(!['A','B','C','D'].includes(face)) return toast('Cara no válida.');
   const max=DATA.extras[type].max;
   if((state.counts[type]||0)>=max){closeMountedFacePicker();return toast(`Llegaste al máximo de ${typeLabel(type).toLowerCase()}`);}
   const offset=findAvailableMountedOffset(type,face);
-  if(offset===null) return toast(`No queda espacio suficiente en la cara ${face}`);
+  if(offset===null){
+    const feedback=document.getElementById('mounted-face-feedback');
+    if(feedback) feedback.textContent=`No hay espacio suficiente en la cara ${face}; elige otra cara o mueve los elementos existentes.`;
+    return toast(`No queda espacio suficiente en la cara ${face}`);
+  }
   pushHistory(); ensureLayoutState(); const index=state.counts[type]||0; state.counts[type]=index+1; state.layout[type][index]={face,x:offset};
   closeMountedFacePicker(); renderAll(); focusFace(face); toast(`${typeLabel(type)} agregado en cara ${face}`);
 }
@@ -237,7 +246,7 @@ installFaceUI=function(){
   const old=document.getElementById('window-face-modal'); if(old) old.remove();
   if(!document.getElementById('mounted-face-modal')){
     const modal=document.createElement('div'); modal.id='mounted-face-modal'; modal.className='fixed inset-0 z-[80] hidden items-center justify-center p-4'; modal.style.background='rgba(2,6,23,.72)'; modal.style.backdropFilter='blur(6px)';
-    modal.innerHTML=`<div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden"><div class="p-5 border-b flex items-start justify-between gap-4"><div><div class="text-[10px] font-black uppercase tracking-widest text-amber-600">Ubicación obligatoria</div><h3 id="mounted-face-title" class="font-black text-xl mt-1">¿En qué cara se instalará?</h3><p id="mounted-face-desc" class="text-sm text-slate-500 mt-1">Selecciona A, B, C o D.</p></div><button onclick="closeMountedFacePicker()" class="w-9 h-9 rounded-full bg-slate-100"><i class="fa-solid fa-xmark"></i></button></div><div class="p-5 grid sm:grid-cols-2 gap-3">${Object.entries(CONTAINER_FACES).map(([key,f])=>`<button class="face-card" onclick="addMountedToFace('${key}')"><div class="face-mini"><span class="face-letter" style="background:${f.color}">${key}</span><span><strong class="block text-sm">${f.label}</strong><small class="block text-slate-500 mt-1">${f.description}</small></span></div></button>`).join('')}</div><div class="px-5 pb-5 text-xs text-slate-500"><strong>Convención:</strong> A = persona · B = opuesta · C = puertas originales · D = extremo contrario.</div></div>`;
+    modal.innerHTML=`<div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden"><div class="p-5 border-b flex items-start justify-between gap-4"><div><div class="text-[10px] font-black uppercase tracking-widest text-amber-600">Ubicación obligatoria</div><h3 id="mounted-face-title" class="font-black text-xl mt-1">¿En qué cara se instalará?</h3><p id="mounted-face-desc" class="text-sm text-slate-500 mt-1">Selecciona A, B, C o D.</p></div><button onclick="closeMountedFacePicker()" class="w-9 h-9 rounded-full bg-slate-100"><i class="fa-solid fa-xmark"></i></button></div><div class="p-5 grid sm:grid-cols-2 gap-3">${Object.entries(CONTAINER_FACES).map(([key,f])=>`<button class="face-card" onclick="addMountedToFace('${key}')"><div class="face-mini"><span class="face-letter" style="background:${f.color}">${key}</span><span><strong class="block text-sm">${f.label}</strong><small class="block text-slate-500 mt-1">${f.description}</small></span></div></button>`).join('')}</div><p id="mounted-face-feedback" role="status" aria-live="polite" class="px-5 pb-3 text-xs font-bold text-red-700"></p><div class="px-5 pb-5 text-xs text-slate-500"><strong>Convención:</strong> A = persona · B = opuesta · C = puertas originales · D = extremo contrario.</div></div>`;
     document.body.appendChild(modal);
   }
   const toolbar=document.querySelector('.viewer-toolbar');
@@ -246,4 +255,16 @@ installFaceUI=function(){
   }
   // The direct-editor-controller is the single owner of A/B/C/D controls inside object-editor.
   // Do not recreate mounted-face-editor/window-face-editor here.
+};
+
+// Compatibilidad con controles antiguos de Ventana:
+// editor.js conserva callbacks que antes abrían window-face-modal, pero el selector
+// vigente es mounted-face-modal. Ambas entradas deben ejecutar el MISMO flujo:
+// elegir Ventana -> seleccionar cara A/B/C/D -> agregar una sola vez.
+openWindowFacePicker=function(){ openMountedFacePicker('window'); };
+closeWindowFacePicker=function(){ closeMountedFacePicker(); };
+addWindowToFace=function(face){
+  if(!['A','B','C','D'].includes(face)) return toast('Cara no válida.');
+  pendingMountedType='window';
+  addMountedToFace(face);
 };
