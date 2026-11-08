@@ -247,6 +247,61 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
       }));
       console.log('ALL_EXTRAS_AUDIT',JSON.stringify(extrasAudit));
       console.log('ALL_EXTRAS_COVERAGE',JSON.stringify(hiddenExtras));
+      const legacyAudit=[];
+      const legacyToggle=page.locator('#bat-live-old-extras summary');
+      if(await legacyToggle.count() && !(await page.locator('#bat-live-old-extras').evaluate(el=>el.open))){
+        await legacyToggle.click();
+      }
+      for(const item of [
+        {key:'ac',face:'D'},{key:'opening',face:'D'},
+        {key:'windowOpening',face:'A'},{key:'windowOpeningFrame',face:'B'}
+      ]){
+        const row={key:item.key};
+        try{
+          const btn=page.locator('#extras-list button[onclick="adjustCount(\''+item.key+'\', 1)"]');
+          row.button=await btn.count();
+          if(!row.button)throw new Error('Legacy extra unavailable');
+          const before=await page.evaluate(key=>state.counts[key]||0,item.key);
+          await btn.click({timeout:6000});
+          const choices=page.locator('#bat-direct-face-choices');
+          row.choices=await choices.isVisible();
+          if(row.choices)await choices.locator('button[data-face-choice="'+item.face+'"]').click({timeout:6000});
+          await page.waitForTimeout(250);
+          row.result=await page.evaluate(key=>({
+            count:state.counts[key]||0,
+            objects:editableObjects.filter(x=>x.userData?.editor?.type===key).length
+          }),item.key);
+          row.ok=row.result.count===before+1&&row.result.objects>=row.result.count;
+          if(!row.ok)row.problem='Extra count or 3D geometry mismatch';
+        }catch(error){row.ok=false;row.problem=String(error).slice(0,500)}
+        legacyAudit.push(row);
+      }
+      console.log('LEGACY_EXTRAS_AUDIT',JSON.stringify(legacyAudit));
+      const electricalDeletion=await page.evaluate(()=>{
+        const ui=window.BAT_KUBIQUEITOR_ELECTRICAL_UI_STAGE1;
+        if(!ui)return {issue:'Electrical UI not initialized'};
+        ui.add('light');
+        ui.add('switch');
+        const before=state.electrical?.points?.map(x=>x.type);
+        const beforeCount=state.counts.electrical;
+        selectedEditable={type:'electrical',index:0};
+        deleteSelectedObject();
+        const immediate=state.electrical?.points?.map(x=>x.type);
+        return {before,beforeCount,afterCount:state.counts.electrical,immediate,expected:before.slice(1)};
+      });
+      await page.waitForTimeout(400);
+      electricalDeletion.after=await page.evaluate(()=>({
+        count:state.counts.electrical,
+        types:state.electrical?.points?.map(x=>x.type),
+        objects:editableObjects.filter(x=>x.userData?.editor?.type==='electrical').length
+      }));
+      electricalDeletion.correct=JSON.stringify(electricalDeletion.after.types)===JSON.stringify(electricalDeletion.expected);
+      console.log('ELECTRICAL_DELETE_AUDIT',JSON.stringify(electricalDeletion));
+      const pricePanel=await page.evaluate(()=>({
+        text:document.getElementById('bat-live-price')?.textContent?.slice(0,750),
+        source:'live-project-client-v1.js legacy calculate()'
+      }));
+      console.log('EXTRAS_PRICE_PANEL_AUDIT',JSON.stringify(pricePanel));
       const failed=extrasAudit.filter(x=>!x.ok);
       assert.deepEqual(failed.map(x=>({key:x.key,problem:x.problem})),[],
         'Los extras deben actualizar contador, geometría y flujo previsto');
