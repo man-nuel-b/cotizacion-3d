@@ -33,13 +33,20 @@
   function addMountedAt(project,type,face,x,max){
     if(!project||!type||!['A','B','C','D'].includes(face)||!Number.isFinite(Number(x)))
       return {ok:false,reason:'Ubicación de montaje inválida'};
-    ensureCollections(project);
     const old=count(project,type),limit=Number(max);
     if(!Number.isSafeInteger(limit)||old>=limit)
       return {ok:false,reason:'Se alcanzó el máximo de componentes'};
+    // Puntos añadidos en una cara deben existir de inmediato en el modelo técnico,
+    // sin esperar un MutationObserver que pueda renderizar la cubicación tarde.
+    const electrical=type==='electrical'?reconcileElectrical(project):null;
+    if(electrical&&!electrical.ok)return electrical;
+    ensureCollections(project);
     if(!Array.isArray(project.layout[type]))project.layout[type]=[];
     project.layout[type][old]={face,x:Number(x)};
     project.counts[type]=old+1;
+    if(electrical)electrical.points.push({
+      ...legacyPoint(old),type:'outlet',circuit:'Enchufes',face,position:null,height:null
+    });
     return {ok:true,type,index:old,face};
   }
   function removeAt(project,type,index){
