@@ -30,3 +30,15 @@ test('Live client module contains no independent quote recipe or master writes',
  assert.doesNotMatch(code,/RECIPES|referenceNet/);
  new vm.Script(code);
 });
+
+test('Wood lining appears in client action menu and selected state is maintained',()=>{
+ const result=catalogActions({counts:{},interiorSystem:{lining:'plywood'}},{extras:{}});
+ const wood=result.find(x=>x.key==='woodLining');
+ assert.ok(wood);assert.equal(wood.count,1);assert.equal(wood.max,1);
+});
+test('Wood finish cannot be represented as a validated full APU with zero cost',()=>{
+ const src=fs.readFileSync(path.join(__dirname,'..','live-project-client-v1.js'),'utf8');
+ assert.match(src,/woodSelected\?1:0/);
+ assert.match(src,/selectInteriorLining\(next\)/);
+ assert.match(src,/falta|validado|verificar|Verificar/i);
+});
