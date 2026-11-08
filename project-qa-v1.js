@@ -103,6 +103,13 @@
       checks.push(electric.circuits.length+' circuito(s) preliminar(es) y '+electric.points+' punto(s) eléctrico(s) revisados.');
     }
 
+    const conduits=window.BAT_KUBIQUEITOR_ROUTING_UI?.snapshot?.();
+    if(conduits&&conduits.routes.length){
+      conduits.errors.forEach(message=>warnings.push('Canalizaciones (prediseño): '+message));
+      warnings.push('Canalizaciones: '+conduits.netConduitMeters.toFixed(2)+' m esquemáticos (sin costo adicional en APU). Confirmar trazado y metraje ejecutable con instalador SEC.');
+      checks.push(conduits.sharedSegments.length+' segmento(s) de canalización preliminar sin duplicación por circuito.');
+    }
+
     if(!String(state?.customer?.name||'').trim()&&!String(state?.customer?.company||'').trim()) warnings.push('La cotización todavía no tiene nombre de cliente o empresa.');
     if(!String(state?.customer?.email||'').trim()&&!String(state?.customer?.phone||'').trim()) warnings.push('No hay teléfono ni correo de contacto del cliente.');
 
