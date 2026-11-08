@@ -7,6 +7,10 @@
   {key:'window',label:'Ventana',icon:'fa-window-maximize',help:'Elige la cara del contenedor'},
   {key:'door',label:'Puerta',icon:'fa-door-open',help:'Nuevo acceso peatonal'},
   {key:'openingFrame',label:'Vano con marco',icon:'fa-vector-square',help:'Abertura sin puerta ni vidrio'},
+  {key:'opening',label:'Vano simple',icon:'fa-square-dashed',help:'Abertura sin marco'},
+  {key:'windowOpening',label:'Vano de ventana',icon:'fa-border-all',help:'Vano sin carpintería'},
+  {key:'windowOpeningFrame',label:'Vano de ventana con marco',icon:'fa-border-none',help:'Refuerzo de vano'},
+  {key:'ac',label:'Aire acondicionado',icon:'fa-snowflake',help:'Elige la cara de instalación'},
   {key:'partition',label:'Tabique',icon:'fa-grip-lines-vertical',help:'División interior'},
   {key:'wc',label:'WC',icon:'fa-toilet',help:'Agregar sanitario'},
   {key:'sink',label:'Lavamanos',icon:'fa-sink',help:'Agregar artefacto'},
@@ -44,12 +48,14 @@
   lastTotal=data.total;
   const woodSelected=typeof state!=='undefined'&&state?.interiorSystem?.lining==='plywood';
   const issueCount=(report?data.errors:data.problems)+(woodSelected?1:0);
-  const difference=lastChange===null?'':'<div class="bat-live-delta">Último cambio: '+(lastChange>=0?'+':'−')+money(Math.abs(lastChange))+'</div>';
+  // El motor Excel local contiene importes de demostración. No mostrar variaciones monetarias
+  // hasta que los APU de Supabase estén completos, vigentes y técnicamente validados.
+  const difference=lastChange===null?'':'<div class="bat-live-delta">Diseño actualizado · sin precio verificado</div>';
   card.innerHTML='<div class="bat-live-help"><b>Presupuesto conectado al diseño 3D</b></div>'+ 
    difference+'<p class="bat-live-help" style="margin-top:7px">'+data.lines+' partidas de costo, '+data.excelLines+' APU del Excel. No es una cotización definitiva.</p>'+
    (issueCount?
     '<div class="bat-live-qa"><b>Revisión pendiente: '+issueCount+' incidencia(s)</b><div>'+(woodSelected?'Revestimiento de madera: verificar material, fijaciones y APU completo de instalación; el acabado visual no equivale a un precio validado. ':'')+'Hay costos, especificaciones o partidas por validar.</div><button type="button" data-live-audit>Revisar antes de entregar</button></div>':
-    '<div class="bat-live-qa" style="background:#f0fdf4;color:#166534;border-color:#bbf7d0">Sin errores automáticos detectados. Validar el alcance técnico antes de ofertar.</div>');
+    '<div class="bat-live-qa">Sin incidencias adicionales en este cálculo preliminar. APU y precios reales pendientes de aprobación; no emitir cotización.</div>');
   const e=document.getElementById('bat-live-controls');
   if(e&&typeof DATA!=='undefined'){
    const entries=catalogActions(state,DATA);
