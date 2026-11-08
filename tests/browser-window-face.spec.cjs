@@ -123,6 +123,7 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
         profile:window.BAT_CUBIKEITOR_3D_SUPABASE.snapshot().items.find(x=>x.code==='MOD-VENTANA'),
         materials:window.BAT_CUBIKEITOR_3D_SUPABASE.lastResult?.lines?.find(x=>x.sku==='EST-001'),
         panel:document.getElementById('bat-bom-status')?.textContent,
+        bomText:document.getElementById('bat-bom-content')?.textContent,
         selectionComplete:!faceSelectionActive
       }));
       assert.equal(after.windows,initial.windows+1);
@@ -131,6 +132,8 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
       assert.equal(after.profile.quantity,(initial.profile?.quantity||0)+1);
       assert.ok(after.materials.withWaste>(initial.materials?.withWaste||0),'Supabase BOM must change');
       assert.ok(after.selectionComplete,'face picker must finish after clicking A marker');
+      assert.match(after.panel||'',/Modelo 3D conectado/,'BOM must appear in the visible Extras step');
+      assert.ok((after.bomText||'').includes('4,62'),'Visible BOM should include 4,62 m of reference steel with waste');
       console.log('BROWSER_SMOKE_SUCCESS',JSON.stringify({initial,after,nonFatalBrowserErrors:browserErrors.slice(0,10)}));
     }catch(e){
       try{await page.screenshot({path:'/tmp/cubikeitor-window-smoke.png',fullPage:true});}catch{}
