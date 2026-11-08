@@ -7,6 +7,7 @@ const path=require('node:path');
 const vm=require('node:vm');
 
 const SOURCE=fs.readFileSync(path.join(__dirname,'..','faces-mounted.js'),'utf8');
+const EXTRAS_CORE=require('../extras-state-core.js');
 function buildHarness(options={}){
   const state={
     container:'20hc',
@@ -34,7 +35,7 @@ function buildHarness(options={}){
     createElement(){throw new Error('unexpected DOM creation in harness')}
   };
   const ctx={
-    window:{},document,
+    window:{BAT_CUBIKEITOR_EXTRAS_STATE_CORE:EXTRAS_CORE},document,
     DATA:{containers:{'20hc':{length:6.06,width:2.44,height:2.89}},extras:{window:{max:8},door:{max:6},ac:{max:4},electrical:{max:24}}},
     state,
     originalAdjustCount(){throw new Error('unexpected fallback for mounted item')},
