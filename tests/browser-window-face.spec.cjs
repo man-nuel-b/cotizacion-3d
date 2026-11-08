@@ -67,7 +67,7 @@ function server(){
     }catch(e){res.writeHead(404);res.end('not found');}
   });
 }
-test('Real app browser: Ventana -> face D -> 3D window and Supabase BOM', {timeout:160000},async()=>{
+test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {timeout:160000},async()=>{
   const http=server();
   await new Promise((resolve,reject)=>http.listen(0,'127.0.0.1',error=>error?reject(error):resolve()));
   let browser;
@@ -103,21 +103,18 @@ test('Real app browser: Ventana -> face D -> 3D window and Supabase BOM', {timeo
       assert.ok(initial.objects>=initial.windows,'Initial window meshes missing');
       const addWindow=page.locator('button[data-live-add="window"]');
       await addWindow.click({timeout:15000});
-      console.log('BROWSER_AFTER_CLICK',JSON.stringify(await page.evaluate(()=>({
-        count:state.counts.window,
-        modalMounted:Boolean(document.getElementById('mounted-face-modal')),
-        modalWindow:Boolean(document.getElementById('window-face-modal')),
-        selectorClasses:document.getElementById('mounted-face-modal')?.className,
-        pendingType:typeof pendingMountedType!=='undefined'?pendingMountedType:null,
-        adjustCountCode:typeof adjustCount==='function'?String(adjustCount).slice(0,450):null,
-        installFaceUICode:typeof installFaceUI==='function'?String(installFaceUI).slice(0,450):null,
-        mountedPickerCode:typeof openMountedFacePicker==='function'?String(openMountedFacePicker).slice(0,300):null,
-        liveModule:window.BAT_KUBIQUEITOR_LIVE_PROJECT?.version||null
-      }))));
-      await page.waitForFunction(()=>document.getElementById('mounted-face-modal')?.classList.contains('flex'),null,{timeout:8000});
+      await page.waitForFunction(()=>faceSelectionActive&&faceTagObjects.some(x=>x.userData?.containerFace==='A'&&x.userData?.faceSelectable),null,{timeout:8000});
       const before=await page.evaluate(()=>state.counts.window);
-      assert.equal(before,initial.windows,'Must not insert before choosing face');
-      await page.locator("#mounted-face-modal button[onclick=\"addMountedToFace('D')\"]").click({timeout:8000});
+      assert.equal(before,initial.windows,'Must not insert before choosing a face on the 3D');
+      const facePoint=await page.evaluate(()=>{
+        const tag=faceTagObjects.find(x=>x.userData?.containerFace==='A'&&x.userData?.faceSelectable);
+        camera.updateMatrixWorld();containerGroup.updateMatrixWorld(true);
+        const pos=tag.getWorldPosition(new THREE.Vector3()).project(camera);
+        const rect=renderer.domElement.getBoundingClientRect();
+        return {x:rect.left+(pos.x+1)*rect.width/2,y:rect.top+(1-pos.y)*rect.height/2,width:rect.width,height:rect.height};
+      });
+      console.log('BROWSER_FACE_TARGET',JSON.stringify(facePoint));
+      await page.mouse.click(facePoint.x,facePoint.y);
       await page.waitForFunction(n=>state.counts.window===n+1,initial.windows,{timeout:8000});
       const after=await page.evaluate(()=>({
         windows:state.counts.window,
@@ -126,14 +123,14 @@ test('Real app browser: Ventana -> face D -> 3D window and Supabase BOM', {timeo
         profile:window.BAT_CUBIKEITOR_3D_SUPABASE.snapshot().items.find(x=>x.code==='MOD-VENTANA'),
         materials:window.BAT_CUBIKEITOR_3D_SUPABASE.lastResult?.lines?.find(x=>x.sku==='EST-001'),
         panel:document.getElementById('bat-bom-status')?.textContent,
-        modalHidden:document.getElementById('mounted-face-modal')?.classList.contains('hidden')
+        selectionComplete:!faceSelectionActive
       }));
       assert.equal(after.windows,initial.windows+1);
-      assert.equal(after.lastFace,'D');
+      assert.equal(after.lastFace,'A');
       assert.ok(after.objects>=after.windows,'3D scene must have new window mesh');
       assert.equal(after.profile.quantity,(initial.profile?.quantity||0)+1);
       assert.ok(after.materials.withWaste>(initial.materials?.withWaste||0),'Supabase BOM must change');
-      assert.ok(after.modalHidden);
+      assert.ok(after.selectionComplete,'face picker must finish after clicking A marker');
       console.log('BROWSER_SMOKE_SUCCESS',JSON.stringify({initial,after,nonFatalBrowserErrors:browserErrors.slice(0,10)}));
     }catch(e){
       try{await page.screenshot({path:'/tmp/cubikeitor-window-smoke.png',fullPage:true});}catch{}
