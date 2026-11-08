@@ -49,7 +49,9 @@ test('Changes are atomic: invalid instructions discard all actions',()=>{
 });
 test('Preview catches count and dimensions errors without mutating state',()=>{
  const env=structuredClone(fake);
+ env.state.counts.window=6;
  assert.throws(()=>stage(parse('Agrega 4 ventanas en cara A'),env),/máximo/i);
+ env.state.counts.window=2;
  assert.throws(()=>stage(parse('Agrega una ventana de 300 x 100 cm en cara A'),env),/fuera de rango/i);
  assert.deepEqual(env,fake);
 });
