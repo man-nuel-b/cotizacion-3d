@@ -31,8 +31,13 @@
   }
   function setCurrentProjectId(id){
     currentProjectId=id||null;
-    const key=cloudMapKey();if(!key||!id)return;
-    try{const map=readCloudMap();map[key]=id;localStorage.setItem(CLOUD_PROJECT_MAP_KEY,JSON.stringify(map));}
+    const key=cloudMapKey();if(!key)return;
+    try{
+      const map=readCloudMap();
+      if(id) map[key]=id;
+      else delete map[key];
+      localStorage.setItem(CLOUD_PROJECT_MAP_KEY,JSON.stringify(map));
+    }
     catch(e){console.warn('[BAT Cloud] No se pudo guardar vínculo local-nube',e);}
   }
   function ensureLocalProjectId(){
