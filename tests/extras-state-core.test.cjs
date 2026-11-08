@@ -66,3 +66,18 @@ test('Bath module fixture mapping includes both preset types without double coun
   const s={bathroomModules:[{kind:'full'},{kind:'half'}],counts:{wc:1,sink:1,shower:0}};
   assert.deepEqual(core.bathroomFixtures(s),{wc:2,sink:2,shower:1});
 });
+
+test('Face-mounted electrical outlet updates typed points, 3D layout and BOM-relevant count atomically',()=>{
+  const project={counts:{electrical:0},layout:{electrical:[]},
+    electrical:{version:1,points:[]}};
+  assert.equal(core.addMountedAt(project,'electrical','D',0.35,24).ok,true);
+  assert.equal(project.counts.electrical,1);
+  assert.equal(project.layout.electrical[0].face,'D');
+  assert.equal(project.electrical.points.length,1);
+  assert.equal(project.electrical.points[0].type,'outlet');
+  assert.equal(project.electrical.points[0].face,'D');
+  assert.equal(core.removeAt(project,'electrical',0).ok,true);
+  assert.equal(project.counts.electrical,0);
+  assert.deepEqual(project.electrical.points,[]);
+  assert.deepEqual(project.layout.electrical,[]);
+});
