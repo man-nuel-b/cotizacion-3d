@@ -247,6 +247,8 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
       }));
       console.log('ALL_EXTRAS_AUDIT',JSON.stringify(extrasAudit));
       console.log('ALL_EXTRAS_COVERAGE',JSON.stringify(hiddenExtras));
+      assert.deepEqual(hiddenExtras.all.filter(k=>!hiddenExtras.quick.includes(k)),[],
+        'Todos los Extras del catálogo deben estar disponibles en el panel rápido');
       const legacyAudit=[];
       const legacyToggle=page.locator('#bat-live-old-extras summary');
       if(await legacyToggle.count() && !(await page.locator('#bat-live-old-extras').evaluate(el=>el.open))){
@@ -297,11 +299,20 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
       }));
       electricalDeletion.correct=JSON.stringify(electricalDeletion.after.types)===JSON.stringify(electricalDeletion.expected);
       console.log('ELECTRICAL_DELETE_AUDIT',JSON.stringify(electricalDeletion));
+      assert.equal(electricalDeletion.correct,true,
+        'Eliminar un punto eléctrico debe preservar la identidad y tipo de los restantes');
+      const afterDelete=electricalDeletion.after.types.slice();
+      const afterUndo=await page.evaluate(()=>{undo();return state.electrical?.points?.map(p=>p.type)});
+      assert.deepEqual(afterUndo,electricalDeletion.before,'Deshacer debe recuperar los puntos eléctricos originales');
+      const afterRedo=await page.evaluate(()=>{redo();return state.electrical?.points?.map(p=>p.type)});
+      assert.deepEqual(afterRedo,afterDelete,'Rehacer debe restaurar exactamente el borrado anterior');
       const pricePanel=await page.evaluate(()=>({
         text:document.getElementById('bat-live-price')?.textContent?.slice(0,750),
         source:'live-project-client-v1.js legacy calculate()'
       }));
       console.log('EXTRAS_PRICE_PANEL_AUDIT',JSON.stringify(pricePanel));
+      assert.ok(!/Último cambio:\\s*[+−-]?\\s*\\$/.test(pricePanel.text||''),
+        'No se deben presentar incrementos de precios de prueba como importes comerciales');
       const editAudit=await page.evaluate(()=>{
         const types=['window','door','openingFrame','windowOpening','windowOpeningFrame',
           'partition','wc','sink','shower','ac','electrical'];
@@ -322,6 +333,10 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
         });
       });
       console.log('EXTRAS_EDIT_AUDIT',JSON.stringify(editAudit));
+      const editableTypes=['window','door','openingFrame','windowOpening','windowOpeningFrame','partition','sink','shower','ac'];
+      assert.deepEqual(editAudit.filter(x=>editableTypes.includes(x.type)
+        &&(x.error||!x.editorVisible||!x.dimensionVisible)).map(x=>x.type),[],
+        'Los componentes paramétricos deben abrir un editor con dimensiones');
       const collisionAudit=await page.evaluate(()=>{
         const windowPos=actualLayout('window',0),dims=objectDimensions('window',0);
         return {windowPos,width:dims.width,
@@ -329,6 +344,8 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
           windowCanOverlap:validCandidate('window',state.counts.window||0,{face:windowPos.face,x:windowPos.x})};
       });
       console.log('EXTRAS_COLLISION_AUDIT',JSON.stringify(collisionAudit));
+      assert.equal(collisionAudit.windowCanOverlap,false,'Ventanas no deben solaparse');
+      assert.equal(collisionAudit.openingFrameCanOverlap,false,'Vano y ventana no deben solaparse');
       
       const failed=extrasAudit.filter(x=>!x.ok);
       assert.deepEqual(failed.map(x=>({key:x.key,problem:x.problem})),[],
