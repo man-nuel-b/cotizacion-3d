@@ -182,7 +182,7 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
       await openingButton.click({timeout:10000});
       const openingChoice=page.locator('#bat-direct-face-choices');
       await page.waitForFunction(()=>{const p=document.getElementById('bat-direct-face-choices');
-        return p&&!p.hidden;},null,{timeout:18000});
+        return p&&!p.hidden;},null,{timeout:45000});
       assert.ok(await openingChoice.isVisible(),'openingFrame should open A-D face choices; dialogs='+JSON.stringify(dialogs));
       assert.equal(dialogs.length,0,'No asynchronous initialization alert should appear');
       const initialOpenings=await page.evaluate(()=>state.counts.openingFrame||0);

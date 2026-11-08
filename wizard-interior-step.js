@@ -4,7 +4,7 @@
   if(window.BAT_KUBIQUEITOR_SIX_STEP_WIZARD) return;
 
   const VERSION=8;
-  const ASSET_VERSION='20261028-critical-1';
+  const ASSET_VERSION='20261108-3dchain03';
   let installed=false;
   let featureChainStarted=false;
   let featureChainWaiter=null;
@@ -21,26 +21,46 @@
   }
 
   function loadVerified(selector,name,datasetKey,isReady,onload){
-    if(isReady()){
+    // El evento load confirma el archivo, no la inicialización del módulo:
+    // varios componentes registran sus capacidades con setInterval.
+    let completed=false,attempts=0,timer=null;
+    const ready=()=>{
+      try{return Boolean(isReady());}catch(_){return false;}
+    };
+    const tryContinue=()=>{
+      if(completed||!ready())return false;
+      completed=true;
+      if(timer!==null)clearInterval(timer);
       onload?.();
-      return;
+      return true;
+    };
+    if(tryContinue())return;
+
+    let script=document.querySelector(selector);
+    if(!script){
+      script=document.createElement('script');
+      script.src=asset(name);
+      script.dataset[datasetKey]='true';
+      script.addEventListener('load',()=>{script.dataset.loaded='true';tryContinue();},{once:true});
+      script.addEventListener('error',()=>{
+        script.dataset.loadFailed='true';
+        console.error('bat-kubiqueitor: no se pudo cargar '+name);
+      },{once:true});
+      document.body.appendChild(script);
+    }else{
+      // No borrar ni volver a ejecutar un módulo ya cargado: conserva su estado y listeners.
+      script.addEventListener('load',tryContinue,{once:true});
     }
-
-    const existing=document.querySelector(selector);
-    if(existing) existing.remove();
-
-    const script=document.createElement('script');
-    script.src=asset(name);
-    script.dataset[datasetKey]='true';
-    script.addEventListener('load',()=>{
-      script.dataset.loaded='true';
-      setTimeout(()=>{
-        if(isReady()) onload?.();
-        else console.error(`bat-kubiqueitor: ${name} cargó pero no quedó instalado`);
-      },0);
-    },{once:true});
-    script.addEventListener('error',()=>console.error(`bat-kubiqueitor: no se pudo cargar ${name}`),{once:true});
-    document.body.appendChild(script);
+    if(tryContinue())return;
+    timer=setInterval(()=>{
+      if(tryContinue())return;
+      attempts++;
+      if(attempts===150)console.warn('bat-kubiqueitor: esperando inicialización de '+name);
+      if(attempts>=600){
+        clearInterval(timer);
+        console.error('bat-kubiqueitor: '+name+' no terminó de inicializarse');
+      }
+    },100);
   }
 
   function moveControlsToDedicatedSteps(){

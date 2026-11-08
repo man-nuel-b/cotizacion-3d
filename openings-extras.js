@@ -57,6 +57,7 @@
   const timer=setInterval(()=>{
     attempts++;
     if(install()){clearInterval(timer);return;}
-    if(attempts>=180){clearInterval(timer);console.error('bat-kubiqueitor: opening variants no pudieron registrarse');}
+    if(attempts===180)console.warn('bat-kubiqueitor: las variantes de vanos esperan al motor de muros');
+    if(attempts>=1000){clearInterval(timer);console.error('bat-kubiqueitor: opening variants no pudieron registrarse');}
   },60);
 })();

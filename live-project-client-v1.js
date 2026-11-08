@@ -118,7 +118,7 @@
        else if(typeof toast==='function')toast('Se alcanzó el máximo de vanos.');
        refresh();return;
      }
-     if(attempt>=100){
+     if(attempt>=300){
        if(typeof toast==='function')
          toast('El editor de vanos no pudo inicializarse. Comprueba la conexión y recarga el proyecto.');
        refresh();return;

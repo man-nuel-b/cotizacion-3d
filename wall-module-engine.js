@@ -381,6 +381,7 @@
       allDefinitions().forEach(syncLegacyDefinition);installLabels();installPlacement();installValidation();
       if(installHooks()){clearInterval(timer);return;}
     }catch(error){console.error('bat-kubiqueitor: wall-module-engine',error);clearInterval(timer);}
-    if(attempts>=220){clearInterval(timer);console.error('bat-kubiqueitor: wall-module-engine no pudo instalarse');}
+    if(attempts===220)console.warn('bat-kubiqueitor: motor de muros sigue esperando al compositor 3D');
+    if(attempts>=1000){clearInterval(timer);console.error('bat-kubiqueitor: wall-module-engine no pudo instalarse');}
   },60);
 })();

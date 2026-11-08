@@ -69,7 +69,7 @@
     // La variante requiere registerWallModule; cargar el registro sólo cuando existe.
     const loadVariants=()=>loadScriptOnce('wall-variant-registry.js?v=20261108-extrascore02','wall-variant-registry');
     if(typeof window.registerWallModule==='function')loadVariants();
-    else loadScriptOnce('wall-module-engine.js?v=20261024-refactor03','wall-module-engine',loadVariants);
+    else loadScriptOnce('wall-module-engine.js?v=20261108-3dchain03','wall-module-engine',loadVariants);
     loadScriptOnce('direct-editor-controller.js?v=20261028-face-ui-1','direct-editor-controller');
     loadScriptOnce('spatial-occupancy.js?v=20261024-collision01','spatial-occupancy');
     loadScriptOnce('partition-obstacle-collision.js?v=20261024-collision01','partition-obstacle-collision');
@@ -113,7 +113,7 @@
   function loadInteriorProduction(){loadScriptOnce('interior-production-v1.js?v=20261107-rules-contingency02','interior-production-v1');}
   function loadCommercialAudit(){loadScriptOnce('commercial-audit-v1.js?v=20261107-rules-contingency02','commercial-audit-v1');}
   function loadConstructionRules(){loadScriptOnce('construction-apu-rules-v1.js?v=20261107-rules-contingency02','construction-apu-rules-v1');}
-  function loadLiveProject(){loadScriptOnce('live-project-client-v1.js?v=20261108-extrasui02','live-project-client-v1');}
+  function loadLiveProject(){loadScriptOnce('live-project-client-v1.js?v=20261108-3dchain03','live-project-client-v1');}
   function loadAiAssistant(){
     loadScriptOnce('ai-command-core-v1.js?v=20261107-ai01','ai-command-core-v1');
     loadScriptOnce('ai-command-executor-v1.js?v=20261107-ai01','ai-command-executor-v1');
