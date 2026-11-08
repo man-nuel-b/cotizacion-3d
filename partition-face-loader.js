@@ -278,7 +278,8 @@
         installFinalSceneComposer();
         return;
       }
-      if(attempts>=180){
+      if(attempts===180)console.warn('bat-kubiqueitor: esperando compositor de particiones');
+      if(attempts>=750){
         clearInterval(timer);
         console.error('bat-kubiqueitor: partition-face-finishes cargó pero el renderer progresivo real no quedó instalado');
       }
@@ -322,7 +323,8 @@
       forceFreshPartitionFaces();
       return;
     }
-    if(tries>=180){
+    if(tries===180)console.warn('bat-kubiqueitor: dependencias 3D aún inicializando');
+    if(tries>=750){
       clearInterval(timer);
       console.error('bat-kubiqueitor: dependencias finales no estuvieron listas a tiempo');
     }
