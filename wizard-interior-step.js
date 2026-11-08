@@ -4,7 +4,7 @@
   if(window.BAT_KUBIQUEITOR_SIX_STEP_WIZARD) return;
 
   const VERSION=8;
-  const ASSET_VERSION='20261028-critical-1';
+  const ASSET_VERSION='20261108-3dchain03';
   let installed=false;
   let featureChainStarted=false;
   let featureChainWaiter=null;
