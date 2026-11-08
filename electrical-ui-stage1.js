@@ -74,10 +74,16 @@
 
   function commitChange(fn){
     if(typeof pushHistory==='function') pushHistory();
-    fn();
+    const result=fn();
+    if(result&&result.ok===false){
+      if(typeof toast==='function')toast(result.reason||'No se pudo actualizar el componente.');
+      queueRefresh();
+      return false;
+    }
     syncLegacyTotal();
     if(typeof renderAll==='function') renderAll();
     queueRefresh();
+    return true;
   }
 
   function add(type){
@@ -90,8 +96,8 @@
     }
     const core=window.BAT_CUBIKEITOR_EXTRAS_STATE_CORE;
     if(!core)return typeof toast==='function'&&toast('El editor de Extras todavía no está disponible.');
-    commitChange(()=>core.addElectricalPoint(state,defaultPoint(type),max));
-    if(typeof toast==='function') toast(TYPES[type].name+' agregado');
+    if(commitChange(()=>core.addElectricalPoint(state,defaultPoint(type),max)))
+      if(typeof toast==='function') toast(TYPES[type].name+' agregado');
   }
 
   function remove(type){
@@ -104,8 +110,8 @@
     if(idx<0) return;
     const core=window.BAT_CUBIKEITOR_EXTRAS_STATE_CORE;
     if(!core)return typeof toast==='function'&&toast('El editor de Extras todavía no está disponible.');
-    commitChange(()=>core.removeAt(state,'electrical',idx));
-    if(typeof toast==='function') toast(TYPES[type].name+' eliminado');
+    if(commitChange(()=>core.removeAt(state,'electrical',idx)))
+      if(typeof toast==='function') toast(TYPES[type].name+' eliminado');
   }
 
   function addStyles(){
