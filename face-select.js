@@ -124,13 +124,15 @@ toggleFaceLabels=function(){
 function ensureDirectFaceChoices(){
   let panel=document.getElementById('bat-direct-face-choices');
   if(panel)return panel;
-  const host=document.querySelector('.viewer-wrap')||document.getElementById('canvas-container')?.parentElement;
+  // Montar fuera del visor: su scroll, recortes y transformaciones no deben mover
+  // los botones cuando cambia el modelo o se abre el panel de Extras.
+  const host=document.body;
   if(!host)return null;
   if(!document.getElementById('bat-direct-face-choices-style')){
     const style=document.createElement('style');
     style.id='bat-direct-face-choices-style';
     style.textContent=[
-      '#bat-direct-face-choices{position:absolute;top:82px;left:14px;right:14px;max-width:390px;z-index:85;padding:14px;border:2px solid #fbbf24;border-radius:16px;color:#fff;background:rgba(15,23,42,.96);box-shadow:0 18px 42px rgba(0,0,0,.38);font-family:Inter,system-ui,sans-serif;pointer-events:auto}',
+      '#bat-direct-face-choices{position:fixed;top:88px;left:14px;right:14px;max-width:390px;max-height:calc(100vh - 105px);overflow-y:auto;z-index:110;padding:14px;border:2px solid #fbbf24;border-radius:16px;color:#fff;background:rgba(15,23,42,.96);box-shadow:0 18px 42px rgba(0,0,0,.38);font-family:Inter,system-ui,sans-serif;pointer-events:auto}',
       '#bat-direct-face-choices[hidden]{display:none!important}',
       '#bat-direct-face-choices .bat-face-buttons{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}',
       '#bat-direct-face-choices button[data-face-choice]{min-height:48px;border:1px solid #fbbf24;border-radius:10px;background:#f59e0b;color:#111827;font-size:14px;font-weight:800;cursor:pointer;touch-action:manipulation}',
@@ -170,6 +172,8 @@ function syncDirectFaceChoices(){
   if(title)title.textContent='¿En qué cara irá '+typeLabel(pendingMountedType).toLowerCase()+'?';
   const feedback=panel.querySelector('#bat-direct-face-error');
   if(feedback)feedback.textContent='';
+  // Evitar que Playwright o un usuario con teclado tengan que desplazarse hasta el visor.
+  panel.querySelector('[data-face-choice="A"]')?.focus?.({preventScroll:true});
 }
 function directFaceChoiceError(message){
   const feedback=document.getElementById('bat-direct-face-error');
