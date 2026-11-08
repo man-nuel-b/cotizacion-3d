@@ -107,6 +107,7 @@ test('Approved window command updates live state with one undo snapshot',()=>{
  const MOUNTED_FACE_TYPES={window:{defaultFace:'B'}};
  function findAvailableMountedOffset(type,face){return face==='A'?0:null;}
  function dimensionChangeAllowed(){return true;}
+ function validCandidate(){return true;}
  function calculate(){return {total:1000000+state.counts.window*10000};}
  `,ctx);
  vm.runInContext(script,ctx);
@@ -130,6 +131,7 @@ test('Invalid placement rolls back every change without creating undo history',(
  const MOUNTED_FACE_TYPES={window:{defaultFace:'A'}};
  function findAvailableMountedOffset(){return null;}
  function dimensionChangeAllowed(){return true;}
+ function validCandidate(){return true;}
  function calculate(){return {total:1};}`,ctx);
  vm.runInContext(script,ctx);
  assert.throws(()=>ctx.window.BAT_KUBIQUEITOR_AI_EXECUTOR.apply(parse('Agrega una ventana en cara A')),/No hay espacio/);
