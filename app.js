@@ -233,7 +233,7 @@ function renderColors() {
 }
 function renderExtras() {
   document.getElementById('extras-list').innerHTML = Object.entries(DATA.extras).map(([key, item]) => `
-    <div class="border border-slate-200 rounded-xl p-3 flex items-center gap-3 bg-white">
+    <div data-legacy-extra-key="${key}" class="border border-slate-200 rounded-xl p-3 flex items-center gap-3 bg-white">
       <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 grid place-items-center"><i class="fa-solid ${item.icon}"></i></div>
       <div class="flex-1"><div class="font-bold text-sm">${item.name}</div><div class="text-[10px] text-slate-400">Máx. ${item.max}</div></div>
       <button class="counter-btn" onclick="adjustCount('${key}', -1)">−</button>
