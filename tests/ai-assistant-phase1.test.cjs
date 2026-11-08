@@ -84,7 +84,7 @@ test('Approved window command updates live state with one undo snapshot',()=>{
    window:{},console,
    STATE_PLACEHOLDER:null
  });
- vm.runInContext(String.raw\`let state={
+ vm.runInContext(String.raw`let state={
    counts:{window:0,door:0,partition:0,openingFrame:0},container:'20hc',
    layout:{window:[],door:[],partition:[],openingFrame:[]},
    dimensions:{window:[],door:[],partition:[],openingFrame:[]}
@@ -108,7 +108,7 @@ test('Approved window command updates live state with one undo snapshot',()=>{
  function findAvailableMountedOffset(type,face){return face==='A'?0:null;}
  function dimensionChangeAllowed(){return true;}
  function calculate(){return {total:1000000+state.counts.window*10000};}
- \`,ctx);
+ `,ctx);
  vm.runInContext(script,ctx);
  ctx.window.BAT_KUBIQUEITOR_AI_EXECUTOR.apply(parse('Agrega 2 ventanas de 120 x 100 cm en cara A'));
  const result=vm.runInContext('({count:state.counts.window,layout:state.layout.window,dimensions:state.dimensions.window,snapshots:snapshots.length,oldCount:snapshots[0].counts.window})',ctx);
@@ -121,7 +121,7 @@ test('Approved window command updates live state with one undo snapshot',()=>{
 test('Invalid placement rolls back every change without creating undo history',()=>{
  const script=fs.readFileSync(path.join(__dirname,'..','ai-command-executor-v1.js'),'utf8');
  const ctx=vm.createContext({window:{}});
- vm.runInContext(String.raw\`let state={counts:{window:0},container:'20hc',layout:{window:[]},dimensions:{window:[]}};
+ vm.runInContext(String.raw`let state={counts:{window:0},container:'20hc',layout:{window:[]},dimensions:{window:[]}};
  const DATA={containers:{'20hc':{length:6,width:2.44,height:2.89}},extras:{window:{max:8}}};
  const OBJECT_DIMENSIONS={window:{fields:[{key:'width',min:.4,max:2.4},{key:'height',min:.4,max:1.8}]}};
  let snapshots=0;function pushHistory(){snapshots++;}function renderAll(){}
@@ -130,7 +130,7 @@ test('Invalid placement rolls back every change without creating undo history',(
  const MOUNTED_FACE_TYPES={window:{defaultFace:'A'}};
  function findAvailableMountedOffset(){return null;}
  function dimensionChangeAllowed(){return true;}
- function calculate(){return {total:1};}\`,ctx);
+ function calculate(){return {total:1};}`,ctx);
  vm.runInContext(script,ctx);
  assert.throws(()=>ctx.window.BAT_KUBIQUEITOR_AI_EXECUTOR.apply(parse('Agrega una ventana en cara A')),/No hay espacio/);
  assert.equal(vm.runInContext('state.counts.window',ctx),0);
