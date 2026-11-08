@@ -105,6 +105,10 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
       await addWindow.click({timeout:15000});
       const choicePanel=page.locator('#bat-direct-face-choices');
       assert.equal(await choicePanel.isVisible(),true,'accessible selection panel must appear');
+      assert.equal(await choicePanel.evaluate(el=>el.parentElement===document.body),true,
+        'The face chooser must remain outside scrollable 3D scene containers');
+      assert.equal(await choicePanel.evaluate(el=>getComputedStyle(el).position),'fixed',
+        'A-D chooser must stay fixed while Extras and the 3D scene rerender');
       assert.equal(await choicePanel.locator('button[data-face-choice]').count(),4,'all faces A-D should be available');
       assert.equal(await page.evaluate(()=>state.counts.window),initial.windows,'choose face before insertion');
       await choicePanel.locator('button[data-cancel-face]').click();
