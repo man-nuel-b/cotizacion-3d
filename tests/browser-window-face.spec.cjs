@@ -302,6 +302,34 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
         source:'live-project-client-v1.js legacy calculate()'
       }));
       console.log('EXTRAS_PRICE_PANEL_AUDIT',JSON.stringify(pricePanel));
+      const editAudit=await page.evaluate(()=>{
+        const types=['window','door','openingFrame','windowOpening','windowOpeningFrame',
+          'partition','wc','sink','shower','ac','electrical'];
+        return types.map(type=>{
+          try{
+            const obj=editableObjects.find(x=>x.userData?.editor?.type===type);
+            if(!obj)return {type,error:'Sin objeto editable registrado'};
+            selectEditable(obj);
+            const editor=document.getElementById('object-editor');
+            const dims=document.getElementById('dimension-editor');
+            return {type,index:obj.userData.editor.index,
+              selected:selectedEditable?.type,
+              editorVisible:!!editor&&!editor.classList.contains('hidden'),
+              dimensionVisible:!!dims&&!dims.classList.contains('hidden'),
+              dimensionInputs:dims?.querySelectorAll('input').length||0,
+              selectedFace:actualLayout(type,obj.userData.editor.index)?.face||null};
+          }catch(error){return {type,error:String(error)}}
+        });
+      });
+      console.log('EXTRAS_EDIT_AUDIT',JSON.stringify(editAudit));
+      const collisionAudit=await page.evaluate(()=>{
+        const windowPos=actualLayout('window',0),dims=objectDimensions('window',0);
+        return {windowPos,width:dims.width,
+          openingFrameCanOverlap:validCandidate('openingFrame',state.counts.openingFrame||0,{face:windowPos.face,x:windowPos.x}),
+          windowCanOverlap:validCandidate('window',state.counts.window||0,{face:windowPos.face,x:windowPos.x})};
+      });
+      console.log('EXTRAS_COLLISION_AUDIT',JSON.stringify(collisionAudit));
+      
       const failed=extrasAudit.filter(x=>!x.ok);
       assert.deepEqual(failed.map(x=>({key:x.key,problem:x.problem})),[],
         'Los extras deben actualizar contador, geometría y flujo previsto');
