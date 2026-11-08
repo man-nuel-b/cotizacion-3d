@@ -230,11 +230,12 @@ addMountedToFace=function(face){
     return toast(`No queda espacio suficiente en la cara ${face}`);
   }
 
+  const core=window.BAT_CUBIKEITOR_EXTRAS_STATE_CORE;
+  if(!core)return toast('El editor de Extras no está disponible. Recarga el proyecto.');
   pushHistory();
   ensureLayoutState();
-  const index=state.counts[type]||0;
-  state.counts[type]=index+1;
-  state.layout[type][index]={face,x:offset};
+  const inserted=core.addMountedAt(state,type,face,offset,max);
+  if(!inserted.ok)return toast(inserted.reason);
   pendingMountedType=null;
   faceSelectionActive=false;
   syncDirectFaceChoices();
