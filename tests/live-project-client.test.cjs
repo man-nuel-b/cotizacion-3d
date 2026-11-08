@@ -42,3 +42,15 @@ test('Wood finish cannot be represented as a validated full APU with zero cost',
  assert.match(src,/selectInteriorLining\(next\)/);
  assert.match(src,/falta|validado|verificar|Verificar/i);
 });
+
+test('Unified Extras UI offers an indexed remove action for each catalog component',()=>{
+ const src=fs.readFileSync(path.join(__dirname,'..','live-project-client-v1.js'),'utf8');
+ const app=fs.readFileSync(path.join(__dirname,'..','app.js'),'utf8');
+ assert.match(src,/data-live-remove/);
+ assert.match(src,/core\.canRemoveAt\(state,key,total-1\)/);
+ assert.match(src,/core\.removeAt\(state,key,total-1\)/);
+ assert.match(src,/pushHistory\(\)/);
+ assert.match(src,/renderAll\(\)/);
+ assert.match(src,/Herramientas técnicas: módulos prearmados/);
+ assert.match(app,/data-legacy-extra-key/);
+});
