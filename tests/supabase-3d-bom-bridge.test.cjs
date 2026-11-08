@@ -76,7 +76,7 @@ test('guard: preview loads bridge after authorization; public landing stays susp
   const preview=fs.readFileSync(path.join(__dirname,'..','pruebas.html'),'utf8');
   const landing=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
   assert.ok(preview.includes('window.BAT_CUBIKEITOR_PREVIEW_CLIENT=client;'));
-  assert.match(preview,/supabase-3d-bom-bridge\.js\?v=20261108-1/);
+  assert.match(preview,/supabase-3d-bom-bridge\.js\?v=20261108-browser02/);
   const idxAuth=preview.indexOf('window.BAT_CUBIKEITOR_PREVIEW_CLIENT=client;');
   const idxLoad=preview.indexOf('for(const script of SCRIPTS)await loadScript(script)');
   assert.ok(idxAuth>=0&&idxLoad>idxAuth);
