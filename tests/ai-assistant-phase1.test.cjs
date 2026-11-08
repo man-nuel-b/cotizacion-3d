@@ -76,3 +76,63 @@ test('Exterior quotes and core editor remain unmodified; scripts parse in JS',()
  assert.match(engine,/state=original/);
  assert.doesNotMatch(engine,/localStorage\.setItem|fetch\(|apiKey|OPENAI_API_KEY/);
 });
+
+
+test('Approved window command updates live state with one undo snapshot',()=>{
+ const script=fs.readFileSync(path.join(__dirname,'..','ai-command-executor-v1.js'),'utf8');
+ const ctx=vm.createContext({
+   window:{},console,
+   STATE_PLACEHOLDER:null
+ });
+ vm.runInContext(String.raw\`let state={
+   counts:{window:0,door:0,partition:0,openingFrame:0},container:'20hc',
+   layout:{window:[],door:[],partition:[],openingFrame:[]},
+   dimensions:{window:[],door:[],partition:[],openingFrame:[]}
+ };
+ const DATA={
+  containers:{'20hc':{length:6.06,width:2.44,height:2.89}},
+  extras:{window:{max:8},door:{max:6},partition:{max:6},openingFrame:{max:8}}
+ };
+ const OBJECT_DIMENSIONS={
+  window:{fields:[{key:'width',min:.4,max:2.4},{key:'height',min:.4,max:1.8}]},
+  door:{fields:[{key:'width',min:.7,max:1.6},{key:'height',min:1.8,max:2.5}]},
+  partition:{fields:[{key:'length',min:.3,max:12},{key:'height',min:.3,max:2.85},{key:'thickness',min:.05,max:.2}]},
+  openingFrame:{fields:[{key:'width',min:.7,max:1.6},{key:'height',min:1.8,max:2.5}]}
+ };
+ let snapshots=[];
+ function ensureLayoutState(){}function ensureDimensionState(){}
+ function pushHistory(){snapshots.push(JSON.parse(JSON.stringify(state)));}
+ function renderAll(){}
+ function objectDimensions(){return {width:1.2,height:1.05};}
+ const MOUNTED_FACE_TYPES={window:{defaultFace:'B'}};
+ function findAvailableMountedOffset(type,face){return face==='A'?0:null;}
+ function dimensionChangeAllowed(){return true;}
+ function calculate(){return {total:1000000+state.counts.window*10000};}
+ \`,ctx);
+ vm.runInContext(script,ctx);
+ ctx.window.BAT_KUBIQUEITOR_AI_EXECUTOR.apply(parse('Agrega 2 ventanas de 120 x 100 cm en cara A'));
+ const result=vm.runInContext('({count:state.counts.window,layout:state.layout.window,dimensions:state.dimensions.window,snapshots:snapshots.length,oldCount:snapshots[0].counts.window})',ctx);
+ assert.equal(result.count,2);
+ assert.equal(result.snapshots,1);
+ assert.equal(result.oldCount,0);
+ assert.equal(result.layout[0].face,'A');
+ assert.equal(result.dimensions[1].width,1.2);
+});
+test('Invalid placement rolls back every change without creating undo history',()=>{
+ const script=fs.readFileSync(path.join(__dirname,'..','ai-command-executor-v1.js'),'utf8');
+ const ctx=vm.createContext({window:{}});
+ vm.runInContext(String.raw\`let state={counts:{window:0},container:'20hc',layout:{window:[]},dimensions:{window:[]}};
+ const DATA={containers:{'20hc':{length:6,width:2.44,height:2.89}},extras:{window:{max:8}}};
+ const OBJECT_DIMENSIONS={window:{fields:[{key:'width',min:.4,max:2.4},{key:'height',min:.4,max:1.8}]}};
+ let snapshots=0;function pushHistory(){snapshots++;}function renderAll(){}
+ function ensureLayoutState(){}function ensureDimensionState(){}
+ function objectDimensions(){return {width:1.2,height:1};}
+ const MOUNTED_FACE_TYPES={window:{defaultFace:'A'}};
+ function findAvailableMountedOffset(){return null;}
+ function dimensionChangeAllowed(){return true;}
+ function calculate(){return {total:1};}\`,ctx);
+ vm.runInContext(script,ctx);
+ assert.throws(()=>ctx.window.BAT_KUBIQUEITOR_AI_EXECUTOR.apply(parse('Agrega una ventana en cara A')),/No hay espacio/);
+ assert.equal(vm.runInContext('state.counts.window',ctx),0);
+ assert.equal(vm.runInContext('snapshots',ctx),0);
+});
