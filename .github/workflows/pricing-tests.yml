@@ -12,6 +12,12 @@ on:
       - 'summary-panel-toggle.js'
       - 'tests/**'
       - '.github/workflows/pricing-tests.yml'
+  pull_request:
+    paths:
+      - 'supabase-3d-bom-bridge.js'
+      - 'pruebas.html'
+      - 'tests/**'
+      - '.github/workflows/pricing-tests.yml'
   workflow_dispatch:
 
 permissions:
