@@ -162,6 +162,23 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
       assert.equal(mobile.bom,9.24,'two reference windows must recalculate 9.24 m of steel');
       assert.equal(mobile.panelVisible,false,'mobile choices should hide once inserted');
       console.log('BROWSER_MOBILE_SUCCESS',JSON.stringify(mobile));
+      const openingSnapshot=await page.evaluate(()=>({
+        openingFrame:DATA.extras?.openingFrame||null,
+        variants:window.BAT_KUBIQUEITOR_OPENING_VARIANTS?.version||null,
+        shell:window.BAT_KUBIQUEITOR_OPENING_SHELL?.version||null,
+        engine:window.BAT_KUBIQUEITOR_WALL_MODULE_ENGINE?.version||null,
+        definition:Boolean(window.wallModuleDefinition?.('openingFrame')),
+        picker:typeof openMountedFacePicker
+      }));
+      console.log('BROWSER_OPENING_READINESS',JSON.stringify(openingSnapshot));
+      assert.ok(openingSnapshot.openingFrame,'openingFrame must be registered in the catalog');
+      const openingButton=page.locator('button[data-live-add="openingFrame"]');
+      const dialogs=[];
+      page.on('dialog',async dialog=>{dialogs.push(dialog.message());await dialog.accept();});
+      await openingButton.click({timeout:10000});
+      const openingChoice=page.locator('#bat-direct-face-choices');
+      assert.ok(await openingChoice.isVisible(),'openingFrame should open A-D face choices; dialogs='+JSON.stringify(dialogs));
+      assert.equal(dialogs.length,0,'No asynchronous initialization alert should appear');
       console.log('BROWSER_SMOKE_SUCCESS',JSON.stringify({initial,after,nonFatalBrowserErrors:browserErrors.slice(0,10)}));
     }catch(e){
       try{await page.screenshot({path:'/tmp/cubikeitor-window-smoke.png',fullPage:true});}catch{}
