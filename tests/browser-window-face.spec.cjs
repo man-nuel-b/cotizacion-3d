@@ -179,6 +179,20 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
       const openingChoice=page.locator('#bat-direct-face-choices');
       assert.ok(await openingChoice.isVisible(),'openingFrame should open A-D face choices; dialogs='+JSON.stringify(dialogs));
       assert.equal(dialogs.length,0,'No asynchronous initialization alert should appear');
+      const initialOpenings=await page.evaluate(()=>state.counts.openingFrame||0);
+      await openingChoice.locator('button[data-face-choice="C"]').click();
+      await page.waitForFunction(n=>(state.counts.openingFrame||0)===n+1,initialOpenings,{timeout:8000});
+      const openingPlaced=await page.evaluate(()=>({
+        count:state.counts.openingFrame,
+        lastFace:state.layout.openingFrame[state.counts.openingFrame-1]?.face,
+        rendered:editableObjects.filter(x=>x.userData?.editor?.type==='openingFrame').length,
+        panelHidden:document.getElementById('bat-direct-face-choices')?.hidden
+      }));
+      console.log('BROWSER_OPENING_PLACED',JSON.stringify(openingPlaced));
+      assert.equal(openingPlaced.count,initialOpenings+1,'openingFrame count must increment exactly once');
+      assert.equal(openingPlaced.lastFace,'C','opening must be inserted on chosen face C');
+      assert.ok(openingPlaced.rendered>=openingPlaced.count,'opening needs actual editable 3D geometry');
+      assert.equal(openingPlaced.panelHidden,true,'selector should close after opening insertion');
       console.log('BROWSER_SMOKE_SUCCESS',JSON.stringify({initial,after,nonFatalBrowserErrors:browserErrors.slice(0,10)}));
     }catch(e){
       try{await page.screenshot({path:'/tmp/cubikeitor-window-smoke.png',fullPage:true});}catch{}
