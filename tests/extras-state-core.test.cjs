@@ -81,3 +81,15 @@ test('Face-mounted electrical outlet updates typed points, 3D layout and BOM-rel
   assert.deepEqual(project.electrical.points,[]);
   assert.deepEqual(project.layout.electrical,[]);
 });
+
+test('Removal preflight checks validity without altering state or history',()=>{
+  const project={counts:{window:1,electrical:1},layout:{window:[{face:'A',x:0}]},
+    electrical:{points:[{id:'one',type:'outlet'},{id:'two',type:'switch'}]}};
+  const before=JSON.stringify(project);
+  assert.equal(core.canRemoveAt(project,'window',-1).ok,false);
+  assert.equal(core.canRemoveAt(project,'window',2).ok,false);
+  assert.equal(core.canRemoveAt(project,'electrical',0).ok,false);
+  assert.equal(JSON.stringify(project),before);
+  assert.equal(core.canRemoveAt(project,'window',0).ok,true);
+  assert.equal(JSON.stringify(project),before);
+});

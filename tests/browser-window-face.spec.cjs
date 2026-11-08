@@ -244,7 +244,7 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
         }catch(error){result.ok=false;result.problem=String(error).slice(0,400)}
         extrasAudit.push(result);
       }
-      // Auditoría de funcionalidades que existen sólo en la lista heredada.
+      // Auditoría del panel único: las variantes también deben instalarse desde el menú principal.
       const hiddenExtras=await page.evaluate(()=>({
         all:Object.keys(DATA.extras),
         quick:Array.from(document.querySelectorAll('button[data-live-add]')).map(x=>x.dataset.liveAdd),
@@ -266,9 +266,9 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
       ]){
         const row={key:item.key};
         try{
-          const btn=page.locator('#extras-list button[onclick="adjustCount(\''+item.key+'\', 1)"]');
+          const btn=page.locator('#bat-live-controls button[data-live-add="'+item.key+'"]');
           row.button=await btn.count();
-          if(!row.button)throw new Error('Legacy extra unavailable');
+          if(!row.button)throw new Error('Extra no disponible en el panel unificado');
           const before=await page.evaluate(key=>state.counts[key]||0,item.key);
           await btn.click({timeout:6000});
           const choices=page.locator('#bat-direct-face-choices');
@@ -284,7 +284,22 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
         }catch(error){row.ok=false;row.problem=String(error).slice(0,500)}
         legacyAudit.push(row);
       }
-      console.log('LEGACY_EXTRAS_AUDIT',JSON.stringify(legacyAudit));
+      console.log('UNIFIED_EXTRAS_VARIANTS_AUDIT',JSON.stringify(legacyAudit));
+      assert.deepEqual(legacyAudit.filter(x=>!x.ok).map(x=>x.key+':'+x.problem),[],
+        'Todas las variantes del catálogo deben funcionar desde el único panel Extras');
+      const technicalTools=await page.evaluate(()=>({
+        legacyVisible:[...document.querySelectorAll('#extras-list > [data-legacy-extra-key]')]
+          .filter(el=>getComputedStyle(el).display!=='none').length,
+        bathrooms:Boolean(document.querySelector('[data-bathroom-module-section]')),
+        electrical:Boolean(document.getElementById('electrical-stage1-panel')),
+        circuit:Boolean(document.getElementById('bat-electrical-circuits')),
+        detailsOpen:Boolean(document.getElementById('bat-live-old-extras')?.open)
+      }));
+      console.log('EXTRAS_TECHNICAL_TOOLS',JSON.stringify(technicalTools));
+      assert.equal(technicalTools.legacyVisible,0,'Los contadores antiguos duplicados deben estar ocultos');
+      assert.equal(technicalTools.bathrooms,true,'Los baños prearmados no deben desaparecer');
+      assert.equal(technicalTools.electrical,true,'Los controles eléctricos tipificados deben continuar accesibles');
+      assert.equal(technicalTools.circuit,true,'La asignación de circuitos no debe desaparecer');
       const electricalDeletion=await page.evaluate(()=>{
         const ui=window.BAT_KUBIQUEITOR_ELECTRICAL_UI_STAGE1;
         if(!ui)return {issue:'Electrical UI not initialized'};
@@ -353,6 +368,30 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
       assert.equal(collisionAudit.windowCanOverlap,false,'Ventanas no deben solaparse');
       assert.equal(collisionAudit.openingFrameCanOverlap,false,'Vano y ventana no deben solaparse');
       
+      // El panel único también debe permitir quitar sin borrar otros objetos.
+      const beforeRemove=await page.evaluate(()=>({
+        count:state.counts.window,
+        ids:state.layout.window.map(p=>p.face),
+        objectCount:editableObjects.filter(x=>x.userData?.editor?.type==='window').length
+      }));
+      const minus=page.locator('#bat-live-controls button[data-live-remove="window"]');
+      assert.equal(await minus.isDisabled(),false,'Debe existir el botón quitar para las ventanas instaladas');
+      await minus.click();
+      await page.waitForFunction(n=>state.counts.window===n-1,beforeRemove.count,{timeout:7000});
+      const afterRemove=await page.evaluate(()=>({
+        count:state.counts.window,
+        faces:state.layout.window.map(p=>p.face),
+        objectCount:editableObjects.filter(x=>x.userData?.editor?.type==='window').length
+      }));
+      assert.equal(afterRemove.count,beforeRemove.count-1,'Quitar debe decrementar exactamente un objeto');
+      assert.deepEqual(afterRemove.faces,beforeRemove.ids.slice(0,-1),'Quitar debe conservar las caras previas');
+      assert.equal(afterRemove.objectCount,afterRemove.count,'La escena 3D debe actualizarse');
+      await page.evaluate(()=>undo());
+      assert.equal(await page.evaluate(()=>state.counts.window),beforeRemove.count,'Deshacer debe restaurar la ventana');
+      await page.evaluate(()=>redo());
+      assert.equal(await page.evaluate(()=>state.counts.window),afterRemove.count,'Rehacer debe volver a quitarla');
+      console.log('EXTRAS_UNIFIED_REMOVE',JSON.stringify({beforeRemove,afterRemove}));
+
       const failed=extrasAudit.filter(x=>!x.ok);
       assert.deepEqual(failed.map(x=>({key:x.key,problem:x.problem})),[],
         'Los extras deben actualizar contador, geometría y flujo previsto');

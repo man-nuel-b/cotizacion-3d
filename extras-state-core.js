@@ -49,10 +49,21 @@
     });
     return {ok:true,type,index:old,face};
   }
+  function canRemoveAt(project,type,index){
+    if(!project||!type||!Number.isSafeInteger(index))
+      return {ok:false,reason:'Índice de componente inválido'};
+    const total=count(project,type);
+    if(index<0||index>=total)
+      return {ok:false,reason:'El componente no existe'};
+    if(type==='electrical'&&Array.isArray(project.electrical?.points)
+      &&project.electrical.points.length>total)
+      return {ok:false,reason:'Hay una discrepancia entre el contador y los puntos eléctricos. No se borró nada.'};
+    return {ok:true};
+  }
   function removeAt(project,type,index){
-    if(!project||!type||!Number.isInteger(index))return {ok:false,reason:'Índice inválido'};
+    const canRemove=canRemoveAt(project,type,index);
+    if(!canRemove.ok)return canRemove;
     const original=count(project,type);
-    if(original===0||index<0||index>=original)return {ok:false,reason:'El componente no existe'};
     if(type==='electrical'){
       const check=reconcileElectrical(project);
       if(!check.ok)return check;
@@ -109,7 +120,7 @@
     }
     return result;
   }
-  const api={version:1,count,reconcileElectrical,addMountedAt,removeAt,removeElectricalType,
+  const api={version:2,count,reconcileElectrical,addMountedAt,canRemoveAt,removeAt,removeElectricalType,
     addElectricalPoint,partitionArea,bathroomFixtures};
   if(typeof module==='object'&&module.exports)module.exports=api;
   if(root)root.BAT_CUBIKEITOR_EXTRAS_STATE_CORE=api;

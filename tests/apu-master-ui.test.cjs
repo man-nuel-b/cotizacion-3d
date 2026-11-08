@@ -10,7 +10,7 @@ test('Maestro APU button opens latest dynamically overridden function and worksh
 });
 test('Preview loader refreshes APU view script',()=>{
  const s=fs.readFileSync(path.join(root,'pruebas.html'),'utf8');
- assert.ok(s.includes('summary-panel-toggle.js?v=20261108-extrascore02'), 'Live project loader must be current');
+ assert.ok(s.includes('summary-panel-toggle.js?v=20261108-extrasui02'), 'Live project loader must be current');
 });
 
 test('Simple APU first: full worksheet remains accessible by a toggle',()=>{
