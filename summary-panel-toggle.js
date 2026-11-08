@@ -58,7 +58,7 @@
     loadScriptOnce('partition-obstacle-collision.js?v=20261024-collision01','partition-obstacle-collision');
   }
 
-  function loadSafeElectricalStage(){loadScriptOnce('electrical-ui-stage1.js?v=20261025-safe01','electrical-ui-stage1');}
+  function loadSafeElectricalStage(){loadScriptOnce('electrical-ui-stage1.js?v=20261107-circuits02','electrical-ui-stage1');}
   function loadElectricalCircuits(){
     loadScriptOnce('electrical-circuit-core-v1.js?v=20261107-circuits01','electrical-circuit-core-v1');
     loadScriptOnce('electrical-circuit-ui-v1.js?v=20261107-circuits01','electrical-circuit-ui-v1');
