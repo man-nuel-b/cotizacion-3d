@@ -119,6 +119,63 @@ toggleFaceLabels=function(){
   rebuild3D();
 };
 
+// A-F sprites remain interactive; this accessible A-D menu is a reliable fallback
+// for touch screens, small labels, camera occlusion and keyboard users.
+function ensureDirectFaceChoices(){
+  let panel=document.getElementById('bat-direct-face-choices');
+  if(panel)return panel;
+  const host=document.querySelector('.viewer-wrap')||document.getElementById('canvas-container')?.parentElement;
+  if(!host)return null;
+  if(!document.getElementById('bat-direct-face-choices-style')){
+    const style=document.createElement('style');
+    style.id='bat-direct-face-choices-style';
+    style.textContent=[
+      '#bat-direct-face-choices{position:absolute;top:82px;left:14px;right:14px;max-width:390px;z-index:85;padding:14px;border:2px solid #fbbf24;border-radius:16px;color:#fff;background:rgba(15,23,42,.96);box-shadow:0 18px 42px rgba(0,0,0,.38);font-family:Inter,system-ui,sans-serif;pointer-events:auto}',
+      '#bat-direct-face-choices[hidden]{display:none!important}',
+      '#bat-direct-face-choices .bat-face-buttons{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}',
+      '#bat-direct-face-choices button[data-face-choice]{min-height:48px;border:1px solid #fbbf24;border-radius:10px;background:#f59e0b;color:#111827;font-size:14px;font-weight:800;cursor:pointer;touch-action:manipulation}',
+      '#bat-direct-face-choices button[data-face-choice]:focus-visible,#bat-direct-face-choices button[data-cancel-face]:focus-visible{outline:3px solid #fff;outline-offset:2px}',
+      '#bat-direct-face-choices button[data-face-choice]:hover{background:#fbbf24}',
+      '#bat-direct-face-choices button[data-cancel-face]{background:transparent;border:1px solid #64748b;border-radius:8px;padding:6px 10px;color:#e2e8f0;font-size:12px;cursor:pointer}',
+      '#bat-direct-face-error:not(:empty){margin-top:8px;color:#fecaca;font-size:12px;line-height:1.4}',
+      '@media(max-width:820px){#bat-direct-face-choices{top:72px;left:8px;right:8px;max-width:none;padding:12px}}'
+    ].join('');
+    document.head.appendChild(style);
+  }
+  panel=document.createElement('section');
+  panel.id='bat-direct-face-choices';panel.hidden=true;
+  panel.setAttribute('role','group');panel.setAttribute('aria-label','Elegir cara para instalar un componente');
+  panel.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><strong id="bat-face-choice-title" style="font-size:14px">Selecciona una cara</strong><button type="button" data-cancel-face>Cancelar</button></div>'+
+    '<p style="font-size:12px;color:#cbd5e1;margin-top:5px">Elige la cara del módulo para instalar el elemento. También puedes pulsar una letra en el modelo 3D.</p>'+
+    '<div class="bat-face-buttons"><button type="button" data-face-choice="A">Cara A</button><button type="button" data-face-choice="B">Cara B</button><button type="button" data-face-choice="C">Cara C</button><button type="button" data-face-choice="D">Cara D</button></div>'+
+    '<p id="bat-direct-face-error" role="status" aria-live="polite"></p>';
+  panel.addEventListener('pointerdown',event=>event.stopPropagation());
+  panel.addEventListener('click',event=>{
+    const face=event.target.closest('button[data-face-choice]')?.dataset.faceChoice;
+    if(face){event.stopPropagation();addMountedToFace(face);return;}
+    if(event.target.closest('button[data-cancel-face]')){
+      event.stopPropagation();closeMountedFacePicker();toast('Selección de cara cancelada');
+    }
+  });
+  host.appendChild(panel);
+  return panel;
+}
+function syncDirectFaceChoices(){
+  const panel=ensureDirectFaceChoices();
+  if(!panel)return;
+  const visible=Boolean(faceSelectionActive&&pendingMountedType);
+  panel.hidden=!visible;
+  if(!visible)return;
+  const title=panel.querySelector('#bat-face-choice-title');
+  if(title)title.textContent='¿En qué cara irá '+typeLabel(pendingMountedType).toLowerCase()+'?';
+  const feedback=panel.querySelector('#bat-direct-face-error');
+  if(feedback)feedback.textContent='';
+}
+function directFaceChoiceError(message){
+  const feedback=document.getElementById('bat-direct-face-error');
+  if(feedback)feedback.textContent=message;
+}
+
 function beginDirectFaceSelection(type){
   pendingMountedType=type;
   faceSelectionActive=true;
@@ -136,6 +193,7 @@ function beginDirectFaceSelection(type){
     currentView='exterior';
   }
   rebuild3D();
+  syncDirectFaceChoices();
   toast(`Selecciona A, B, C o D en el modelo para ubicar ${typeLabel(type).toLowerCase()}`);
 }
 
@@ -150,6 +208,7 @@ closeMountedFacePicker=function(){
   removeFacePickerModals();
   removeOrientationToolbarButton();
   removeObjectMovementButtons();
+  syncDirectFaceChoices();
   rebuild3D();
 };
 
@@ -160,12 +219,16 @@ addMountedToFace=function(face){
   if((state.counts[type]||0)>=max){
     pendingMountedType=null;
     faceSelectionActive=false;
+    syncDirectFaceChoices();
     rebuild3D();
     return toast(`Llegaste al máximo de ${typeLabel(type).toLowerCase()}`);
   }
 
   const offset=findAvailableMountedOffset(type,face);
-  if(offset===null) return toast(`No queda espacio suficiente en la cara ${face}`);
+  if(offset===null){
+    directFaceChoiceError(`No queda espacio suficiente en la cara ${face}. Prueba otra cara o mueve los elementos existentes.`);
+    return toast(`No queda espacio suficiente en la cara ${face}`);
+  }
 
   pushHistory();
   ensureLayoutState();
@@ -174,6 +237,7 @@ addMountedToFace=function(face){
   state.layout[type][index]={face,x:offset};
   pendingMountedType=null;
   faceSelectionActive=false;
+  syncDirectFaceChoices();
   renderAll();
   focusFace(face);
   toast(`${typeLabel(type)} agregado en cara ${face}`);
@@ -214,6 +278,7 @@ function installDirectFaceSelection(){
   faceSelectionRaycaster=new THREE.Raycaster();
   faceSelectionPointer=new THREE.Vector2();
   installFaceUI();
+  ensureDirectFaceChoices();
   removeFacePickerModals();
   removeOrientationToolbarButton();
   removeObjectMovementButtons();
