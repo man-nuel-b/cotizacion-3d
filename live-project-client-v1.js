@@ -3,6 +3,7 @@
  'use strict';
  if(root.BAT_KUBIQUEITOR_LIVE_PROJECT)return;
  const ACTIONS=[
+  {key:'woodLining',label:'Revestimiento madera',icon:'fa-tree',help:'Terciado en muros; costo por validar'},
   {key:'window',label:'Ventana',icon:'fa-window-maximize',help:'Elige la cara del contenedor'},
   {key:'door',label:'Puerta',icon:'fa-door-open',help:'Nuevo acceso peatonal'},
   {key:'openingFrame',label:'Vano con marco',icon:'fa-vector-square',help:'Abertura sin puerta ni vidrio'},
@@ -18,8 +19,9 @@
  let lastTotal=null,lastChange=null;
  const CSS='.bat-live-controls{padding:13px;background:#fffbeb;border:1px solid #fcd34d;border-radius:14px;margin:12px 0}.bat-live-tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.bat-live-tool{background:#fff;border:1px solid #e2e8f0;border-radius:11px;padding:10px;text-align:left;cursor:pointer;min-height:66px;display:flex;align-items:flex-start;gap:8px;color:#0f172a}.bat-live-tool:hover,.bat-live-tool:focus-visible{border-color:#f59e0b;background:#fff9ed}.bat-live-tool:disabled{opacity:.5;cursor:not-allowed}.bat-live-tool i{color:#b45309;font-size:15px;margin-top:2px}.bat-live-tool b{font-size:12px;display:block}.bat-live-tool small{font-size:10px;color:#64748b;display:block;margin-top:2px}.bat-live-help{font-size:11px;color:#64748b;line-height:1.55}.bat-live-price{border:1px solid #e2e8f0;border-radius:12px;padding:12px;margin-top:12px;background:#fff}.bat-live-price strong{font-size:21px;font-weight:900;color:#0f172a}.bat-live-delta{display:inline-block;margin-top:5px;border-radius:999px;background:#fef3c7;padding:3px 8px;font-size:11px;color:#92400e;font-weight:750}.bat-live-qa{margin-top:9px;font-size:11px;border:1px solid #fcd34d;background:#fffbeb;color:#92400e;border-radius:9px;padding:9px}.bat-live-qa button{display:block;text-decoration:underline;font-weight:850;margin-top:6px}.bat-live-go{background:#f59e0b;color:#0f172a;border:0;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:900;white-space:nowrap}.presentation-mode .bat-live-go{display:none!important}@media(max-width:700px){.bat-live-tool{padding:8px;min-height:62px}.bat-live-go{padding:7px;font-size:11px}}';
  function catalogActions(project,data){
-  return ACTIONS.map(a=>({...a,count:Math.max(0,Math.floor(n(project?.counts?.[a.key]))),
-   max:Math.max(0,Math.floor(n(data?.extras?.[a.key]?.max||8)))}));
+  return ACTIONS.map(a=>({...a,
+   count:a.key==='woodLining'?(project?.interiorSystem?.lining==='plywood'?1:0):Math.max(0,Math.floor(n(project?.counts?.[a.key]))),
+   max:a.key==='woodLining'?1:Math.max(0,Math.floor(n(data?.extras?.[a.key]?.max||8)))}));
  }
  function summarize(totals,project,audit){
   const bom=Array.isArray(totals?.bom)?totals.bom:[];
@@ -40,12 +42,14 @@
   const report=readAudit(),data=summarize(totals,typeof state!=='undefined'?state:null,report);
   if(lastTotal!==null&&Math.abs(data.total-lastTotal)>.5)lastChange=data.total-lastTotal;
   lastTotal=data.total;
-  const issueCount=report?data.errors:data.problems;
+  const woodSelected=typeof state!=='undefined'&&state?.interiorSystem?.lining==='plywood';
+  const woodMaterialPriced=typeof DATA!=='undefined'&&n(DATA.catalog?.plywood?.cost)>0;
+  const issueCount=(report?data.errors:data.problems)+(woodSelected&&!woodMaterialPriced?1:0);
   const difference=lastChange===null?'':'<div class="bat-live-delta">Último cambio: '+(lastChange>=0?'+':'−')+money(Math.abs(lastChange))+'</div>';
   card.innerHTML='<div class="bat-live-help"><b>Presupuesto conectado al diseño 3D</b></div>'+ 
    difference+'<p class="bat-live-help" style="margin-top:7px">'+data.lines+' partidas de costo, '+data.excelLines+' APU del Excel. No es una cotización definitiva.</p>'+
    (issueCount?
-    '<div class="bat-live-qa"><b>Revisión pendiente: '+issueCount+' incidencia(s)</b><div>Hay costos, especificaciones o partidas por validar.</div><button type="button" data-live-audit>Revisar antes de entregar</button></div>':
+    '<div class="bat-live-qa"><b>Revisión pendiente: '+issueCount+' incidencia(s)</b><div>'+(woodSelected?'Revestimiento de madera: falta confirmar tipo, precio del material, fijaciones y mano de obra. ':'')+'Hay costos, especificaciones o partidas por validar.</div><button type="button" data-live-audit>Revisar antes de entregar</button></div>':
     '<div class="bat-live-qa" style="background:#f0fdf4;color:#166534;border-color:#bbf7d0">Sin errores automáticos detectados. Validar el alcance técnico antes de ofertar.</div>');
   const e=document.getElementById('bat-live-controls');
   if(e&&typeof DATA!=='undefined'){
@@ -53,13 +57,26 @@
    e.querySelectorAll('[data-live-add]').forEach(btn=>{
     const d=entries.find(x=>x.key===btn.dataset.liveAdd);
     if(!d)return;
-    btn.disabled=d.count>=d.max;
-    const x=btn.querySelector('[data-live-count]');if(x)x.textContent='En proyecto: '+d.count;
+    btn.disabled=d.key==='woodLining'?false:d.count>=d.max;
+    const x=btn.querySelector('[data-live-count]');if(x)x.textContent=d.key==='woodLining'?(d.count?'Seleccionado · clic para quitar':'Aún no seleccionado'):'En proyecto: '+d.count;
    });
   }
  }
  function add(key){
   if(typeof DATA==='undefined'||typeof state==='undefined')return;
+  if(key==='woodLining'){
+   if(typeof selectInteriorLining!=='function'){
+    root.alert('El editor de revestimientos interiores todavía no está disponible.');return;
+   }
+   const current=state?.interiorSystem?.lining;
+   const fallback=DATA.finishes?.[state.finish]?.lining||'gypsum';
+   const next=current==='plywood'?fallback:'plywood';
+   selectInteriorLining(next);
+   if(next==='plywood'&&n(DATA.catalog?.plywood?.cost)<=0){
+    root.alert('Se aplicó visualmente el revestimiento terciado al 3D. La madera aún no tiene precio de material ni APU de instalación validado. No emitas una cotización definitiva hasta definirlos.');
+   }
+   return;
+  }
   const action=ACTIONS.find(a=>a.key===key),config=DATA.extras?.[key];if(!action||!config){root.alert('El editor de este elemento todavía no está disponible.');return;}
   if(n(state.counts?.[key])>=n(config.max)){root.alert('Alcanzaste la cantidad máxima permitida.');return;}
   if(key==='openingFrame'){
@@ -113,7 +130,7 @@
    const before=renderSummary;const patched=function(){const r=before.apply(this,arguments);refresh();return r;};
    patched.__liveProjectWrapped=true;renderSummary=patched;
   }
-  root.BAT_KUBIQUEITOR_LIVE_PROJECT={version:1,add,start,refresh,summarize,catalogActions};
+  root.BAT_KUBIQUEITOR_LIVE_PROJECT={version:2,add,start,refresh,summarize,catalogActions};
   refresh();return true;
  }
  if(typeof module==='object'&&module.exports)module.exports={summarize,catalogActions};
