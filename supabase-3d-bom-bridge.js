@@ -116,12 +116,17 @@
   }
   function mount(){
     if(panel&&doc.contains(panel))return;
-    var step=doc.querySelector('.wizard-step[data-step="3"]');if(!step)return;
+    // La sección Extras era el paso 3 y ahora suele ser el 5; seguir el nodo real.
+    var extrasRoot=doc.getElementById('extras-list');
+    var step=extrasRoot?.closest('.wizard-step')||doc.querySelector('.wizard-step[data-step="3"]');
+    if(!step)return;
     panel=doc.createElement('section');panel.id='bat-supabase-bom';
     panel.setAttribute('aria-label','Cubicación del modelo 3D');
     panel.style.cssText='margin-top:16px;border:1px solid #cbd5e1;border-radius:15px;padding:14px;background:#f8fafc;color:#0f172a';
     panel.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><b style="font-size:14px">Cubicación desde Supabase</b><button type="button" id="bat-bom-reload" style="font-size:11px;color:#92400e;text-decoration:underline">Actualizar</button></div><div id="bat-bom-status" role="status" aria-live="polite" style="font-size:11px;color:#64748b;margin-top:8px">Conectando con el catálogo…</div><div id="bat-bom-content"></div>';
-    var nav=step.querySelector('div.flex.gap-2.mt-5');if(nav)step.insertBefore(panel,nav);else step.appendChild(panel);
+    // Sólo se puede insertar antes de un hijo DIRECTO; querySelector también encuentra nodos anidados.
+    var nav=Array.from(step.children).find(function(child){return child.matches?.('div.flex.gap-2.mt-5');});
+    if(nav)step.insertBefore(panel,nav);else step.appendChild(panel);
     panel.querySelector('#bat-bom-reload').addEventListener('click',load);
   }
   function maskUnverifiedPrices(){

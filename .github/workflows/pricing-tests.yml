@@ -34,3 +34,25 @@ jobs:
           node-version: '22'
       - name: Ejecutar pruebas financieras
         run: node --test tests/*.test.cjs
+
+  browser-window-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar Chromium y dependencias de pruebas
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1 three@0.128.0
+          npx playwright install --with-deps chromium
+      - name: Probar selector de cara y objeto 3D en Chromium
+        run: node --test tests/browser-window-face.spec.cjs
+      - name: Adjuntar captura de diagnóstico si falla
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cubikeitor-window-browser-diagnostic
+          path: /tmp/cubikeitor-window-smoke.png
+          if-no-files-found: ignore
