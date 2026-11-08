@@ -127,6 +127,15 @@
   function maskUnverifiedPrices(){
     var ids=['customer-total','admin-materials','admin-labor','admin-direct','admin-total'];
     ids.forEach(function(id){var el=doc.getElementById(id);if(el){el.textContent='Sin costo validado';el.classList.remove('price-pop');}});
+    // El panel Empresa heredado muestra valores unitarios de demostración en una tabla.
+    // Conservar nombres y cantidades, pero ocultar todas las columnas de importes.
+    var table=doc.getElementById('bom-table');
+    if(table&&table.querySelectorAll){
+      table.querySelectorAll('tr').forEach(function(row){
+        var cells=row.querySelectorAll('td');
+        if(cells.length>=5){cells[3].textContent='No validado';cells[4].textContent='No validado';}
+      });
+    }
   }
   function render(){
     mount();maskUnverifiedPrices();
