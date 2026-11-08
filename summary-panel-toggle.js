@@ -59,6 +59,10 @@
   }
 
   function loadSafeElectricalStage(){loadScriptOnce('electrical-ui-stage1.js?v=20261025-safe01','electrical-ui-stage1');}
+  function loadElectricalCircuits(){
+    loadScriptOnce('electrical-circuit-core-v1.js?v=20261107-circuits01','electrical-circuit-core-v1');
+    loadScriptOnce('electrical-circuit-ui-v1.js?v=20261107-circuits01','electrical-circuit-ui-v1');
+  }
   function loadSupabaseCloud(){loadScriptOnce('supabase-cloud.js?v=20261025-cloud02','supabase-cloud');}
   function loadProjectMetrics(){loadScriptOnce('project-metrics-v1.js?v=20261025-metrics04','project-metrics-v1');}
   function loadModelCostBridge(){loadScriptOnce('model-cost-bridge-v1.js?v=20261107-costfix02','model-cost-bridge-v1');}
@@ -95,6 +99,6 @@
     loadScriptOnce('ai-assistant-ui-v1.js?v=20261107-ai01','ai-assistant-ui-v1');
   }
 
-  const runLoads=()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuCatalog,2150);setTimeout(loadPricingIntegrity,2950);setTimeout(loadExcelApuMethod,3200);setTimeout(loadExcelApuAccounting,3500);setTimeout(loadApu3dMapping,3900);setTimeout(loadApuSurfaceMapping,4300);setTimeout(loadApuExcelEditor,4700);setTimeout(loadApuSpreadsheet,4950);setTimeout(loadProjectMaterialsList,5100);setTimeout(loadProjectMaterialPlan,5500);setTimeout(loadFilteredMaterialPlan,5900);setTimeout(loadProductionHardening,6500);setTimeout(loadProjectQA,7100);setTimeout(loadInteriorProduction,7600);setTimeout(loadConstructionRules,8000);setTimeout(loadCommercialAudit,8600);setTimeout(loadLiveProject,9100);setTimeout(loadAiAssistant,10000);};
+  const runLoads=()=>{setTimeout(install,30);setTimeout(loadWallModuleEngine,40);setTimeout(loadSafeElectricalStage,900);setTimeout(loadElectricalCircuits,1550);setTimeout(loadSupabaseCloud,1300);setTimeout(loadProjectMetrics,1600);setTimeout(loadModelCostBridge,2000);setTimeout(loadExcelApuCatalog,2150);setTimeout(loadPricingIntegrity,2950);setTimeout(loadExcelApuMethod,3200);setTimeout(loadExcelApuAccounting,3500);setTimeout(loadApu3dMapping,3900);setTimeout(loadApuSurfaceMapping,4300);setTimeout(loadApuExcelEditor,4700);setTimeout(loadApuSpreadsheet,4950);setTimeout(loadProjectMaterialsList,5100);setTimeout(loadProjectMaterialPlan,5500);setTimeout(loadFilteredMaterialPlan,5900);setTimeout(loadProductionHardening,6500);setTimeout(loadProjectQA,7100);setTimeout(loadInteriorProduction,7600);setTimeout(loadConstructionRules,8000);setTimeout(loadCommercialAudit,8600);setTimeout(loadLiveProject,9100);setTimeout(loadAiAssistant,10000);};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',runLoads,{once:true});else runLoads();
 })();
