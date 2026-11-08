@@ -80,5 +80,10 @@ test('guard: preview loads bridge after authorization; public landing stays susp
   const idxAuth=preview.indexOf('window.BAT_CUBIKEITOR_PREVIEW_CLIENT=client;');
   const idxLoad=preview.indexOf('for(const script of SCRIPTS)await loadScript(script)');
   assert.ok(idxAuth>=0&&idxLoad>idxAuth);
+  const source=fs.readFileSync(path.join(__dirname,'..','supabase-3d-bom-bridge.js'),'utf8');
+  assert.match(source,/getElementById\('bom-table'\)/);
+  assert.match(source,/cells\[3\]\.textContent='No validado'/);
+  assert.match(source,/openQuote=function\(\)/);
+  assert.match(source,/Sin precios confirmados/);
   assert.match(landing,/temporalmente no disponible|Acceso suspendido/i);
 });
