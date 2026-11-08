@@ -96,7 +96,7 @@
   function loadInteriorProduction(){loadScriptOnce('interior-production-v1.js?v=20261107-rules-contingency02','interior-production-v1');}
   function loadCommercialAudit(){loadScriptOnce('commercial-audit-v1.js?v=20261107-rules-contingency02','commercial-audit-v1');}
   function loadConstructionRules(){loadScriptOnce('construction-apu-rules-v1.js?v=20261107-rules-contingency02','construction-apu-rules-v1');}
-  function loadLiveProject(){loadScriptOnce('live-project-client-v1.js?v=20261107-wood01','live-project-client-v1');}
+  function loadLiveProject(){loadScriptOnce('live-project-client-v1.js?v=20261108-browser02','live-project-client-v1');}
   function loadAiAssistant(){
     loadScriptOnce('ai-command-core-v1.js?v=20261107-ai01','ai-command-core-v1');
     loadScriptOnce('ai-command-executor-v1.js?v=20261107-ai01','ai-command-executor-v1');
