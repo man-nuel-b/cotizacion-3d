@@ -58,7 +58,7 @@
     loadScriptOnce('partition-obstacle-collision.js?v=20261024-collision01','partition-obstacle-collision');
   }
 
-  function loadSafeElectricalStage(){loadScriptOnce('electrical-ui-stage1.js?v=20261107-circuits02','electrical-ui-stage1');}
+  function loadSafeElectricalStage(){loadScriptOnce('electrical-ui-stage1.js?v=20261108-extrascore01','electrical-ui-stage1');}
   function loadElectricalRouting(){
     loadScriptOnce('electrical-routing-engine-v2.js?v=20261107-routes01','electrical-routing-engine-v2');
     loadScriptOnce('electrical-routing-ui-v2.js?v=20261107-routes01','electrical-routing-ui-v2');
@@ -96,7 +96,7 @@
   function loadInteriorProduction(){loadScriptOnce('interior-production-v1.js?v=20261107-rules-contingency02','interior-production-v1');}
   function loadCommercialAudit(){loadScriptOnce('commercial-audit-v1.js?v=20261107-rules-contingency02','commercial-audit-v1');}
   function loadConstructionRules(){loadScriptOnce('construction-apu-rules-v1.js?v=20261107-rules-contingency02','construction-apu-rules-v1');}
-  function loadLiveProject(){loadScriptOnce('live-project-client-v1.js?v=20261108-openings02','live-project-client-v1');}
+  function loadLiveProject(){loadScriptOnce('live-project-client-v1.js?v=20261108-extrascore01','live-project-client-v1');}
   function loadAiAssistant(){
     loadScriptOnce('ai-command-core-v1.js?v=20261107-ai01','ai-command-core-v1');
     loadScriptOnce('ai-command-executor-v1.js?v=20261107-ai01','ai-command-executor-v1');
