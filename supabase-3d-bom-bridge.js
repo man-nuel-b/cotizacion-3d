@@ -32,9 +32,15 @@
     }
     add('MOD-VENTANA',count('window'),'Ventanas');
     add('MOD-PUERTA-EXT',count('door'),'Puertas exteriores');
-    add('MOD-WC',count('wc'),'Inodoros');
-    add('MOD-LAV',count('sink'),'Lavamanos');
-    add('MOD-DUCHA',count('shower'),'Duchas');
+    var sharedCore=root&&root.BAT_CUBIKEITOR_EXTRAS_STATE_CORE;
+    if(!sharedCore&&typeof module==='object'&&typeof require==='function'){
+      try{sharedCore=require('./extras-state-core.js');}catch(_){}
+    }
+    var bathroom=sharedCore&&typeof sharedCore.bathroomFixtures==='function'
+      ?sharedCore.bathroomFixtures(state):{wc:0,sink:0,shower:0};
+    add('MOD-WC',count('wc')+bathroom.wc,'Inodoros');
+    add('MOD-LAV',count('sink')+bathroom.sink,'Lavamanos');
+    add('MOD-DUCHA',count('shower')+bathroom.shower,'Duchas');
     var electrical=Array.isArray(state.electrical&&state.electrical.points)?state.electrical.points:null;
     if(electrical&&electrical.length===count('electrical')){
       var outlets=0,lights=0,unmapped=0;
@@ -56,7 +62,8 @@
       var grossWall=2*(length+width)*height;
       var openArea=openings('window',1.2,1.0)+openings('door',.9,2.1);
       var outsideWall=Math.max(0,grossWall-openArea);
-      var partitionArea=count('partition')*width*height;
+      var partitionArea=sharedCore&&typeof sharedCore.partitionArea==='function'
+        ?sharedCore.partitionArea(state,c,dimensionProvider):count('partition')*width*height;
       add('MOD-TABIQUE',partitionArea,'Tabiques interiores (m² cara única)');
       add('MOD-AIS-MURO',outsideWall,'Aislación de muros exteriores (m²)');
       if((state.interiorSystem&&state.interiorSystem.lining||finish.lining)==='gypsum'){
@@ -69,6 +76,8 @@
       else warnings.push('El piso seleccionado no cuenta con una receta técnica equivalente en el catálogo.');
       warnings.push('Muros, tabiques y piso usan geometría nominal; verificar altura libre, refuerzos, vanos, terminaciones y redes reales.');
     }else warnings.push('Contenedor sin geometría válida: no se calcularon superficies.');
+    if(Array.isArray(state.bathroomModules)&&state.bathroomModules.length)
+      warnings.push('Baños prearmados: se consideran los artefactos contenidos, pero faltan las partidas verificadas de muros, revestimiento, conexiones y montaje del recinto.');
     if(count('ac'))warnings.push(count('ac')+' equipos de aire acondicionado fuera del catálogo APU verificado.');
     if(count('opening')||count('openingFrame'))warnings.push('Vanos especiales requieren partidas de corte y refuerzo propias.');
     warnings.push('No se incluyen costo del contenedor base, transporte, montaje general, indirectos, utilidad ni IVA.');

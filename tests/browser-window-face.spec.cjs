@@ -177,6 +177,8 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
       page.on('dialog',async dialog=>{dialogs.push(dialog.message());await dialog.accept();});
       await openingButton.click({timeout:10000});
       const openingChoice=page.locator('#bat-direct-face-choices');
+      await page.waitForFunction(()=>{const p=document.getElementById('bat-direct-face-choices');
+        return p&&!p.hidden;},null,{timeout:18000});
       assert.ok(await openingChoice.isVisible(),'openingFrame should open A-D face choices; dialogs='+JSON.stringify(dialogs));
       assert.equal(dialogs.length,0,'No asynchronous initialization alert should appear');
       const initialOpenings=await page.evaluate(()=>state.counts.openingFrame||0);
@@ -193,6 +195,163 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
       assert.equal(openingPlaced.lastFace,'C','opening must be inserted on chosen face C');
       assert.ok(openingPlaced.rendered>=openingPlaced.count,'opening needs actual editable 3D geometry');
       assert.equal(openingPlaced.panelHidden,true,'selector should close after opening insertion');
+
+      // Auditoría exhaustiva del panel Extras; sesión y datos de proveedor simulados.
+      const extrasAudit=[];
+      for(const item of [
+        {key:'door',face:'B'}, {key:'partition'}, {key:'wc'},
+        {key:'sink'}, {key:'shower'}, {key:'electrical',face:'D'}, {key:'woodLining'}
+      ]){
+        const btn=page.locator('button[data-live-add="'+item.key+'"]');
+        const result={key:item.key};
+        try{
+          result.button=await btn.count();
+          if(result.button===0)throw new Error('No hay botón en panel de Extras');
+          const before=await page.evaluate(key=>({
+            count:state.counts[key]||0,
+            wood:state.interiorSystem?.lining,
+            elec:state.electrical?.points?.length,
+            objects:editableObjects.filter(x=>x.userData?.editor?.type===key).length
+          }),item.key);
+          await btn.click({timeout:6000});
+          const panel=page.locator('#bat-direct-face-choices');
+          result.faceMenu=await panel.isVisible();
+          if(item.face){
+            if(!result.faceMenu)throw new Error('No aparece selector A-D');
+            await panel.locator('button[data-face-choice="'+item.face+'"]').click({timeout:5000});
+          }
+          await page.waitForTimeout(200);
+          const after=await page.evaluate(key=>({
+            count:state.counts[key]||0,
+            wood:state.interiorSystem?.lining,
+            elec:state.electrical?.points?.length,
+            objects:editableObjects.filter(x=>x.userData?.editor?.type===key).length,
+            bomCodes:window.BAT_CUBIKEITOR_3D_SUPABASE.snapshot().items.map(x=>x.code),
+            warnings:window.BAT_CUBIKEITOR_3D_SUPABASE.snapshot().warnings
+          }),item.key);
+          result.before=before;result.after=after;
+          if(item.key==='woodLining'){
+            result.ok=before.wood!==after.wood;
+          }else{
+            result.ok=after.count===before.count+1&&after.objects>=after.count;
+          }
+          if(item.key==='electrical')result.syncElectrical=after.elec===after.count;
+          if(!result.ok)result.problem='Cantidad/objeto 3D no coinciden tras agregar';
+        }catch(error){result.ok=false;result.problem=String(error).slice(0,400)}
+        extrasAudit.push(result);
+      }
+      // Auditoría de funcionalidades que existen sólo en la lista heredada.
+      const hiddenExtras=await page.evaluate(()=>({
+        all:Object.keys(DATA.extras),
+        quick:Array.from(document.querySelectorAll('button[data-live-add]')).map(x=>x.dataset.liveAdd),
+        detail:Boolean(document.getElementById('bat-live-old-extras')),
+        count:state.counts
+      }));
+      console.log('ALL_EXTRAS_AUDIT',JSON.stringify(extrasAudit));
+      console.log('ALL_EXTRAS_COVERAGE',JSON.stringify(hiddenExtras));
+      assert.deepEqual(hiddenExtras.all.filter(k=>!hiddenExtras.quick.includes(k)),[],
+        'Todos los Extras del catálogo deben estar disponibles en el panel rápido');
+      const legacyAudit=[];
+      const legacyToggle=page.locator('#bat-live-old-extras summary');
+      if(await legacyToggle.count() && !(await page.locator('#bat-live-old-extras').evaluate(el=>el.open))){
+        await legacyToggle.click();
+      }
+      for(const item of [
+        {key:'ac',face:'D'},{key:'opening',face:'D'},
+        {key:'windowOpening',face:'A'},{key:'windowOpeningFrame',face:'B'}
+      ]){
+        const row={key:item.key};
+        try{
+          const btn=page.locator('#extras-list button[onclick="adjustCount(\''+item.key+'\', 1)"]');
+          row.button=await btn.count();
+          if(!row.button)throw new Error('Legacy extra unavailable');
+          const before=await page.evaluate(key=>state.counts[key]||0,item.key);
+          await btn.click({timeout:6000});
+          const choices=page.locator('#bat-direct-face-choices');
+          row.choices=await choices.isVisible();
+          if(row.choices)await choices.locator('button[data-face-choice="'+item.face+'"]').click({timeout:6000});
+          await page.waitForTimeout(250);
+          row.result=await page.evaluate(key=>({
+            count:state.counts[key]||0,
+            objects:editableObjects.filter(x=>x.userData?.editor?.type===key).length
+          }),item.key);
+          row.ok=row.result.count===before+1&&row.result.objects>=row.result.count;
+          if(!row.ok)row.problem='Extra count or 3D geometry mismatch';
+        }catch(error){row.ok=false;row.problem=String(error).slice(0,500)}
+        legacyAudit.push(row);
+      }
+      console.log('LEGACY_EXTRAS_AUDIT',JSON.stringify(legacyAudit));
+      const electricalDeletion=await page.evaluate(()=>{
+        const ui=window.BAT_KUBIQUEITOR_ELECTRICAL_UI_STAGE1;
+        if(!ui)return {issue:'Electrical UI not initialized'};
+        ui.add('light');
+        ui.add('switch');
+        const before=state.electrical?.points?.map(x=>x.type);
+        const beforeCount=state.counts.electrical;
+        selectedEditable={type:'electrical',index:0};
+        deleteSelectedObject();
+        const immediate=state.electrical?.points?.map(x=>x.type);
+        return {before,beforeCount,afterCount:state.counts.electrical,immediate,expected:before.slice(1)};
+      });
+      await page.waitForTimeout(400);
+      electricalDeletion.after=await page.evaluate(()=>({
+        count:state.counts.electrical,
+        types:state.electrical?.points?.map(x=>x.type),
+        objects:editableObjects.filter(x=>x.userData?.editor?.type==='electrical').length
+      }));
+      electricalDeletion.correct=JSON.stringify(electricalDeletion.after.types)===JSON.stringify(electricalDeletion.expected);
+      console.log('ELECTRICAL_DELETE_AUDIT',JSON.stringify(electricalDeletion));
+      assert.equal(electricalDeletion.correct,true,
+        'Eliminar un punto eléctrico debe preservar la identidad y tipo de los restantes');
+      const afterDelete=electricalDeletion.after.types.slice();
+      const afterUndo=await page.evaluate(()=>{undo();return state.electrical?.points?.map(p=>p.type)});
+      assert.deepEqual(afterUndo,electricalDeletion.before,'Deshacer debe recuperar los puntos eléctricos originales');
+      const afterRedo=await page.evaluate(()=>{redo();return state.electrical?.points?.map(p=>p.type)});
+      assert.deepEqual(afterRedo,afterDelete,'Rehacer debe restaurar exactamente el borrado anterior');
+      const pricePanel=await page.evaluate(()=>({
+        text:document.getElementById('bat-live-price')?.textContent?.slice(0,750),
+        source:'live-project-client-v1.js legacy calculate()'
+      }));
+      console.log('EXTRAS_PRICE_PANEL_AUDIT',JSON.stringify(pricePanel));
+      assert.ok(!/Último cambio:\\s*[+−-]?\\s*\\$/.test(pricePanel.text||''),
+        'No se deben presentar incrementos de precios de prueba como importes comerciales');
+      const editAudit=await page.evaluate(()=>{
+        const types=['window','door','openingFrame','windowOpening','windowOpeningFrame',
+          'partition','wc','sink','shower','ac','electrical'];
+        return types.map(type=>{
+          try{
+            const obj=editableObjects.find(x=>x.userData?.editor?.type===type);
+            if(!obj)return {type,error:'Sin objeto editable registrado'};
+            selectEditable(obj);
+            const editor=document.getElementById('object-editor');
+            const dims=document.getElementById('dimension-editor');
+            return {type,index:obj.userData.editor.index,
+              selected:selectedEditable?.type,
+              editorVisible:!!editor&&!editor.classList.contains('hidden'),
+              dimensionVisible:!!dims&&!dims.classList.contains('hidden'),
+              dimensionInputs:dims?.querySelectorAll('input').length||0,
+              selectedFace:actualLayout(type,obj.userData.editor.index)?.face||null};
+          }catch(error){return {type,error:String(error)}}
+        });
+      });
+      console.log('EXTRAS_EDIT_AUDIT',JSON.stringify(editAudit));
+      const editableTypes=['window','door','openingFrame','windowOpening','windowOpeningFrame','partition','sink','shower','ac'];
+      assert.deepEqual(editAudit.filter(x=>editableTypes.includes(x.type)
+        &&(x.error||!x.editorVisible||!x.dimensionVisible)).map(x=>x.type),[],
+        'Los componentes paramétricos deben abrir un editor con dimensiones');
+      const collisionAudit=await page.evaluate(()=>{
+        const windowPos=actualLayout('window',0),dims=objectDimensions('window',0);
+        return {windowPos,width:dims.width,
+          openingFrameCanOverlap:validCandidate('openingFrame',state.counts.openingFrame||0,{face:windowPos.face,x:windowPos.x}),
+          windowCanOverlap:validCandidate('window',state.counts.window||0,{face:windowPos.face,x:windowPos.x})};
+      });
+      console.log('EXTRAS_COLLISION_AUDIT',JSON.stringify(collisionAudit));
+      assert.equal(collisionAudit.windowCanOverlap,false,'Ventanas no deben solaparse');
+      assert.equal(collisionAudit.openingFrameCanOverlap,false,'Vano y ventana no deben solaparse');
+      
+      const failed=extrasAudit.filter(x=>!x.ok);
+      assert.deepEqual(failed.map(x=>({key:x.key,problem:x.problem})),[],
+        'Los extras deben actualizar contador, geometría y flujo previsto');
       console.log('BROWSER_SMOKE_SUCCESS',JSON.stringify({initial,after,nonFatalBrowserErrors:browserErrors.slice(0,10)}));
     }catch(e){
       try{await page.screenshot({path:'/tmp/cubikeitor-window-smoke.png',fullPage:true});}catch{}

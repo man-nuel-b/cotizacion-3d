@@ -45,9 +45,15 @@
 
   function reconcileWithLegacyCount(){
     const e=ensureElectricalState();
+    const core=window.BAT_CUBIKEITOR_EXTRAS_STATE_CORE;
+    if(core){
+      const check=core.reconcileElectrical(state);
+      if(!check.ok)console.warn('Cubikeitor: inconsistencia de puntos eléctricos',check.reason);
+      return e;
+    }
+    // Compatibilidad de solo lectura: no truncar puntos tipificados sin el motor central.
     const desired=totalLegacy();
-    while(e.points.length<desired) e.points.push(defaultPoint('outlet'));
-    if(e.points.length>desired) e.points=e.points.slice(0,desired);
+    while(e.points.length<desired)e.points.push(defaultPoint('outlet'));
     return e;
   }
 
@@ -68,10 +74,16 @@
 
   function commitChange(fn){
     if(typeof pushHistory==='function') pushHistory();
-    fn();
+    const result=fn();
+    if(result&&result.ok===false){
+      if(typeof toast==='function')toast(result.reason||'No se pudo actualizar el componente.');
+      queueRefresh();
+      return false;
+    }
     syncLegacyTotal();
     if(typeof renderAll==='function') renderAll();
     queueRefresh();
+    return true;
   }
 
   function add(type){
@@ -82,8 +94,10 @@
       if(typeof toast==='function') toast('Máximo '+max+' puntos eléctricos');
       return;
     }
-    commitChange(()=>ensureElectricalState().points.push(defaultPoint(type)));
-    if(typeof toast==='function') toast(TYPES[type].name+' agregado');
+    const core=window.BAT_CUBIKEITOR_EXTRAS_STATE_CORE;
+    if(!core)return typeof toast==='function'&&toast('El editor de Extras todavía no está disponible.');
+    if(commitChange(()=>core.addElectricalPoint(state,defaultPoint(type),max)))
+      if(typeof toast==='function') toast(TYPES[type].name+' agregado');
   }
 
   function remove(type){
@@ -94,8 +108,10 @@
       if(e.points[i].type===type){idx=i;break;}
     }
     if(idx<0) return;
-    commitChange(()=>ensureElectricalState().points.splice(idx,1));
-    if(typeof toast==='function') toast(TYPES[type].name+' eliminado');
+    const core=window.BAT_CUBIKEITOR_EXTRAS_STATE_CORE;
+    if(!core)return typeof toast==='function'&&toast('El editor de Extras todavía no está disponible.');
+    if(commitChange(()=>core.removeAt(state,'electrical',idx)))
+      if(typeof toast==='function') toast(TYPES[type].name+' eliminado');
   }
 
   function addStyles(){

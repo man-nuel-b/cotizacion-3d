@@ -325,13 +325,13 @@ hideEditorPanel=(function(original){
 deleteSelectedObject=function(){
   if(!selectedEditable) return;
   const {type,index}=selectedEditable;
-  if(!(state.counts[type]>0)) return;
+  const core=window.BAT_CUBIKEITOR_EXTRAS_STATE_CORE;
+  if(!core) return toast('No está disponible el editor de Extras. Recarga la página.');
+  if(!Number.isInteger(index)||index<0||index>=(state.counts[type]||0))
+    return toast('No se encontró el componente seleccionado.');
   pushHistory();
-  state.counts[type]--;
-  ensureLayoutState();
-  state.layout[type]?.splice(index,1);
-  ensureDimensionState();
-  state.dimensions[type]?.splice(index,1);
+  const result=core.removeAt(state,type,index);
+  if(!result.ok)return toast(result.reason||'No se pudo eliminar el componente.');
   selectedEditable=null;
   hideEditorPanel();
   renderAll();

@@ -45,20 +45,37 @@
     return true;
   }
 
-  function loadScriptOnce(src,datasetKey){
-    if(document.querySelector(`script[data-${datasetKey}]`)) return;
-    const script=document.createElement('script');script.src=src;script.setAttribute(`data-${datasetKey}`,'true');document.body.appendChild(script);
+  function loadScriptOnce(src,datasetKey,onReady){
+    const existing=document.querySelector(`script[data-${datasetKey}]`);
+    if(existing){
+      if(existing.dataset.loaded==='true'||existing.readyState==='complete'
+        ||(datasetKey==='wall-module-engine'&&typeof window.registerWallModule==='function')){
+        onReady?.();
+      }else if(typeof onReady==='function'){
+        existing.addEventListener('load',onReady,{once:true});
+      }
+      return;
+    }
+    const script=document.createElement('script');
+    script.src=src;script.setAttribute(`data-${datasetKey}`,'true');
+    script.addEventListener('load',()=>{
+      script.dataset.loaded='true';onReady?.();
+    },{once:true});
+    script.addEventListener('error',()=>console.error('Cubikeitor: fallo al cargar '+src),{once:true});
+    document.body.appendChild(script);
   }
 
   function loadWallModuleEngine(){
-    if(!window.BAT_KUBIQUEITOR_WALL_MODULE_ENGINE) loadScriptOnce('wall-module-engine.js?v=20261024-refactor03','wall-module-engine');
-    loadScriptOnce('wall-variant-registry.js?v=20261024-refactor05','wall-variant-registry');
+    // La variante requiere registerWallModule; cargar el registro sólo cuando existe.
+    const loadVariants=()=>loadScriptOnce('wall-variant-registry.js?v=20261108-extrascore02','wall-variant-registry');
+    if(typeof window.registerWallModule==='function')loadVariants();
+    else loadScriptOnce('wall-module-engine.js?v=20261024-refactor03','wall-module-engine',loadVariants);
     loadScriptOnce('direct-editor-controller.js?v=20261028-face-ui-1','direct-editor-controller');
     loadScriptOnce('spatial-occupancy.js?v=20261024-collision01','spatial-occupancy');
     loadScriptOnce('partition-obstacle-collision.js?v=20261024-collision01','partition-obstacle-collision');
   }
 
-  function loadSafeElectricalStage(){loadScriptOnce('electrical-ui-stage1.js?v=20261107-circuits02','electrical-ui-stage1');}
+  function loadSafeElectricalStage(){loadScriptOnce('electrical-ui-stage1.js?v=20261108-extrascore01','electrical-ui-stage1');}
   function loadElectricalRouting(){
     loadScriptOnce('electrical-routing-engine-v2.js?v=20261107-routes01','electrical-routing-engine-v2');
     loadScriptOnce('electrical-routing-ui-v2.js?v=20261107-routes01','electrical-routing-ui-v2');
@@ -96,7 +113,7 @@
   function loadInteriorProduction(){loadScriptOnce('interior-production-v1.js?v=20261107-rules-contingency02','interior-production-v1');}
   function loadCommercialAudit(){loadScriptOnce('commercial-audit-v1.js?v=20261107-rules-contingency02','commercial-audit-v1');}
   function loadConstructionRules(){loadScriptOnce('construction-apu-rules-v1.js?v=20261107-rules-contingency02','construction-apu-rules-v1');}
-  function loadLiveProject(){loadScriptOnce('live-project-client-v1.js?v=20261108-openings02','live-project-client-v1');}
+  function loadLiveProject(){loadScriptOnce('live-project-client-v1.js?v=20261108-extrascore02','live-project-client-v1');}
   function loadAiAssistant(){
     loadScriptOnce('ai-command-core-v1.js?v=20261107-ai01','ai-command-core-v1');
     loadScriptOnce('ai-command-executor-v1.js?v=20261107-ai01','ai-command-executor-v1');

@@ -7,6 +7,10 @@
   {key:'window',label:'Ventana',icon:'fa-window-maximize',help:'Elige la cara del contenedor'},
   {key:'door',label:'Puerta',icon:'fa-door-open',help:'Nuevo acceso peatonal'},
   {key:'openingFrame',label:'Vano con marco',icon:'fa-vector-square',help:'Abertura sin puerta ni vidrio'},
+  {key:'opening',label:'Vano simple',icon:'fa-square-dashed',help:'Abertura sin marco'},
+  {key:'windowOpening',label:'Vano de ventana',icon:'fa-border-all',help:'Vano sin carpintería'},
+  {key:'windowOpeningFrame',label:'Vano de ventana con marco',icon:'fa-border-none',help:'Refuerzo de vano'},
+  {key:'ac',label:'Aire acondicionado',icon:'fa-snowflake',help:'Elige la cara de instalación'},
   {key:'partition',label:'Tabique',icon:'fa-grip-lines-vertical',help:'División interior'},
   {key:'wc',label:'WC',icon:'fa-toilet',help:'Agregar sanitario'},
   {key:'sink',label:'Lavamanos',icon:'fa-sink',help:'Agregar artefacto'},
@@ -16,7 +20,7 @@
  const n=v=>{const x=Number(v);return Number.isFinite(x)?x:0;};
  const money=v=>new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(n(v));
  const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','"':'&#39;'}[c]));
- let lastTotal=null,lastChange=null;
+ let lastTotal=null,lastChange=null,openingRequestToken=0;
  const CSS='.bat-live-controls{padding:13px;background:#fffbeb;border:1px solid #fcd34d;border-radius:14px;margin:12px 0}.bat-live-tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}.bat-live-tool{background:#fff;border:1px solid #e2e8f0;border-radius:11px;padding:10px;text-align:left;cursor:pointer;min-height:66px;display:flex;align-items:flex-start;gap:8px;color:#0f172a}.bat-live-tool:hover,.bat-live-tool:focus-visible{border-color:#f59e0b;background:#fff9ed}.bat-live-tool:disabled{opacity:.5;cursor:not-allowed}.bat-live-tool i{color:#b45309;font-size:15px;margin-top:2px}.bat-live-tool b{font-size:12px;display:block}.bat-live-tool small{font-size:10px;color:#64748b;display:block;margin-top:2px}.bat-live-help{font-size:11px;color:#64748b;line-height:1.55}.bat-live-price{border:1px solid #e2e8f0;border-radius:12px;padding:12px;margin-top:12px;background:#fff}.bat-live-price strong{font-size:21px;font-weight:900;color:#0f172a}.bat-live-delta{display:inline-block;margin-top:5px;border-radius:999px;background:#fef3c7;padding:3px 8px;font-size:11px;color:#92400e;font-weight:750}.bat-live-qa{margin-top:9px;font-size:11px;border:1px solid #fcd34d;background:#fffbeb;color:#92400e;border-radius:9px;padding:9px}.bat-live-qa button{display:block;text-decoration:underline;font-weight:850;margin-top:6px}.bat-live-go{background:#f59e0b;color:#0f172a;border:0;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:900;white-space:nowrap}.presentation-mode .bat-live-go{display:none!important}@media(max-width:700px){.bat-live-tool{padding:8px;min-height:62px}.bat-live-go{padding:7px;font-size:11px}}';
  function catalogActions(project,data){
   return ACTIONS.map(a=>({...a,
@@ -44,12 +48,14 @@
   lastTotal=data.total;
   const woodSelected=typeof state!=='undefined'&&state?.interiorSystem?.lining==='plywood';
   const issueCount=(report?data.errors:data.problems)+(woodSelected?1:0);
-  const difference=lastChange===null?'':'<div class="bat-live-delta">Último cambio: '+(lastChange>=0?'+':'−')+money(Math.abs(lastChange))+'</div>';
+  // El motor Excel local contiene importes de demostración. No mostrar variaciones monetarias
+  // hasta que los APU de Supabase estén completos, vigentes y técnicamente validados.
+  const difference=lastChange===null?'':'<div class="bat-live-delta">Diseño actualizado · sin precio verificado</div>';
   card.innerHTML='<div class="bat-live-help"><b>Presupuesto conectado al diseño 3D</b></div>'+ 
    difference+'<p class="bat-live-help" style="margin-top:7px">'+data.lines+' partidas de costo, '+data.excelLines+' APU del Excel. No es una cotización definitiva.</p>'+
    (issueCount?
     '<div class="bat-live-qa"><b>Revisión pendiente: '+issueCount+' incidencia(s)</b><div>'+(woodSelected?'Revestimiento de madera: verificar material, fijaciones y APU completo de instalación; el acabado visual no equivale a un precio validado. ':'')+'Hay costos, especificaciones o partidas por validar.</div><button type="button" data-live-audit>Revisar antes de entregar</button></div>':
-    '<div class="bat-live-qa" style="background:#f0fdf4;color:#166534;border-color:#bbf7d0">Sin errores automáticos detectados. Validar el alcance técnico antes de ofertar.</div>');
+    '<div class="bat-live-qa">Sin incidencias adicionales en este cálculo preliminar. APU y precios reales pendientes de aprobación; no emitir cotización.</div>');
   const e=document.getElementById('bat-live-controls');
   if(e&&typeof DATA!=='undefined'){
    const entries=catalogActions(state,DATA);
@@ -79,19 +85,36 @@
   const action=ACTIONS.find(a=>a.key===key),config=DATA.extras?.[key];if(!action||!config){root.alert('El editor de este elemento todavía no está disponible.');return;}
   if(n(state.counts?.[key])>=n(config.max)){root.alert('Alcanzaste la cantidad máxima permitida.');return;}
   if(key==='openingFrame'){
-   // El motor vigente es WallModule + variantes (no el shell heredado).
-   // BAT_KUBIQUEITOR_OPENING_SHELL no se carga en esta ruta y bloquearía
-   // la instalación incluso cuando el vano ya está listo para renderizarse.
-   const registered=Boolean(root.BAT_KUBIQUEITOR_OPENING_VARIANTS?.version>=2
+   const request=++openingRequestToken;
+   const button=document.querySelector('button[data-live-add="openingFrame"]');
+   const status=button?.querySelector('[data-live-count]');
+   if(status)status.textContent='Preparando editor 3D…';
+   const ready=()=>Boolean(root.BAT_KUBIQUEITOR_OPENING_VARIANTS?.version>=2
      &&root.BAT_KUBIQUEITOR_WALL_MODULE_ENGINE?.version>=1
      &&root.wallModuleDefinition?.('openingFrame')
      &&DATA.extras?.openingFrame
-     &&MOUNTED_FACE_TYPES?.openingFrame);
-   if(!registered||typeof openMountedFacePicker!=='function'){
-    root.alert('El componente de vano todavía no está disponible. Revisa la carga del catálogo técnico.');return;
-   }
-   openMountedFacePicker('openingFrame');return;
+     &&typeof MOUNTED_FACE_TYPES!=='undefined'&&MOUNTED_FACE_TYPES.openingFrame
+     &&typeof openMountedFacePicker==='function');
+   const check=(attempt=0)=>{
+     // A different choice cancels an older request without opening a surprise dialog.
+     if(request!==openingRequestToken)return;
+     if(ready()){
+       if(n(state.counts?.openingFrame)<n(DATA.extras.openingFrame.max))
+         openMountedFacePicker('openingFrame');
+       else if(typeof toast==='function')toast('Se alcanzó el máximo de vanos.');
+       refresh();return;
+     }
+     if(attempt>=100){
+       if(typeof toast==='function')
+         toast('El editor de vanos no pudo inicializarse. Comprueba la conexión y recarga el proyecto.');
+       refresh();return;
+     }
+     root.setTimeout(()=>check(attempt+1),150);
+   };
+   check();return;
   }
+  // Elegir otro extra cancela cualquier apertura de vano todavía pendiente.
+  openingRequestToken++;
   if(typeof adjustCount!=='function'){root.alert('El editor 3D todavía no está listo.');return;}
   adjustCount(key,1);
  }

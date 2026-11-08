@@ -216,7 +216,11 @@ function addMountedToFace(face){
     if(feedback) feedback.textContent=`No hay espacio suficiente en la cara ${face}; elige otra cara o mueve los elementos existentes.`;
     return toast(`No queda espacio suficiente en la cara ${face}`);
   }
-  pushHistory(); ensureLayoutState(); const index=state.counts[type]||0; state.counts[type]=index+1; state.layout[type][index]={face,x:offset};
+  const core=window.BAT_CUBIKEITOR_EXTRAS_STATE_CORE;
+  if(!core) return toast('El editor de Extras no está disponible. Recarga el proyecto.');
+  pushHistory(); ensureLayoutState();
+  const inserted=core.addMountedAt(state,type,face,offset,max);
+  if(!inserted.ok)return toast(inserted.reason);
   closeMountedFacePicker(); renderAll(); focusFace(face); toast(`${typeLabel(type)} agregado en cara ${face}`);
 }
 function changeSelectedMountedFace(face){
@@ -230,7 +234,12 @@ adjustCount=function(key,delta){
   if(isMountedFaceType(key)&&delta>0){openMountedFacePicker(key);return;}
   if(isMountedFaceType(key)&&delta<0){
     if((state.counts[key]||0)<=0) return;
-    pushHistory(); ensureLayoutState(); state.counts[key]--; state.layout[key].splice(state.counts[key],1); selectedEditable=null; renderAll(); return;
+    const core=window.BAT_CUBIKEITOR_EXTRAS_STATE_CORE;
+    if(!core)return toast('El editor de Extras no está disponible. Recarga el proyecto.');
+    pushHistory();
+    const removed=core.removeAt(state,key,(state.counts[key]||0)-1);
+    if(!removed.ok)return toast(removed.reason);
+    selectedEditable=null; renderAll(); return;
   }
   originalAdjustCount(key,delta);
 };
