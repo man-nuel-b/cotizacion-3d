@@ -238,6 +238,16 @@
         const knownVersion=readKnownVersion(id);
         if(knownVersion===null)
           throw new Error('Abre primero el proyecto desde la nube para confirmar su versión antes de actualizarlo. También puedes guardar una copia nueva.');
+        // Defensa contra vínculos locales heredados equivocados: jamás actualizar
+        // un proyecto remoto con identidad local diferente, aun si coincide la versión.
+        const {data:remote,error:readError}=await client.from('projects')
+          .select('id,version,project_state')
+          .eq('id',id).eq('organization_id',organizationId).single();
+        if(readError)throw readError;
+        if(!remote||remote.project_state?.projectMeta?.id!==snapshot.projectMeta.id)
+          throw new Error('El vínculo local-nube no corresponde al proyecto abierto. No se sobrescribió. Abre el correcto desde la nube o guarda una copia nueva.');
+        if(Number(remote.version)!==knownVersion)
+          throw new Error('Existe una versión más reciente de este proyecto. Ábrela desde la nube o crea una copia nueva; tus cambios locales permanecen guardados.');
         result=await client.from('projects')
           .update({...payload,version:knownVersion+1})
           .eq('id',id).eq('organization_id',organizationId).eq('version',knownVersion)
