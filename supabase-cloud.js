@@ -8,6 +8,23 @@
   const SDK_URL='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js';
   const CURRENT_PROJECT_KEY='bat-cubikeitor-cloud-project-id-v1';
   const localSave=window.saveProject;
+  const persistence=()=>window.BAT_CUBIKEITOR_PROJECT_PERSISTENCE;
+  const VERSION_MAP_KEY='bat-cubikeitor-cloud-version-map-v1';
+  const readVersions=()=>{
+    try{const value=JSON.parse(localStorage.getItem(VERSION_MAP_KEY)||'{}');return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}
+    catch(_){return {};}
+  };
+  const versionKey=id=>[session?.user?.id||'',organizationId||'',id||''].join('::');
+  function readKnownVersion(id){
+    const n=readVersions()[versionKey(id)];
+    return Number.isSafeInteger(n)&&n>=1?n:null;
+  }
+  function recordKnownVersion(id,version){
+    if(!id||!Number.isSafeInteger(version)||version<1)return;
+    try{const map=readVersions();map[versionKey(id)]=version;
+      localStorage.setItem(VERSION_MAP_KEY,JSON.stringify(map));}
+    catch(error){console.warn('[BAT Cloud] No se pudo registrar versión del proyecto',error);}
+  }
   let client=null;
   let session=null;
   let organizationId=null;
@@ -31,15 +48,33 @@
   }
   function setCurrentProjectId(id){
     currentProjectId=id||null;
-    const key=cloudMapKey();if(!key||!id)return;
-    try{const map=readCloudMap();map[key]=id;localStorage.setItem(CLOUD_PROJECT_MAP_KEY,JSON.stringify(map));}
-    catch(e){console.warn('[BAT Cloud] No se pudo guardar vínculo local-nube',e);}
+    const key=cloudMapKey();if(!key)return;
+    try{
+      const map=readCloudMap();
+      if(id)map[key]=id;
+      else delete map[key]; // «Nuevo proyecto» nunca puede reutilizar un vínculo previo.
+      localStorage.setItem(CLOUD_PROJECT_MAP_KEY,JSON.stringify(map));
+    }catch(e){console.warn('[BAT Cloud] No se pudo guardar vínculo local-nube',e);}
+  }
+  function createCloudCopy(){
+    const core=persistence();
+    if(!core)return notify('El sistema de respaldo aún no está disponible.');
+    const previous=state.projectMeta?.id||null;
+    state.projectMeta={...(state.projectMeta||{}),id:core.id(),revision:0};
+    currentProjectId=null;
+    // Mantener el vínculo con el proyecto anterior para poder reabrirlo.
+    if(typeof localSave==='function'&&!localSave({silent:true}))
+      notify('La copia nueva está abierta pero no se pudo guardar su respaldo local.');
+    notify('Copia nueva preparada: el próximo guardado creará otro proyecto sin sobrescribir el anterior.');
+    refreshCloudProjects();
+    return {previous,current:state.projectMeta.id};
   }
   function ensureLocalProjectId(){
-    if(!state.projectMeta?.id){
-      state.projectMeta={...(state.projectMeta||{}),id:'BK-'+Date.now().toString(36).toUpperCase()+'-'+Math.random().toString(36).slice(2,8).toUpperCase(),revision:0,title:projectName()};
-    }
-    return state.projectMeta.id;
+    const core=persistence();
+    if(!core)throw new Error('No está disponible el sistema de respaldo de proyectos.');
+    const id=core.ensureMeta(state);
+    if(!state.projectMeta.title)state.projectMeta.title=projectName();
+    return id;
   }
   function projectName(){
     const solution=(window.DATA||typeof DATA!=='undefined'?DATA:null)?.solutions?.[state?.solution]?.name||'Proyecto modular';
@@ -123,7 +158,7 @@
       document.getElementById('bat-sign-out').onclick=signOut;
       document.getElementById('bat-cloud-save-now').onclick=saveCloudProject;
       document.getElementById('bat-cloud-refresh').onclick=refreshCloudProjects;
-      document.getElementById('bat-cloud-new').onclick=()=>{setCurrentProjectId(null);notify('Nuevo proyecto en la nube: el próximo guardado creará una copia nueva');refreshCloudProjects();};
+      document.getElementById('bat-cloud-new').onclick=createCloudCopy;
     }
   }
 
