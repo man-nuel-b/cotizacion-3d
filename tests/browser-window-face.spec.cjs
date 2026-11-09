@@ -571,6 +571,11 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
         rows[0].version=previousVersion+1; // Simula guardado en otra sesión.
         rows[0].name='Revisión de otro usuario';
         localStorage.setItem('__cubikeitor_mock_cloud_projects',JSON.stringify(rows));
+        // Simular segunda pestaña del MISMO navegador que actualiza el mapa compartido.
+        const versionKey='bat-cubikeitor-cloud-version-map-v1';
+        const versions=JSON.parse(localStorage.getItem(versionKey)||'{}');
+        const link=Object.keys(versions).find(k=>k.endsWith('::'+rows[0].id));
+        if(link){versions[link]=rows[0].version;localStorage.setItem(versionKey,JSON.stringify(versions));}
         state.customer.name='Cambio local que no puede pisar otro guardado';
         const saved=await api.save();
         const after=JSON.parse(localStorage.getItem('__cubikeitor_mock_cloud_projects'));
