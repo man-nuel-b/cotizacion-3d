@@ -196,23 +196,63 @@
   async function signOut(){await client.auth.signOut();session=null;organizationId=null;updateUi();notify('Sesión cerrada');}
 
   function mergeLoadedState(loaded){
-    state={...clone(DEFAULT_STATE),...loaded,counts:{...DEFAULT_STATE.counts,...(loaded?.counts||{})},customer:{...DEFAULT_STATE.customer,...(loaded?.customer||{})}};
-    history=[];future=[];renderAll();setView('exterior',false);
+    const core=persistence();
+    if(!core)throw new Error('El sistema de recuperación todavía no está disponible.');
+    const recovered=core.normalize(loaded,DEFAULT_STATE,DATA);
+    const oldState=state,oldHistory=history,oldFuture=future;
+    try{
+      state=recovered;
+      history=[];future=[];
+      renderAll();setView('exterior',false);
+    }catch(error){
+      state=oldState;history=oldHistory;future=oldFuture;
+      try{renderAll();}catch(_){}
+      throw error;
+    }
   }
 
-  async function saveCloudProject(){
+  async function saveCloudProject(options={}){
     if(!session?.user){openCloudModal();notify('Inicia sesión para guardar en la nube');return false;}
     try{
       if(!organizationId)await initializeMembership();
       ensureLocalProjectId();
-      const payload={organization_id:organizationId,name:projectName(),container_type:state.container,solution_type:state.solution,project_state:clone(state),updated_by:session.user.id};
+      const core=persistence();
+      // El proyecto se valida antes de cualquier INSERT/UPDATE. No descartar geometría o medidas.
+      const snapshot=core.normalize(state,DEFAULT_STATE,DATA);
+      state.projectMeta=snapshot.projectMeta;
+      if(options.saveLocal!==false && typeof localSave==='function' && !localSave({silent:true}))
+        notify('Advertencia: no se pudo crear la copia local; se intentará guardar en la nube.');
+      const payload={organization_id:organizationId,name:projectName(),container_type:snapshot.container,
+        solution_type:snapshot.solution,project_state:snapshot,updated_by:session.user.id};
       const id=getCurrentProjectId();
       let result;
-      if(id) result=await client.from('projects').update(payload).eq('id',id).eq('organization_id',organizationId).select('id').single();
-      else result=await client.from('projects').insert({...payload,created_by:session.user.id}).select('id').single();
+      if(id){
+        const knownVersion=readKnownVersion(id);
+        if(knownVersion===null)
+          throw new Error('Abre primero el proyecto desde la nube para confirmar su versión antes de actualizarlo. También puedes guardar una copia nueva.');
+        result=await client.from('projects')
+          .update({...payload,version:knownVersion+1})
+          .eq('id',id).eq('organization_id',organizationId).eq('version',knownVersion)
+          .select('id,version').maybeSingle();
+        if(!result.error&&!result.data)
+          throw new Error('Otro guardado modificó este proyecto. Abre la versión de la nube o crea una copia; no se sobrescribió.');
+      }else{
+        result=await client.from('projects')
+          .insert({...payload,version:1,created_by:session.user.id})
+          .select('id,version').single();
+      }
       if(result.error)throw result.error;
-      setCurrentProjectId(result.data.id);notify('Proyecto guardado en la nube');refreshCloudProjects();return true;
-    }catch(error){console.error('[BAT Cloud] save',error);notify(`Nube: ${error.message||'error al guardar'}`);return false;}
+      if(!result.data?.id)throw new Error('La nube no confirmó el guardado.');
+      setCurrentProjectId(result.data.id);
+      recordKnownVersion(result.data.id,Number(result.data.version)||1);
+      notify('Proyecto guardado y confirmado en la nube');
+      refreshCloudProjects();
+      return true;
+    }catch(error){
+      console.error('[BAT Cloud] save',error);
+      notify(`Nube: ${error.message||'error al guardar'}`);
+      return false;
+    }
   }
 
   async function refreshCloudProjects(){
@@ -226,9 +266,40 @@
   }
 
   async function openCloudProject(id){
-    try{const {data,error}=await client.from('projects').select('id,project_state').eq('id',id).single();if(error)throw error;if(!data?.project_state)throw new Error('Proyecto sin estado guardado');
-      mergeLoadedState(data.project_state);ensureLocalProjectId();setCurrentProjectId(data.id);try{localStorage.setItem('modular-config-v3',JSON.stringify(state));}catch(e){}closeCloudModal();notify('Proyecto abierto desde la nube');
-    }catch(error){notify(`Nube: ${error.message||'error al abrir proyecto'}`);}
+    try{
+      if(!session?.user)throw new Error('Inicia sesión para abrir proyectos');
+      if(!organizationId)await initializeMembership();
+      const {data,error}=await client.from('projects')
+        .select('id,version,project_state')
+        .eq('id',id).eq('organization_id',organizationId).single();
+      if(error)throw error;
+      if(!data?.project_state)throw new Error('Proyecto sin estado guardado');
+      const core=persistence();
+      if(!core)throw new Error('El sistema de recuperación todavía no está disponible.');
+      // Validación antes de tocar el diseño abierto: un JSONB corrupto nunca desplaza el proyecto actual.
+      const snapshot=core.encode(data.project_state,DEFAULT_STATE,DATA);
+      const previous=localStorage.getItem(core.key);
+      try{
+        if(previous)localStorage.setItem('modular-config-previous-v4',previous);
+        localStorage.setItem(core.key,snapshot.serialized);
+        mergeLoadedState(snapshot.project);
+      }catch(failure){
+        try{
+          if(previous!==null)localStorage.setItem(core.key,previous);
+          else localStorage.removeItem(core.key);
+        }catch(_){}
+        throw failure;
+      }
+      setCurrentProjectId(data.id);
+      recordKnownVersion(data.id,Number(data.version)||1);
+      closeCloudModal();
+      notify('Proyecto completo recuperado desde la nube');
+      return true;
+    }catch(error){
+      console.error('[BAT Cloud] open',error);
+      notify(`Nube: ${error.message||'error al abrir proyecto'}`);
+      return false;
+    }
   }
 
   async function init(){
