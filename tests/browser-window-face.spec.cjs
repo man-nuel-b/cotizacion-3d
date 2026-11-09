@@ -601,6 +601,33 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
         corruptPayloadBlocked:!corruptCloud.opened
       }));
 
+      // Autoguardado debe ser SOLO local y no disparar cloud.save al editar.
+      const autoBefore=await page.evaluate(()=>{
+        const cloudRows=localStorage.getItem('__cubikeitor_mock_cloud_projects');
+        state.customer.name='Autoguardado sin pulsar Guardar';
+        renderAll();
+        return {cloudRows};
+      });
+      await page.waitForTimeout(1250);
+      const autoAfter=await page.evaluate(()=>{
+        const core=window.BAT_CUBIKEITOR_PROJECT_PERSISTENCE;
+        const local=core.decode(localStorage.getItem(core.key),DEFAULT_STATE,DATA).project;
+        return {
+          savedName:local.customer.name,
+          cloudRows:localStorage.getItem('__cubikeitor_mock_cloud_projects'),
+          projectId:local.projectMeta.id
+        };
+      });
+      assert.equal(autoAfter.savedName,'Autoguardado sin pulsar Guardar',
+        'Project edits must autosave locally after debounce');
+      assert.equal(autoAfter.cloudRows,autoBefore.cloudRows,
+        'Local autosave must never write to cloud without explicit user action');
+      assert.equal(autoAfter.projectId,cloudRoundtrip.originalLocal);
+      console.log('PROJECT_AUTOSAVE_SUCCESS',JSON.stringify({
+        savedName:autoAfter.savedName,cloudUnchanged:true
+      }));
+
+
       console.log('BROWSER_SMOKE_SUCCESS',JSON.stringify({initial,after,nonFatalBrowserErrors:browserErrors.slice(0,10)}));
     }catch(e){
       try{await page.screenshot({path:'/tmp/cubikeitor-window-smoke.png',fullPage:true});}catch{}
