@@ -610,6 +610,20 @@ function saveProject(options={}) {
   if(!store){if(!silent)toast('No se cargó el sistema de respaldo. No se guardó el proyecto.');return false;}
   try{
     const snapshot=store.encode(state,DEFAULT_STATE,DATA);
+    if(silent){
+      // Los módulos pueden llamar renderAll constantemente. No reescribir la misma copia.
+      const existing=localStorage.getItem(store.key);
+      if(existing){
+        try{
+          const previous=store.decode(existing,DEFAULT_STATE,DATA).project;
+          if(JSON.stringify(previous)===JSON.stringify(snapshot.project)){
+            state.projectMeta=snapshot.project.projectMeta;
+            projectAutosaveEnabled=true;
+            return true;
+          }
+        }catch(_){}
+      }
+    }
     localStorage.setItem(store.key,snapshot.serialized);
     // Mantener la identidad estable también en memoria para el enlace con Supabase.
     state.projectMeta=snapshot.project.projectMeta;
@@ -650,13 +664,18 @@ function loadProject() {
 // Mantener referencia directa: Supabase reemplaza window.saveProject con el guardado manual en la nube.
 const persistLocalProject=saveProject;
 function scheduleProjectAutosave(){
-  if(!projectAutosaveEnabled)return;
-  clearTimeout(projectAutosaveTimer);
-  projectAutosaveTimer=setTimeout(()=>persistLocalProject({silent:true}),800);
+  if(!projectAutosaveEnabled||projectAutosaveTimer!==null)return;
+  // No reiniciar el tiempo con cada render: evita que las actualizaciones 3D
+  // posterguen indefinidamente la escritura del respaldo.
+  projectAutosaveTimer=setTimeout(()=>{
+    projectAutosaveTimer=null;
+    persistLocalProject({silent:true});
+  },800);
 }
 function flushProjectAutosave(){
   if(!projectAutosaveEnabled)return;
-  clearTimeout(projectAutosaveTimer);
+  if(projectAutosaveTimer!==null)clearTimeout(projectAutosaveTimer);
+  projectAutosaveTimer=null;
   persistLocalProject({silent:true});
 }
 function resetProject() { if (!confirm('¿Reiniciar el proyecto actual?')) return; pushHistory(); state = clone(DEFAULT_STATE); currentView = 'exterior'; renderAll(); setView('exterior'); toast('Proyecto reiniciado'); }
