@@ -27,20 +27,21 @@ function setup(seed={},denied=false){
  const notices=[],errors=[];
  const store={
    getItem(key){return files.get(key)||null;},
-   setItem(key,value){if(denied)throw Error('Storage blocked');files.set(key,String(value));},
+   setItem(key,value){if(denied)throw Error('Storage blocked');writes++;files.set(key,String(value));},
    removeItem(key){files.delete(key)}
  };
- let timeoutFn;
+ let timeoutFn,timerSchedules=0,writes=0;
  const context={
    window:{BAT_CUBIKEITOR_PROJECT_PERSISTENCE:core},
    localStorage:store,DEFAULT_STATE:defaults,DATA:data,
    state:testProject(),
    console:{error(...args){errors.push(args)},warn(...args){errors.push(args)}},
    toast(msg){notices.push(msg)},
-   clearTimeout(){},setTimeout(fn){timeoutFn=fn;return 1}
+   clearTimeout(){},setTimeout(fn){timerSchedules++;timeoutFn=fn;return 1}
  };
  vm.runInNewContext(src+'\nthis.adapter={saveProject,loadProject,scheduleProjectAutosave,flushProjectAutosave,local:()=>persistLocalProject({silent:true}),enabled:()=>projectAutosaveEnabled};',context);
- return {files,notices,errors,context,adapter:context.adapter,runTimer(){timeoutFn?.()}};
+ return {files,notices,errors,context,adapter:context.adapter,runTimer(){timeoutFn?.()},
+   get timerSchedules(){return timerSchedules;},get writes(){return writes;}};
 }
 test('Damaged v4 is quarantined before restoring legacy and cannot silently disappear',()=>{
  const validLegacy=JSON.stringify(testProject()),damaged='{"format":"cubikeitor-project","project":"broken"}';
@@ -77,4 +78,19 @@ test('Cloud global handler replacement cannot hijack local autosave',()=>{
  x.runTimer();
  const snapshot=core.decode(x.files.get('modular-config-v4'),defaults,data);
  assert.equal(snapshot.project.layout.window[0].face,'B');
+});
+
+test('Rapid 3D rerenders cannot postpone autosave indefinitely',()=>{
+ const x=setup();
+ assert.equal(x.adapter.saveProject(),true);
+ x.context.state.customer.name='Nueva ubicación y materiales';
+ for(let i=0;i<25;i++)x.adapter.scheduleProjectAutosave();
+ assert.equal(x.timerSchedules,1,'repeated renders must share a single pending save');
+ x.runTimer();
+ const reloaded=core.decode(x.files.get('modular-config-v4'),defaults,data).project;
+ assert.equal(reloaded.customer.name,'Nueva ubicación y materiales');
+ const writes=x.writes;
+ for(let i=0;i<25;i++)x.adapter.scheduleProjectAutosave();
+ x.runTimer();
+ assert.equal(x.writes,writes,'unchanged 3D state must not produce redundant storage writes');
 });
