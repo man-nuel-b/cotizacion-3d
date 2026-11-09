@@ -518,6 +518,83 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
         before:beforeReload.critical.counts,after:afterReload.critical.counts,
         id:afterReload.projectMeta.id,materials:afterReload.plan.length
       }));
+
+      // Simular la nube con registros ficticios: nunca se envían datos reales a Supabase.
+      await page.waitForFunction(()=>window.BAT_KUBIQUEITOR_SUPABASE_CLOUD?.version===3,
+        null,{timeout:30000});
+      const cloudRoundtrip=await page.evaluate(async()=>{
+        const api=window.BAT_KUBIQUEITOR_SUPABASE_CLOUD;
+        const first=await api.save();
+        const projectsBefore=JSON.parse(localStorage.getItem('__cubikeitor_mock_cloud_projects')||'[]');
+        const originalRemote=projectsBefore[0]?.id;
+        const originalLocal=state.projectMeta.id;
+        const copy=api.copyProject();
+        const second=await api.save();
+        const projectsAfter=JSON.parse(localStorage.getItem('__cubikeitor_mock_cloud_projects')||'[]');
+        const copyRemote=api.getLinkedId();
+        const reopened=await api.openProject(originalRemote);
+        const recovered=JSON.parse(JSON.stringify(state));
+        return {
+          first,second,reopened,copy,
+          originalRemote,copyRemote,originalLocal,
+          projectCount:projectsAfter.length,
+          restoredId:recovered.projectMeta.id,
+          restoredLayout:recovered.layout,
+          restoredDimensions:recovered.dimensions,
+          restoredElectrical:recovered.electrical,
+          restoredBathrooms:recovered.bathroomModules,
+          originalRemoteVersion:projectsAfter[0].version,
+          copyVersion:projectsAfter[1].version
+        };
+      });
+      assert.equal(cloudRoundtrip.first,true,'First cloud save must be confirmed');
+      assert.equal(cloudRoundtrip.second,true,'Save as new copy must be confirmed');
+      assert.equal(cloudRoundtrip.projectCount,2,'Copy action must INSERT, never overwrite original record');
+      assert.notEqual(cloudRoundtrip.originalRemote,cloudRoundtrip.copyRemote);
+      assert.notEqual(cloudRoundtrip.copy.current,cloudRoundtrip.copy.previous);
+      assert.equal(cloudRoundtrip.reopened,true,'Original cloud project must reopen successfully');
+      assert.equal(cloudRoundtrip.restoredId,cloudRoundtrip.originalLocal);
+      assert.deepEqual(cloudRoundtrip.restoredLayout,beforeReload.critical.layout);
+      assert.deepEqual(cloudRoundtrip.restoredDimensions,beforeReload.critical.dimensions);
+      assert.deepEqual(cloudRoundtrip.restoredElectrical,beforeReload.critical.electrical);
+      assert.deepEqual(cloudRoundtrip.restoredBathrooms,beforeReload.critical.bathroomModules);
+      const conflict=await page.evaluate(async()=>{
+        const api=window.BAT_KUBIQUEITOR_SUPABASE_CLOUD;
+        const rows=JSON.parse(localStorage.getItem('__cubikeitor_mock_cloud_projects'));
+        const previousVersion=rows[0].version;
+        rows[0].version=previousVersion+1; // Simula guardado en otra sesión.
+        rows[0].name='Revisión de otro usuario';
+        localStorage.setItem('__cubikeitor_mock_cloud_projects',JSON.stringify(rows));
+        state.customer.name='Cambio local que no puede pisar otro guardado';
+        const saved=await api.save();
+        const after=JSON.parse(localStorage.getItem('__cubikeitor_mock_cloud_projects'));
+        return {saved,version:after[0].version,name:after[0].name,
+          localVersion:localStorage.getItem('modular-config-v4')!==null};
+      });
+      assert.equal(conflict.saved,false,'Optimistic lock must block stale cloud overwrite');
+      assert.equal(conflict.name,'Revisión de otro usuario');
+      assert.equal(conflict.localVersion,true,'Conflicted edits must remain recoverable locally');
+      const corruptCloud=await page.evaluate(async()=>{
+        const api=window.BAT_KUBIQUEITOR_SUPABASE_CLOUD;
+        const rows=JSON.parse(localStorage.getItem('__cubikeitor_mock_cloud_projects'));
+        rows[0].project_state.counts.window='valor-dañado';
+        localStorage.setItem('__cubikeitor_mock_cloud_projects',JSON.stringify(rows));
+        const before=JSON.stringify(state);
+        const localBefore=localStorage.getItem('modular-config-v4');
+        const opened=await api.openProject(rows[0].id);
+        return {opened,keptState:JSON.stringify(state)===before,
+          keptLocal:localStorage.getItem('modular-config-v4')===localBefore};
+      });
+      assert.equal(corruptCloud.opened,false,'Corrupt cloud payload must be rejected');
+      assert.equal(corruptCloud.keptState,true,'Invalid cloud load must not replace current state');
+      assert.equal(corruptCloud.keptLocal,true,'Invalid cloud load must not overwrite local recovery');
+      console.log('PROJECT_CLOUD_RECOVERY_SUCCESS',JSON.stringify({
+        copies:cloudRoundtrip.projectCount,
+        originalRestored:cloudRoundtrip.reopened,
+        versionConflictBlocked:!conflict.saved,
+        corruptPayloadBlocked:!corruptCloud.opened
+      }));
+
       console.log('BROWSER_SMOKE_SUCCESS',JSON.stringify({initial,after,nonFatalBrowserErrors:browserErrors.slice(0,10)}));
     }catch(e){
       try{await page.screenshot({path:'/tmp/cubikeitor-window-smoke.png',fullPage:true});}catch{}
