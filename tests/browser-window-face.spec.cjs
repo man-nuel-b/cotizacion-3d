@@ -554,8 +554,14 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
       assert.notEqual(cloudRoundtrip.copy.current,cloudRoundtrip.copy.previous);
       assert.equal(cloudRoundtrip.reopened,true,'Original cloud project must reopen successfully');
       assert.equal(cloudRoundtrip.restoredId,cloudRoundtrip.originalLocal);
-      assert.deepEqual(cloudRoundtrip.restoredLayout,beforeReload.critical.layout);
-      assert.deepEqual(cloudRoundtrip.restoredDimensions,beforeReload.critical.dimensions);
+      // Al iniciar, los plugins registran listas vacías para nuevos tipos de vano:
+      // no deben confundirse con pérdidas de las posiciones originales.
+      for(const [type,entries] of Object.entries(beforeReload.critical.layout))
+        assert.deepEqual(cloudRoundtrip.restoredLayout[type],entries,
+          'Cloud must preserve installed layout for '+type);
+      for(const [type,entries] of Object.entries(beforeReload.critical.dimensions))
+        assert.deepEqual(cloudRoundtrip.restoredDimensions[type],entries,
+          'Cloud must preserve edited dimensions for '+type);
       assert.deepEqual(cloudRoundtrip.restoredElectrical,beforeReload.critical.electrical);
       assert.deepEqual(cloudRoundtrip.restoredBathrooms,beforeReload.critical.bathroomModules);
       const conflict=await page.evaluate(async()=>{
