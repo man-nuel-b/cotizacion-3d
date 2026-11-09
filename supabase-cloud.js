@@ -15,13 +15,21 @@
     catch(_){return {};}
   };
   const versionKey=id=>[session?.user?.id||'',organizationId||'',id||''].join('::');
+  // Una pestaña no debe adoptar automáticamente la versión que otra acaba de guardar.
+  const observedVersions=new Map();
   function readKnownVersion(id){
-    const n=readVersions()[versionKey(id)];
-    return Number.isSafeInteger(n)&&n>=1?n:null;
+    const key=versionKey(id);
+    if(observedVersions.has(key))return observedVersions.get(key);
+    const n=readVersions()[key];
+    const known=Number.isSafeInteger(n)&&n>=1?n:null;
+    observedVersions.set(key,known);
+    return known;
   }
   function recordKnownVersion(id,version){
     if(!id||!Number.isSafeInteger(version)||version<1)return;
-    try{const map=readVersions();map[versionKey(id)]=version;
+    const key=versionKey(id);
+    observedVersions.set(key,version);
+    try{const map=readVersions();map[key]=version;
       localStorage.setItem(VERSION_MAP_KEY,JSON.stringify(map));}
     catch(error){console.warn('[BAT Cloud] No se pudo registrar versión del proyecto',error);}
   }
@@ -306,8 +314,25 @@
 
   async function init(){
     try{injectUi();const sdk=await loadSdk();client=sdk.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});currentProjectId=getCurrentProjectId();
-      const {data}=await client.auth.getSession();session=data.session||null;if(session?.user){try{await initializeMembership();}catch(error){console.warn('[BAT Cloud] membership',error.message);}}
-      client.auth.onAuthStateChange(async(_event,newSession)=>{session=newSession;organizationId=null;if(session?.user){try{await initializeMembership();}catch(error){console.warn('[BAT Cloud] membership',error.message);}}updateUi();});
+      const {data}=await client.auth.getSession();session=data.session||null;
+      if(session?.user){
+        try{
+          await initializeMembership();
+          currentProjectId=getCurrentProjectId();
+          if(currentProjectId)readKnownVersion(currentProjectId);
+        }catch(error){console.warn('[BAT Cloud] membership',error.message);}
+      }
+      client.auth.onAuthStateChange(async(_event,newSession)=>{
+        session=newSession;organizationId=null;
+        if(session?.user){
+          try{
+            await initializeMembership();
+            currentProjectId=getCurrentProjectId();
+            if(currentProjectId)readKnownVersion(currentProjectId);
+          }catch(error){console.warn('[BAT Cloud] membership',error.message);}
+        }
+        updateUi();
+      });
       updateUi();
       window.BAT_KUBIQUEITOR_SUPABASE_CLOUD={
         version:3,client,save:saveCloudProject,open:openCloudModal,
