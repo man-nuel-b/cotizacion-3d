@@ -639,15 +639,17 @@ function loadProject() {
   }
   return false;
 }
+// Mantener referencia directa: Supabase reemplaza window.saveProject con el guardado manual en la nube.
+const persistLocalProject=saveProject;
 function scheduleProjectAutosave(){
   if(!projectAutosaveEnabled)return;
   clearTimeout(projectAutosaveTimer);
-  projectAutosaveTimer=setTimeout(()=>saveProject({silent:true}),800);
+  projectAutosaveTimer=setTimeout(()=>persistLocalProject({silent:true}),800);
 }
 function flushProjectAutosave(){
   if(!projectAutosaveEnabled)return;
   clearTimeout(projectAutosaveTimer);
-  saveProject({silent:true});
+  persistLocalProject({silent:true});
 }
 function resetProject() { if (!confirm('¿Reiniciar el proyecto actual?')) return; pushHistory(); state = clone(DEFAULT_STATE); currentView = 'exterior'; renderAll(); setView('exterior'); toast('Proyecto reiniciado'); }
 function showModal(id) { const el = document.getElementById(id); el.classList.remove('hidden'); el.classList.add('flex'); }
