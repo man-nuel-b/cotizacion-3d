@@ -289,6 +289,7 @@ function renderAll() {
   syncCustomerInputs();
   goStep(state.step);
   rebuild3D();
+  scheduleProjectAutosave();
 }
 
 function init3D() {
@@ -612,6 +613,7 @@ function saveProject(options={}) {
     localStorage.setItem(store.key,snapshot.serialized);
     // Mantener la identidad estable también en memoria para el enlace con Supabase.
     state.projectMeta=snapshot.project.projectMeta;
+    projectAutosaveEnabled=true;
     if(!silent)toast('Copia completa guardada en este navegador');
     return true;
   }catch(error){
@@ -657,8 +659,9 @@ window.addEventListener('DOMContentLoaded', () => {
   init3D();renderAll();
   // No iniciar auto-guardado si se rechazaron respaldos dañados: conservarlos para recuperar.
   const store=window.BAT_CUBIKEITOR_PROJECT_PERSISTENCE;
-  const damaged=store?.recover(localStorage,DEFAULT_STATE,DATA);
-  projectAutosaveEnabled=Boolean(restored||!damaged?.errors?.length);
+  // La revisión se hace sólo después de cargar; el proyecto activo no se sobreescribe.
+  const rejected=store?.recover(localStorage,DEFAULT_STATE,DATA);
+  projectAutosaveEnabled=Boolean(restored||!rejected?.errors?.length);
   window.addEventListener('pagehide',flushProjectAutosave);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushProjectAutosave();});
 });
