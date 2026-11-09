@@ -395,6 +395,92 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
       const failed=extrasAudit.filter(x=>!x.ok);
       assert.deepEqual(failed.map(x=>({key:x.key,problem:x.problem})),[],
         'Los extras deben actualizar contador, geometría y flujo previsto');
+
+      // Prueba de recuperación real: guardar una configuración compleja y recargar toda la aplicación.
+      const beforeReload=await page.evaluate(()=>{
+        const all=Object.keys(DATA.extras);
+        const fresh=clone(DEFAULT_STATE);
+        for(const key of all)fresh.counts[key]=0;
+        fresh.counts.window=1;fresh.counts.door=1;fresh.counts.partition=1;
+        fresh.counts.wc=1;fresh.counts.sink=1;fresh.counts.electrical=2;
+        fresh.layout={
+          window:[{face:'A',x:-1.35}],
+          door:[{face:'B',x:.65}],
+          partition:[{orientation:PARTITION_ORIENTATION.CROSS,x:.75,z:0}],
+          wc:[{x:-2.1,z:.75}],sink:[{x:-1.05,z:.7}],
+          electrical:[{face:'A',x:1.2},{face:'D',x:-.2}]
+        };
+        fresh.dimensions={
+          window:[{width:1.35,height:1.1}],
+          door:[{width:.95,height:2.15}],
+          partition:[{length:1.75,height:2.3,thickness:.075}],
+          sink:[{width:.62,height:.9,depth:.52}]
+        };
+        fresh.electrical={version:1,points:[
+          {id:'EL-SAVE-A',type:'outlet',circuit:'Enchufes',face:'A',position:{x:1.2,z:0},height:1.1},
+          {id:'EL-SAVE-B',type:'light',circuit:'Iluminación',face:'D',position:{x:-.2,z:0},height:2.4}
+        ]};
+        fresh.bathroomModules=[{kind:'full',x:1.5,z:-.3,rotation:90}];
+        fresh.interiorSystem={...(state.interiorSystem||{}),lining:'plywood'};
+        fresh.projectMeta={id:'BK-ROUNDTRIP-3D',revision:4,title:'Prueba de recuperación'};
+        fresh.customer={...fresh.customer,name:'Prueba guardar y abrir'};
+        state=fresh;
+        renderAll();
+        const saved=persistLocalProject({silent:true});
+        const snap=window.BAT_CUBIKEITOR_PROJECT_PERSISTENCE.encode(state,DEFAULT_STATE,DATA);
+        const plan=window.BAT_CUBIKEITOR_3D_SUPABASE.buildPlan(state,DATA);
+        return {
+          saved,
+          projectMeta:state.projectMeta,
+          critical:{
+            counts:state.counts,layout:state.layout,dimensions:state.dimensions,
+            bathroomModules:state.bathroomModules,electrical:state.electrical,
+            interiorSystem:state.interiorSystem,customer:state.customer
+          },
+          plan:plan.items.map(i=>({code:i.code,quantity:i.quantity})),
+          storageValid:localStorage.getItem('modular-config-v4')!==null,
+          renderedWindows:editableObjects.filter(x=>x.userData?.editor?.type==='window').length
+        };
+      });
+      assert.equal(beforeReload.saved,true,'complete local snapshot must be saved');
+      assert.equal(beforeReload.storageValid,true,'v4 backup must exist');
+      assert.equal(beforeReload.renderedWindows,1,'3D must render saved window before reload');
+      await page.reload({waitUntil:'domcontentloaded'});
+      await page.waitForFunction(()=>document.body.classList.contains('bat-preview-ready')
+        &&document.querySelector('#canvas-container canvas')
+        &&typeof state!=='undefined'&&state.projectMeta?.id==='BK-ROUNDTRIP-3D',
+        null,{timeout:50000});
+      await page.waitForFunction(()=>window.BAT_CUBIKEITOR_3D_SUPABASE?.buildPlan
+        &&editableObjects.filter(x=>x.userData?.editor?.type==='window').length===1,
+        null,{timeout:50000});
+      const afterReload=await page.evaluate(()=>{
+        const plan=window.BAT_CUBIKEITOR_3D_SUPABASE.buildPlan(state,DATA);
+        return {
+          projectMeta:state.projectMeta,
+          critical:{
+            counts:state.counts,layout:state.layout,dimensions:state.dimensions,
+            bathroomModules:state.bathroomModules,electrical:state.electrical,
+            interiorSystem:state.interiorSystem,customer:state.customer
+          },
+          plan:plan.items.map(i=>({code:i.code,quantity:i.quantity})),
+          renderedWindows:editableObjects.filter(x=>x.userData?.editor?.type==='window').length,
+          renderedDoors:editableObjects.filter(x=>x.userData?.editor?.type==='door').length,
+          renderedPartitions:editableObjects.filter(x=>x.userData?.editor?.type==='partition').length
+        };
+      });
+      assert.deepEqual(afterReload.critical,beforeReload.critical,
+        'All positions, dimensions, bathroom modules and electrical identities must survive full reload');
+      assert.deepEqual(afterReload.plan,beforeReload.plan,
+        'Technical material quantities must match before and after reopening');
+      assert.equal(afterReload.projectMeta.id,beforeReload.projectMeta.id,
+        'Project identity must remain stable when reopened');
+      assert.equal(afterReload.renderedWindows,1);
+      assert.equal(afterReload.renderedDoors,1);
+      assert.equal(afterReload.renderedPartitions,1);
+      console.log('PROJECT_LOCAL_ROUNDTRIP_SUCCESS',JSON.stringify({
+        before:beforeReload.critical.counts,after:afterReload.critical.counts,
+        id:afterReload.projectMeta.id,materials:afterReload.plan.length
+      }));
       console.log('BROWSER_SMOKE_SUCCESS',JSON.stringify({initial,after,nonFatalBrowserErrors:browserErrors.slice(0,10)}));
     }catch(e){
       try{await page.screenshot({path:'/tmp/cubikeitor-window-smoke.png',fullPage:true});}catch{}
