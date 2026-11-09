@@ -585,6 +585,21 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
       assert.equal(conflict.saved,false,'Optimistic lock must block stale cloud overwrite');
       assert.equal(conflict.name,'Revisión de otro usuario');
       assert.equal(conflict.localVersion,true,'Conflicted edits must remain recoverable locally');
+      const mismatchedLink=await page.evaluate(async(copyRemote)=>{
+        const key='bat-cubikeitor-cloud-project-map-v2';
+        const map=JSON.parse(localStorage.getItem(key)||'{}');
+        const match=Object.keys(map).find(k=>k.endsWith('::'+state.projectMeta.id));
+        const previous=map[match];
+        map[match]=copyRemote; // Simula un vínculo heredado incorrecto.
+        localStorage.setItem(key,JSON.stringify(map));
+        const before=localStorage.getItem('__cubikeitor_mock_cloud_projects');
+        const saved=await window.BAT_KUBIQUEITOR_SUPABASE_CLOUD.save();
+        const unchanged=before===localStorage.getItem('__cubikeitor_mock_cloud_projects');
+        map[match]=previous;localStorage.setItem(key,JSON.stringify(map));
+        return {saved,unchanged};
+      },cloudRoundtrip.copyRemote);
+      assert.equal(mismatchedLink.saved,false,'Wrong cloud project link must be rejected');
+      assert.equal(mismatchedLink.unchanged,true,'Wrong link must not overwrite another project');
       const corruptCloud=await page.evaluate(async()=>{
         const api=window.BAT_KUBIQUEITOR_SUPABASE_CLOUD;
         const rows=JSON.parse(localStorage.getItem('__cubikeitor_mock_cloud_projects'));
@@ -603,6 +618,7 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
         copies:cloudRoundtrip.projectCount,
         originalRestored:cloudRoundtrip.reopened,
         versionConflictBlocked:!conflict.saved,
+        wrongProjectBlocked:!mismatchedLink.saved,
         corruptPayloadBlocked:!corruptCloud.opened
       }));
 
