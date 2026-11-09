@@ -626,6 +626,14 @@ function loadProject() {
   const store=window.BAT_CUBIKEITOR_PROJECT_PERSISTENCE;
   if(!store){console.error('[Cubikeitor] Sistema de respaldo no disponible');return false;}
   const result=store.recover(localStorage,DEFAULT_STATE,DATA);
+  // Antes de recuperar una copia antigua, preservar el v4 defectuoso para diagnóstico.
+  if(result.errors.some(item=>item.key===store.key)){
+    try{
+      const damaged=localStorage.getItem(store.key);
+      if(damaged&&!localStorage.getItem('modular-config-damaged-v4'))
+        localStorage.setItem('modular-config-damaged-v4',damaged);
+    }catch(error){console.warn('[Cubikeitor] Respaldo dañado no se pudo copiar:',error);}
+  }
   if(result.project){
     state=result.project;
     if(result.errors.length)
