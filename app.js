@@ -289,6 +289,7 @@ function renderAll() {
   syncCustomerInputs();
   goStep(state.step);
   rebuild3D();
+  scheduleProjectAutosave();
 }
 
 function init3D() {
@@ -601,13 +602,95 @@ function openQuote() {
 function shareWhatsApp() {
   const t = calculate(); const solution = DATA.solutions[state.solution]; const container = DATA.containers[state.container]; const extras = Object.entries(DATA.extras).filter(([key]) => state.counts[key] > 0).map(([key, item]) => `${item.name}: ${state.counts[key]}`).join('\n'); const text = `Proyecto modular\n${solution.name} - ${container.short}\n${extras}\nTotal estimado: ${money(t.total)} IVA incluido\n\nValor referencial sujeto a validación técnica.`; window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
 }
-function saveProject() { localStorage.setItem('modular-config-v3', JSON.stringify(state)); toast('Proyecto guardado en este navegador'); }
+// Guardado v4 íntegro: conserva posiciones, medidas, circuitos, baños y metadatos.
+let projectAutosaveEnabled=false,projectAutosaveTimer=null;
+function saveProject(options={}) {
+  const silent=Boolean(options&&typeof options==='object'&&options.silent);
+  const store=window.BAT_CUBIKEITOR_PROJECT_PERSISTENCE;
+  if(!store){if(!silent)toast('No se cargó el sistema de respaldo. No se guardó el proyecto.');return false;}
+  try{
+    const snapshot=store.encode(state,DEFAULT_STATE,DATA);
+    if(silent){
+      // Los módulos pueden llamar renderAll constantemente. No reescribir la misma copia.
+      const existing=localStorage.getItem(store.key);
+      if(existing){
+        try{
+          const previous=store.decode(existing,DEFAULT_STATE,DATA).project;
+          if(JSON.stringify(previous)===JSON.stringify(snapshot.project)){
+            state.projectMeta=snapshot.project.projectMeta;
+            projectAutosaveEnabled=true;
+            return true;
+          }
+        }catch(_){}
+      }
+    }
+    localStorage.setItem(store.key,snapshot.serialized);
+    // Mantener la identidad estable también en memoria para el enlace con Supabase.
+    state.projectMeta=snapshot.project.projectMeta;
+    projectAutosaveEnabled=true;
+    if(!silent)toast('Copia completa guardada en este navegador');
+    return true;
+  }catch(error){
+    console.error('[Cubikeitor] No se pudo guardar el proyecto:',error);
+    if(!silent)toast('No se pudo guardar: '+(error.message||'error de almacenamiento'));
+    return false;
+  }
+}
 function loadProject() {
-  try { const raw = localStorage.getItem('modular-config-v3') || localStorage.getItem('modular-config-v2'); if (!raw) return false; const loaded = JSON.parse(raw); state = { ...clone(DEFAULT_STATE), ...loaded, counts: { ...DEFAULT_STATE.counts, ...(loaded.counts || {}) }, customer: { ...DEFAULT_STATE.customer, ...(loaded.customer || {}) } }; return true; } catch { return false; }
+  const store=window.BAT_CUBIKEITOR_PROJECT_PERSISTENCE;
+  if(!store){console.error('[Cubikeitor] Sistema de respaldo no disponible');return false;}
+  const result=store.recover(localStorage,DEFAULT_STATE,DATA);
+  // Antes de recuperar una copia antigua, preservar el v4 defectuoso para diagnóstico.
+  if(result.errors.some(item=>item.key===store.key)){
+    try{
+      const damaged=localStorage.getItem(store.key);
+      if(damaged&&!localStorage.getItem('modular-config-damaged-v4'))
+        localStorage.setItem('modular-config-damaged-v4',damaged);
+    }catch(error){console.warn('[Cubikeitor] Respaldo dañado no se pudo copiar:',error);}
+  }
+  if(result.project){
+    state=result.project;
+    if(result.errors.length)
+      console.warn('[Cubikeitor] Se recuperó una copia anterior porque el respaldo principal estaba dañado:',result.errors);
+    return true;
+  }
+  if(result.errors.length){
+    console.error('[Cubikeitor] Se rechazaron respaldos dañados:',result.errors);
+    projectAutosaveEnabled=false; // No sobrescribir una copia dañada con un proyecto vacío.
+    toast('La copia guardada no es válida. No se sobrescribió; revisa el respaldo.');
+  }
+  return false;
+}
+// Mantener referencia directa: Supabase reemplaza window.saveProject con el guardado manual en la nube.
+const persistLocalProject=saveProject;
+function scheduleProjectAutosave(){
+  if(!projectAutosaveEnabled||projectAutosaveTimer!==null)return;
+  // No reiniciar el tiempo con cada render: evita que las actualizaciones 3D
+  // posterguen indefinidamente la escritura del respaldo.
+  projectAutosaveTimer=setTimeout(()=>{
+    projectAutosaveTimer=null;
+    persistLocalProject({silent:true});
+  },800);
+}
+function flushProjectAutosave(){
+  if(!projectAutosaveEnabled)return;
+  if(projectAutosaveTimer!==null)clearTimeout(projectAutosaveTimer);
+  projectAutosaveTimer=null;
+  persistLocalProject({silent:true});
 }
 function resetProject() { if (!confirm('¿Reiniciar el proyecto actual?')) return; pushHistory(); state = clone(DEFAULT_STATE); currentView = 'exterior'; renderAll(); setView('exterior'); toast('Proyecto reiniciado'); }
 function showModal(id) { const el = document.getElementById(id); el.classList.remove('hidden'); el.classList.add('flex'); }
 function closeModal(id) { const el = document.getElementById(id); el.classList.add('hidden'); el.classList.remove('flex'); }
 function toast(message) { const el = document.getElementById('toast'); el.textContent = message; el.classList.add('show'); clearTimeout(toast._timer); toast._timer = setTimeout(() => el.classList.remove('show'), 2200); }
 function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;' }[c])); }
-window.addEventListener('DOMContentLoaded', () => { loadProject(); init3D(); renderAll(); });
+window.addEventListener('DOMContentLoaded', () => {
+  const restored=loadProject();
+  init3D();renderAll();
+  // No iniciar auto-guardado si se rechazaron respaldos dañados: conservarlos para recuperar.
+  const store=window.BAT_CUBIKEITOR_PROJECT_PERSISTENCE;
+  // La revisión se hace sólo después de cargar; el proyecto activo no se sobreescribe.
+  const rejected=store?.recover(localStorage,DEFAULT_STATE,DATA);
+  projectAutosaveEnabled=Boolean(restored||!rejected?.errors?.length);
+  window.addEventListener('pagehide',flushProjectAutosave);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushProjectAutosave();});
+});

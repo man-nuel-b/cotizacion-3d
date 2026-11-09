@@ -31,16 +31,53 @@ function mockSupabaseSdk(){
   ];
   return [];
  }
+ function mockRecords(){
+   try{return JSON.parse(localStorage.getItem('__cubikeitor_mock_cloud_projects')||'[]');}
+   catch(_){return [];}
+ }
+ function setMockRecords(records){
+   localStorage.setItem('__cubikeitor_mock_cloud_projects',JSON.stringify(records));
+ }
  function query(table){
+   const filters={};let mode='select',values=null,limit=null;
+   function execute(){
+     if(table==='organization_members')
+       return {data:[{organization_id:org,role:'owner'}],error:null};
+     if(table!=='projects')return {data:data(table),error:null};
+     let rows=mockRecords();
+     const matches=p=>Object.entries(filters).every(([key,value])=>p[key]===value);
+     if(mode==='insert'){
+       const newRow={
+         ...JSON.parse(JSON.stringify(values)),
+         id:'00000000-0000-4000-8000-'+String(rows.length+1).padStart(12,'0'),
+         status:'draft',version:values.version||1,
+         updated_at:new Date().toISOString()
+       };
+       rows.push(newRow);setMockRecords(rows);
+       return {data:[newRow],error:null};
+     }
+     if(mode==='update'){
+       const touched=rows.filter(matches);
+       for(const row of touched){
+         Object.assign(row,JSON.parse(JSON.stringify(values)),{updated_at:new Date().toISOString()});
+       }
+       if(touched.length)setMockRecords(rows);
+       return {data:touched,error:null};
+     }
+     rows=rows.filter(matches);
+     return {data:limit===null?rows:rows.slice(0,limit),error:null};
+   }
    return {
-     select(){return this;},eq(){return this;},in(){return this;},
-     order(){return this;},limit(){return this;},
-     maybeSingle(){
-       if(table==='organization_members')return Promise.resolve({data:{organization_id:org,role:'owner'},error:null});
-       return Promise.resolve({data:null,error:null});
-     },
-     single(){return Promise.resolve({data:null,error:null})},
-     then(resolve,reject){return Promise.resolve({data:data(table),error:null}).then(resolve,reject)}
+     select(){return this;},
+     eq(key,value){filters[key]=value;return this;},
+     in(){return this;},
+     order(){return this;},
+     limit(n){limit=n;return this;},
+     update(payload){mode='update';values=payload;return this;},
+     insert(payload){mode='insert';values=payload;return this;},
+     maybeSingle(){const x=execute();return Promise.resolve({...x,data:x.data[0]||null});},
+     single(){const x=execute();return Promise.resolve({...x,data:x.data[0]||null});},
+     then(resolve,reject){return Promise.resolve(execute()).then(resolve,reject);}
    };
  }
  window.supabase={createClient(){return {
@@ -395,6 +432,223 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
       const failed=extrasAudit.filter(x=>!x.ok);
       assert.deepEqual(failed.map(x=>({key:x.key,problem:x.problem})),[],
         'Los extras deben actualizar contador, geometría y flujo previsto');
+
+      // Prueba de recuperación real: guardar una configuración compleja y recargar toda la aplicación.
+      const beforeReload=await page.evaluate(()=>{
+        const all=Object.keys(DATA.extras);
+        const fresh=clone(DEFAULT_STATE);
+        for(const key of all)fresh.counts[key]=0;
+        fresh.counts.window=1;fresh.counts.door=1;fresh.counts.partition=1;
+        fresh.counts.wc=1;fresh.counts.sink=1;fresh.counts.electrical=2;
+        fresh.layout={
+          window:[{face:'A',x:-1.35}],
+          door:[{face:'B',x:.65}],
+          partition:[{orientation:PARTITION_ORIENTATION.CROSS,x:.75,z:0}],
+          wc:[{x:-2.1,z:.75}],sink:[{x:-1.05,z:.7}],
+          electrical:[{face:'A',x:1.2},{face:'D',x:-.2}]
+        };
+        fresh.dimensions={
+          window:[{width:1.35,height:1.1}],
+          door:[{width:.95,height:2.15}],
+          partition:[{length:1.75,height:2.3,thickness:.075}],
+          sink:[{width:.62,height:.9,depth:.52}]
+        };
+        fresh.electrical={version:1,points:[
+          {id:'EL-SAVE-A',type:'outlet',circuit:'Enchufes',face:'A',position:{x:1.2,z:0},height:1.1},
+          {id:'EL-SAVE-B',type:'light',circuit:'Iluminación',face:'D',position:{x:-.2,z:0},height:2.4}
+        ]};
+        fresh.bathroomModules=[{kind:'full',x:1.5,z:-.3,rotation:90}];
+        fresh.interiorSystem={...(state.interiorSystem||{}),lining:'plywood'};
+        fresh.projectMeta={id:'BK-ROUNDTRIP-3D',revision:4,title:'Prueba de recuperación'};
+        fresh.customer={...fresh.customer,name:'Prueba guardar y abrir'};
+        state=fresh;
+        renderAll();
+        const saved=persistLocalProject({silent:true});
+        const snap=window.BAT_CUBIKEITOR_PROJECT_PERSISTENCE.encode(state,DEFAULT_STATE,DATA);
+        const plan=window.BAT_CUBIKEITOR_3D_SUPABASE.buildPlan(state,DATA);
+        return {
+          saved,
+          projectMeta:state.projectMeta,
+          critical:{
+            counts:state.counts,layout:state.layout,dimensions:state.dimensions,
+            bathroomModules:state.bathroomModules,electrical:state.electrical,
+            interiorSystem:state.interiorSystem,customer:state.customer
+          },
+          plan:plan.items.map(i=>({code:i.code,quantity:i.quantity})),
+          storageValid:localStorage.getItem('modular-config-v4')!==null,
+          renderedWindows:editableObjects.filter(x=>x.userData?.editor?.type==='window').length
+        };
+      });
+      assert.equal(beforeReload.saved,true,'complete local snapshot must be saved');
+      assert.equal(beforeReload.storageValid,true,'v4 backup must exist');
+      assert.equal(beforeReload.renderedWindows,1,'3D must render saved window before reload');
+      await page.reload({waitUntil:'domcontentloaded'});
+      await page.waitForFunction(()=>document.body.classList.contains('bat-preview-ready')
+        &&document.querySelector('#canvas-container canvas')
+        &&typeof state!=='undefined'&&state.projectMeta?.id==='BK-ROUNDTRIP-3D',
+        null,{timeout:50000});
+      await page.waitForFunction(()=>window.BAT_CUBIKEITOR_3D_SUPABASE?.buildPlan
+        &&editableObjects.filter(x=>x.userData?.editor?.type==='window').length===1,
+        null,{timeout:50000});
+      const afterReload=await page.evaluate(()=>{
+        const plan=window.BAT_CUBIKEITOR_3D_SUPABASE.buildPlan(state,DATA);
+        return {
+          projectMeta:state.projectMeta,
+          critical:{
+            counts:state.counts,layout:state.layout,dimensions:state.dimensions,
+            bathroomModules:state.bathroomModules,electrical:state.electrical,
+            interiorSystem:state.interiorSystem,customer:state.customer
+          },
+          plan:plan.items.map(i=>({code:i.code,quantity:i.quantity})),
+          renderedWindows:editableObjects.filter(x=>x.userData?.editor?.type==='window').length,
+          renderedDoors:editableObjects.filter(x=>x.userData?.editor?.type==='door').length,
+          renderedPartitions:editableObjects.filter(x=>x.userData?.editor?.type==='partition').length
+        };
+      });
+      assert.deepEqual(afterReload.critical,beforeReload.critical,
+        'All positions, dimensions, bathroom modules and electrical identities must survive full reload');
+      assert.deepEqual(afterReload.plan,beforeReload.plan,
+        'Technical material quantities must match before and after reopening');
+      assert.equal(afterReload.projectMeta.id,beforeReload.projectMeta.id,
+        'Project identity must remain stable when reopened');
+      assert.equal(afterReload.renderedWindows,1);
+      assert.equal(afterReload.renderedDoors,1);
+      assert.equal(afterReload.renderedPartitions,1);
+      console.log('PROJECT_LOCAL_ROUNDTRIP_SUCCESS',JSON.stringify({
+        before:beforeReload.critical.counts,after:afterReload.critical.counts,
+        id:afterReload.projectMeta.id,materials:afterReload.plan.length
+      }));
+
+      // Simular la nube con registros ficticios: nunca se envían datos reales a Supabase.
+      await page.waitForFunction(()=>window.BAT_KUBIQUEITOR_SUPABASE_CLOUD?.version===3,
+        null,{timeout:30000});
+      const cloudRoundtrip=await page.evaluate(async()=>{
+        const api=window.BAT_KUBIQUEITOR_SUPABASE_CLOUD;
+        const first=await api.save();
+        const projectsBefore=JSON.parse(localStorage.getItem('__cubikeitor_mock_cloud_projects')||'[]');
+        const originalRemote=projectsBefore[0]?.id;
+        const originalLocal=state.projectMeta.id;
+        const copy=api.copyProject();
+        const second=await api.save();
+        const projectsAfter=JSON.parse(localStorage.getItem('__cubikeitor_mock_cloud_projects')||'[]');
+        const copyRemote=api.getLinkedId();
+        const reopened=await api.openProject(originalRemote);
+        const recovered=JSON.parse(JSON.stringify(state));
+        return {
+          first,second,reopened,copy,
+          originalRemote,copyRemote,originalLocal,
+          projectCount:projectsAfter.length,
+          restoredId:recovered.projectMeta.id,
+          restoredLayout:recovered.layout,
+          restoredDimensions:recovered.dimensions,
+          restoredElectrical:recovered.electrical,
+          restoredBathrooms:recovered.bathroomModules,
+          originalRemoteVersion:projectsAfter[0].version,
+          copyVersion:projectsAfter[1].version
+        };
+      });
+      assert.equal(cloudRoundtrip.first,true,'First cloud save must be confirmed');
+      assert.equal(cloudRoundtrip.second,true,'Save as new copy must be confirmed');
+      assert.equal(cloudRoundtrip.projectCount,2,'Copy action must INSERT, never overwrite original record');
+      assert.notEqual(cloudRoundtrip.originalRemote,cloudRoundtrip.copyRemote);
+      assert.notEqual(cloudRoundtrip.copy.current,cloudRoundtrip.copy.previous);
+      assert.equal(cloudRoundtrip.reopened,true,'Original cloud project must reopen successfully');
+      assert.equal(cloudRoundtrip.restoredId,cloudRoundtrip.originalLocal);
+      // Al iniciar, los plugins registran listas vacías para nuevos tipos de vano:
+      // no deben confundirse con pérdidas de las posiciones originales.
+      for(const [type,entries] of Object.entries(beforeReload.critical.layout))
+        assert.deepEqual(cloudRoundtrip.restoredLayout[type],entries,
+          'Cloud must preserve installed layout for '+type);
+      for(const [type,entries] of Object.entries(beforeReload.critical.dimensions))
+        assert.deepEqual(cloudRoundtrip.restoredDimensions[type],entries,
+          'Cloud must preserve edited dimensions for '+type);
+      assert.deepEqual(cloudRoundtrip.restoredElectrical,beforeReload.critical.electrical);
+      assert.deepEqual(cloudRoundtrip.restoredBathrooms,beforeReload.critical.bathroomModules);
+      const conflict=await page.evaluate(async()=>{
+        const api=window.BAT_KUBIQUEITOR_SUPABASE_CLOUD;
+        const rows=JSON.parse(localStorage.getItem('__cubikeitor_mock_cloud_projects'));
+        const previousVersion=rows[0].version;
+        rows[0].version=previousVersion+1; // Simula guardado en otra sesión.
+        rows[0].name='Revisión de otro usuario';
+        localStorage.setItem('__cubikeitor_mock_cloud_projects',JSON.stringify(rows));
+        // Simular segunda pestaña del MISMO navegador que actualiza el mapa compartido.
+        const versionKey='bat-cubikeitor-cloud-version-map-v1';
+        const versions=JSON.parse(localStorage.getItem(versionKey)||'{}');
+        const link=Object.keys(versions).find(k=>k.endsWith('::'+rows[0].id));
+        if(link){versions[link]=rows[0].version;localStorage.setItem(versionKey,JSON.stringify(versions));}
+        state.customer.name='Cambio local que no puede pisar otro guardado';
+        const saved=await api.save();
+        const after=JSON.parse(localStorage.getItem('__cubikeitor_mock_cloud_projects'));
+        return {saved,version:after[0].version,name:after[0].name,
+          localVersion:localStorage.getItem('modular-config-v4')!==null};
+      });
+      assert.equal(conflict.saved,false,'Optimistic lock must block stale cloud overwrite');
+      assert.equal(conflict.name,'Revisión de otro usuario');
+      assert.equal(conflict.localVersion,true,'Conflicted edits must remain recoverable locally');
+      const mismatchedLink=await page.evaluate(async(copyRemote)=>{
+        const key='bat-cubikeitor-cloud-project-map-v2';
+        const map=JSON.parse(localStorage.getItem(key)||'{}');
+        const match=Object.keys(map).find(k=>k.endsWith('::'+state.projectMeta.id));
+        const previous=map[match];
+        map[match]=copyRemote; // Simula un vínculo heredado incorrecto.
+        localStorage.setItem(key,JSON.stringify(map));
+        const before=localStorage.getItem('__cubikeitor_mock_cloud_projects');
+        const saved=await window.BAT_KUBIQUEITOR_SUPABASE_CLOUD.save();
+        const unchanged=before===localStorage.getItem('__cubikeitor_mock_cloud_projects');
+        map[match]=previous;localStorage.setItem(key,JSON.stringify(map));
+        return {saved,unchanged};
+      },cloudRoundtrip.copyRemote);
+      assert.equal(mismatchedLink.saved,false,'Wrong cloud project link must be rejected');
+      assert.equal(mismatchedLink.unchanged,true,'Wrong link must not overwrite another project');
+      const corruptCloud=await page.evaluate(async()=>{
+        const api=window.BAT_KUBIQUEITOR_SUPABASE_CLOUD;
+        const rows=JSON.parse(localStorage.getItem('__cubikeitor_mock_cloud_projects'));
+        rows[0].project_state.counts.window='valor-dañado';
+        localStorage.setItem('__cubikeitor_mock_cloud_projects',JSON.stringify(rows));
+        const before=JSON.stringify(state);
+        const localBefore=localStorage.getItem('modular-config-v4');
+        const opened=await api.openProject(rows[0].id);
+        return {opened,keptState:JSON.stringify(state)===before,
+          keptLocal:localStorage.getItem('modular-config-v4')===localBefore};
+      });
+      assert.equal(corruptCloud.opened,false,'Corrupt cloud payload must be rejected');
+      assert.equal(corruptCloud.keptState,true,'Invalid cloud load must not replace current state');
+      assert.equal(corruptCloud.keptLocal,true,'Invalid cloud load must not overwrite local recovery');
+      console.log('PROJECT_CLOUD_RECOVERY_SUCCESS',JSON.stringify({
+        copies:cloudRoundtrip.projectCount,
+        originalRestored:cloudRoundtrip.reopened,
+        versionConflictBlocked:!conflict.saved,
+        wrongProjectBlocked:!mismatchedLink.saved,
+        corruptPayloadBlocked:!corruptCloud.opened
+      }));
+
+      // Autoguardado debe ser SOLO local y no disparar cloud.save al editar.
+      const autoBefore=await page.evaluate(()=>{
+        const cloudRows=localStorage.getItem('__cubikeitor_mock_cloud_projects');
+        state.customer.name='Autoguardado sin pulsar Guardar';
+        renderAll();
+        return {cloudRows};
+      });
+      await page.waitForTimeout(1250);
+      const autoAfter=await page.evaluate(()=>{
+        const core=window.BAT_CUBIKEITOR_PROJECT_PERSISTENCE;
+        const local=core.decode(localStorage.getItem(core.key),DEFAULT_STATE,DATA).project;
+        return {
+          savedName:local.customer.name,
+          cloudRows:localStorage.getItem('__cubikeitor_mock_cloud_projects'),
+          projectId:local.projectMeta.id
+        };
+      });
+      assert.equal(autoAfter.savedName,'Autoguardado sin pulsar Guardar',
+        'Project edits must autosave locally after debounce');
+      assert.equal(autoAfter.cloudRows,autoBefore.cloudRows,
+        'Local autosave must never write to cloud without explicit user action');
+      assert.equal(autoAfter.projectId,cloudRoundtrip.originalLocal);
+      console.log('PROJECT_AUTOSAVE_SUCCESS',JSON.stringify({
+        savedName:autoAfter.savedName,cloudUnchanged:true
+      }));
+
+
       console.log('BROWSER_SMOKE_SUCCESS',JSON.stringify({initial,after,nonFatalBrowserErrors:browserErrors.slice(0,10)}));
     }catch(e){
       try{await page.screenshot({path:'/tmp/cubikeitor-window-smoke.png',fullPage:true});}catch{}

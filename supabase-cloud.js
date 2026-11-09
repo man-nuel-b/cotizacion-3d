@@ -8,6 +8,31 @@
   const SDK_URL='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.min.js';
   const CURRENT_PROJECT_KEY='bat-cubikeitor-cloud-project-id-v1';
   const localSave=window.saveProject;
+  const persistence=()=>window.BAT_CUBIKEITOR_PROJECT_PERSISTENCE;
+  const VERSION_MAP_KEY='bat-cubikeitor-cloud-version-map-v1';
+  const readVersions=()=>{
+    try{const value=JSON.parse(localStorage.getItem(VERSION_MAP_KEY)||'{}');return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}
+    catch(_){return {};}
+  };
+  const versionKey=id=>[session?.user?.id||'',organizationId||'',id||''].join('::');
+  // Una pestaña no debe adoptar automáticamente la versión que otra acaba de guardar.
+  const observedVersions=new Map();
+  function readKnownVersion(id){
+    const key=versionKey(id);
+    if(observedVersions.has(key))return observedVersions.get(key);
+    const n=readVersions()[key];
+    const known=Number.isSafeInteger(n)&&n>=1?n:null;
+    observedVersions.set(key,known);
+    return known;
+  }
+  function recordKnownVersion(id,version){
+    if(!id||!Number.isSafeInteger(version)||version<1)return;
+    const key=versionKey(id);
+    observedVersions.set(key,version);
+    try{const map=readVersions();map[key]=version;
+      localStorage.setItem(VERSION_MAP_KEY,JSON.stringify(map));}
+    catch(error){console.warn('[BAT Cloud] No se pudo registrar versión del proyecto',error);}
+  }
   let client=null;
   let session=null;
   let organizationId=null;
@@ -31,15 +56,33 @@
   }
   function setCurrentProjectId(id){
     currentProjectId=id||null;
-    const key=cloudMapKey();if(!key||!id)return;
-    try{const map=readCloudMap();map[key]=id;localStorage.setItem(CLOUD_PROJECT_MAP_KEY,JSON.stringify(map));}
-    catch(e){console.warn('[BAT Cloud] No se pudo guardar vínculo local-nube',e);}
+    const key=cloudMapKey();if(!key)return;
+    try{
+      const map=readCloudMap();
+      if(id)map[key]=id;
+      else delete map[key]; // «Nuevo proyecto» nunca puede reutilizar un vínculo previo.
+      localStorage.setItem(CLOUD_PROJECT_MAP_KEY,JSON.stringify(map));
+    }catch(e){console.warn('[BAT Cloud] No se pudo guardar vínculo local-nube',e);}
+  }
+  function createCloudCopy(){
+    const core=persistence();
+    if(!core)return notify('El sistema de respaldo aún no está disponible.');
+    const previous=state.projectMeta?.id||null;
+    state.projectMeta={...(state.projectMeta||{}),id:core.id(),revision:0};
+    currentProjectId=null;
+    // Mantener el vínculo con el proyecto anterior para poder reabrirlo.
+    if(typeof localSave==='function'&&!localSave({silent:true}))
+      notify('La copia nueva está abierta pero no se pudo guardar su respaldo local.');
+    notify('Copia nueva preparada: el próximo guardado creará otro proyecto sin sobrescribir el anterior.');
+    refreshCloudProjects();
+    return {previous,current:state.projectMeta.id};
   }
   function ensureLocalProjectId(){
-    if(!state.projectMeta?.id){
-      state.projectMeta={...(state.projectMeta||{}),id:'BK-'+Date.now().toString(36).toUpperCase()+'-'+Math.random().toString(36).slice(2,8).toUpperCase(),revision:0,title:projectName()};
-    }
-    return state.projectMeta.id;
+    const core=persistence();
+    if(!core)throw new Error('No está disponible el sistema de respaldo de proyectos.');
+    const id=core.ensureMeta(state);
+    if(!state.projectMeta.title)state.projectMeta.title=projectName();
+    return id;
   }
   function projectName(){
     const solution=(window.DATA||typeof DATA!=='undefined'?DATA:null)?.solutions?.[state?.solution]?.name||'Proyecto modular';
@@ -123,7 +166,7 @@
       document.getElementById('bat-sign-out').onclick=signOut;
       document.getElementById('bat-cloud-save-now').onclick=saveCloudProject;
       document.getElementById('bat-cloud-refresh').onclick=refreshCloudProjects;
-      document.getElementById('bat-cloud-new').onclick=()=>{setCurrentProjectId(null);notify('Nuevo proyecto en la nube: el próximo guardado creará una copia nueva');refreshCloudProjects();};
+      document.getElementById('bat-cloud-new').onclick=createCloudCopy;
     }
   }
 
@@ -161,23 +204,73 @@
   async function signOut(){await client.auth.signOut();session=null;organizationId=null;updateUi();notify('Sesión cerrada');}
 
   function mergeLoadedState(loaded){
-    state={...clone(DEFAULT_STATE),...loaded,counts:{...DEFAULT_STATE.counts,...(loaded?.counts||{})},customer:{...DEFAULT_STATE.customer,...(loaded?.customer||{})}};
-    history=[];future=[];renderAll();setView('exterior',false);
+    const core=persistence();
+    if(!core)throw new Error('El sistema de recuperación todavía no está disponible.');
+    const recovered=core.normalize(loaded,DEFAULT_STATE,DATA);
+    const oldState=state,oldHistory=history,oldFuture=future;
+    try{
+      state=recovered;
+      history=[];future=[];
+      renderAll();setView('exterior',false);
+    }catch(error){
+      state=oldState;history=oldHistory;future=oldFuture;
+      try{renderAll();}catch(_){}
+      throw error;
+    }
   }
 
-  async function saveCloudProject(){
+  async function saveCloudProject(options={}){
     if(!session?.user){openCloudModal();notify('Inicia sesión para guardar en la nube');return false;}
     try{
       if(!organizationId)await initializeMembership();
       ensureLocalProjectId();
-      const payload={organization_id:organizationId,name:projectName(),container_type:state.container,solution_type:state.solution,project_state:clone(state),updated_by:session.user.id};
+      const core=persistence();
+      // El proyecto se valida antes de cualquier INSERT/UPDATE. No descartar geometría o medidas.
+      const snapshot=core.normalize(state,DEFAULT_STATE,DATA);
+      state.projectMeta=snapshot.projectMeta;
+      if(options.saveLocal!==false && typeof localSave==='function' && !localSave({silent:true}))
+        notify('Advertencia: no se pudo crear la copia local; se intentará guardar en la nube.');
+      const payload={organization_id:organizationId,name:projectName(),container_type:snapshot.container,
+        solution_type:snapshot.solution,project_state:snapshot,updated_by:session.user.id};
       const id=getCurrentProjectId();
       let result;
-      if(id) result=await client.from('projects').update(payload).eq('id',id).eq('organization_id',organizationId).select('id').single();
-      else result=await client.from('projects').insert({...payload,created_by:session.user.id}).select('id').single();
+      if(id){
+        const knownVersion=readKnownVersion(id);
+        if(knownVersion===null)
+          throw new Error('Abre primero el proyecto desde la nube para confirmar su versión antes de actualizarlo. También puedes guardar una copia nueva.');
+        // Defensa contra vínculos locales heredados equivocados: jamás actualizar
+        // un proyecto remoto con identidad local diferente, aun si coincide la versión.
+        const {data:remote,error:readError}=await client.from('projects')
+          .select('id,version,project_state')
+          .eq('id',id).eq('organization_id',organizationId).single();
+        if(readError)throw readError;
+        if(!remote||remote.project_state?.projectMeta?.id!==snapshot.projectMeta.id)
+          throw new Error('El vínculo local-nube no corresponde al proyecto abierto. No se sobrescribió. Abre el correcto desde la nube o guarda una copia nueva.');
+        if(Number(remote.version)!==knownVersion)
+          throw new Error('Existe una versión más reciente de este proyecto. Ábrela desde la nube o crea una copia nueva; tus cambios locales permanecen guardados.');
+        result=await client.from('projects')
+          .update({...payload,version:knownVersion+1})
+          .eq('id',id).eq('organization_id',organizationId).eq('version',knownVersion)
+          .select('id,version').maybeSingle();
+        if(!result.error&&!result.data)
+          throw new Error('Otro guardado modificó este proyecto. Abre la versión de la nube o crea una copia; no se sobrescribió.');
+      }else{
+        result=await client.from('projects')
+          .insert({...payload,version:1,created_by:session.user.id})
+          .select('id,version').single();
+      }
       if(result.error)throw result.error;
-      setCurrentProjectId(result.data.id);notify('Proyecto guardado en la nube');refreshCloudProjects();return true;
-    }catch(error){console.error('[BAT Cloud] save',error);notify(`Nube: ${error.message||'error al guardar'}`);return false;}
+      if(!result.data?.id)throw new Error('La nube no confirmó el guardado.');
+      setCurrentProjectId(result.data.id);
+      recordKnownVersion(result.data.id,Number(result.data.version)||1);
+      notify('Proyecto guardado y confirmado en la nube');
+      refreshCloudProjects();
+      return true;
+    }catch(error){
+      console.error('[BAT Cloud] save',error);
+      notify(`Nube: ${error.message||'error al guardar'}`);
+      return false;
+    }
   }
 
   async function refreshCloudProjects(){
@@ -191,18 +284,79 @@
   }
 
   async function openCloudProject(id){
-    try{const {data,error}=await client.from('projects').select('id,project_state').eq('id',id).single();if(error)throw error;if(!data?.project_state)throw new Error('Proyecto sin estado guardado');
-      mergeLoadedState(data.project_state);ensureLocalProjectId();setCurrentProjectId(data.id);try{localStorage.setItem('modular-config-v3',JSON.stringify(state));}catch(e){}closeCloudModal();notify('Proyecto abierto desde la nube');
-    }catch(error){notify(`Nube: ${error.message||'error al abrir proyecto'}`);}
+    try{
+      if(!session?.user)throw new Error('Inicia sesión para abrir proyectos');
+      if(!organizationId)await initializeMembership();
+      const {data,error}=await client.from('projects')
+        .select('id,version,project_state')
+        .eq('id',id).eq('organization_id',organizationId).single();
+      if(error)throw error;
+      if(!data?.project_state)throw new Error('Proyecto sin estado guardado');
+      const core=persistence();
+      if(!core)throw new Error('El sistema de recuperación todavía no está disponible.');
+      // Validación antes de tocar el diseño abierto: un JSONB corrupto nunca desplaza el proyecto actual.
+      const snapshot=core.encode(data.project_state,DEFAULT_STATE,DATA);
+      const previous=localStorage.getItem(core.key);
+      try{
+        if(previous)localStorage.setItem('modular-config-previous-v4',previous);
+        localStorage.setItem(core.key,snapshot.serialized);
+        mergeLoadedState(snapshot.project);
+        if(typeof localSave==='function'&&!localSave({silent:true}))
+          throw new Error('No se pudo completar el respaldo local del proyecto recuperado.');
+      }catch(failure){
+        try{
+          if(previous!==null)localStorage.setItem(core.key,previous);
+          else localStorage.removeItem(core.key);
+        }catch(_){}
+        throw failure;
+      }
+      setCurrentProjectId(data.id);
+      recordKnownVersion(data.id,Number(data.version)||1);
+      closeCloudModal();
+      notify('Proyecto completo recuperado desde la nube');
+      return true;
+    }catch(error){
+      console.error('[BAT Cloud] open',error);
+      notify(`Nube: ${error.message||'error al abrir proyecto'}`);
+      return false;
+    }
   }
 
   async function init(){
     try{injectUi();const sdk=await loadSdk();client=sdk.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});currentProjectId=getCurrentProjectId();
-      const {data}=await client.auth.getSession();session=data.session||null;if(session?.user){try{await initializeMembership();}catch(error){console.warn('[BAT Cloud] membership',error.message);}}
-      client.auth.onAuthStateChange(async(_event,newSession)=>{session=newSession;organizationId=null;if(session?.user){try{await initializeMembership();}catch(error){console.warn('[BAT Cloud] membership',error.message);}}updateUi();});
+      const {data}=await client.auth.getSession();session=data.session||null;
+      if(session?.user){
+        try{
+          await initializeMembership();
+          currentProjectId=getCurrentProjectId();
+          if(currentProjectId)readKnownVersion(currentProjectId);
+        }catch(error){console.warn('[BAT Cloud] membership',error.message);}
+      }
+      client.auth.onAuthStateChange(async(_event,newSession)=>{
+        session=newSession;organizationId=null;
+        if(session?.user){
+          try{
+            await initializeMembership();
+            currentProjectId=getCurrentProjectId();
+            if(currentProjectId)readKnownVersion(currentProjectId);
+          }catch(error){console.warn('[BAT Cloud] membership',error.message);}
+        }
+        updateUi();
+      });
       updateUi();
-      window.BAT_KUBIQUEITOR_SUPABASE_CLOUD={version:2,client,save:saveCloudProject,open:openCloudModal,refresh:refreshCloudProjects,getSession:()=>session};
-      window.saveProject=async function(){if(typeof localSave==='function')localSave();if(session?.user)await saveCloudProject();};
+      window.BAT_KUBIQUEITOR_SUPABASE_CLOUD={
+        version:3,client,save:saveCloudProject,open:openCloudModal,
+        openProject:openCloudProject,copyProject:createCloudCopy,
+        refresh:refreshCloudProjects,getSession:()=>session,
+        getLinkedId:()=>getCurrentProjectId()
+      };
+      window.saveProject=async function(){
+        const localOk=typeof localSave==='function'?localSave():false;
+        if(!session?.user)return localOk;
+        const cloudOk=await saveCloudProject({saveLocal:false});
+        if(!cloudOk&&localOk)notify('La copia local permanece guardada; revisa el error de la nube.');
+        return cloudOk||localOk;
+      };
     }catch(error){console.error('[BAT Cloud] init',error);window.BAT_KUBIQUEITOR_SUPABASE_CLOUD={version:2,error:error.message};}
   }
 

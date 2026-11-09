@@ -84,7 +84,7 @@
     loadScriptOnce('electrical-circuit-core-v1.js?v=20261107-circuits01','electrical-circuit-core-v1');
     loadScriptOnce('electrical-circuit-ui-v1.js?v=20261107-circuits01','electrical-circuit-ui-v1');
   }
-  function loadSupabaseCloud(){loadScriptOnce('supabase-cloud.js?v=20261025-cloud02','supabase-cloud');}
+  function loadSupabaseCloud(){loadScriptOnce('supabase-cloud.js?v=20261108-save01','supabase-cloud');}
   function loadProjectMetrics(){loadScriptOnce('project-metrics-v1.js?v=20261025-metrics04','project-metrics-v1');}
   function loadModelCostBridge(){loadScriptOnce('model-cost-bridge-v1.js?v=20261107-costfix02','model-cost-bridge-v1');}
 
