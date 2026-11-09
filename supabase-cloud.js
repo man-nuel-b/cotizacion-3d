@@ -283,6 +283,8 @@
         if(previous)localStorage.setItem('modular-config-previous-v4',previous);
         localStorage.setItem(core.key,snapshot.serialized);
         mergeLoadedState(snapshot.project);
+        if(typeof localSave==='function'&&!localSave({silent:true}))
+          throw new Error('No se pudo completar el respaldo local del proyecto recuperado.');
       }catch(failure){
         try{
           if(previous!==null)localStorage.setItem(core.key,previous);
@@ -307,8 +309,19 @@
       const {data}=await client.auth.getSession();session=data.session||null;if(session?.user){try{await initializeMembership();}catch(error){console.warn('[BAT Cloud] membership',error.message);}}
       client.auth.onAuthStateChange(async(_event,newSession)=>{session=newSession;organizationId=null;if(session?.user){try{await initializeMembership();}catch(error){console.warn('[BAT Cloud] membership',error.message);}}updateUi();});
       updateUi();
-      window.BAT_KUBIQUEITOR_SUPABASE_CLOUD={version:2,client,save:saveCloudProject,open:openCloudModal,refresh:refreshCloudProjects,getSession:()=>session};
-      window.saveProject=async function(){if(typeof localSave==='function')localSave();if(session?.user)await saveCloudProject();};
+      window.BAT_KUBIQUEITOR_SUPABASE_CLOUD={
+        version:3,client,save:saveCloudProject,open:openCloudModal,
+        openProject:openCloudProject,copyProject:createCloudCopy,
+        refresh:refreshCloudProjects,getSession:()=>session,
+        getLinkedId:()=>getCurrentProjectId()
+      };
+      window.saveProject=async function(){
+        const localOk=typeof localSave==='function'?localSave():false;
+        if(!session?.user)return localOk;
+        const cloudOk=await saveCloudProject({saveLocal:false});
+        if(!cloudOk&&localOk)notify('La copia local permanece guardada; revisa el error de la nube.');
+        return cloudOk||localOk;
+      };
     }catch(error){console.error('[BAT Cloud] init',error);window.BAT_KUBIQUEITOR_SUPABASE_CLOUD={version:2,error:error.message};}
   }
 
