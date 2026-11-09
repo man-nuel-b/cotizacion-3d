@@ -31,16 +31,53 @@ function mockSupabaseSdk(){
   ];
   return [];
  }
+ function mockRecords(){
+   try{return JSON.parse(localStorage.getItem('__cubikeitor_mock_cloud_projects')||'[]');}
+   catch(_){return [];}
+ }
+ function setMockRecords(records){
+   localStorage.setItem('__cubikeitor_mock_cloud_projects',JSON.stringify(records));
+ }
  function query(table){
+   const filters={};let mode='select',values=null,limit=null;
+   function execute(){
+     if(table==='organization_members')
+       return {data:[{organization_id:org,role:'owner'}],error:null};
+     if(table!=='projects')return {data:data(table),error:null};
+     let rows=mockRecords();
+     const matches=p=>Object.entries(filters).every(([key,value])=>p[key]===value);
+     if(mode==='insert'){
+       const newRow={
+         ...JSON.parse(JSON.stringify(values)),
+         id:'00000000-0000-4000-8000-'+String(rows.length+1).padStart(12,'0'),
+         status:'draft',version:values.version||1,
+         updated_at:new Date().toISOString()
+       };
+       rows.push(newRow);setMockRecords(rows);
+       return {data:[newRow],error:null};
+     }
+     if(mode==='update'){
+       const touched=rows.filter(matches);
+       for(const row of touched){
+         Object.assign(row,JSON.parse(JSON.stringify(values)),{updated_at:new Date().toISOString()});
+       }
+       if(touched.length)setMockRecords(rows);
+       return {data:touched,error:null};
+     }
+     rows=rows.filter(matches);
+     return {data:limit===null?rows:rows.slice(0,limit),error:null};
+   }
    return {
-     select(){return this;},eq(){return this;},in(){return this;},
-     order(){return this;},limit(){return this;},
-     maybeSingle(){
-       if(table==='organization_members')return Promise.resolve({data:{organization_id:org,role:'owner'},error:null});
-       return Promise.resolve({data:null,error:null});
-     },
-     single(){return Promise.resolve({data:null,error:null})},
-     then(resolve,reject){return Promise.resolve({data:data(table),error:null}).then(resolve,reject)}
+     select(){return this;},
+     eq(key,value){filters[key]=value;return this;},
+     in(){return this;},
+     order(){return this;},
+     limit(n){limit=n;return this;},
+     update(payload){mode='update';values=payload;return this;},
+     insert(payload){mode='insert';values=payload;return this;},
+     maybeSingle(){const x=execute();return Promise.resolve({...x,data:x.data[0]||null});},
+     single(){const x=execute();return Promise.resolve({...x,data:x.data[0]||null});},
+     then(resolve,reject){return Promise.resolve(execute()).then(resolve,reject);}
    };
  }
  window.supabase={createClient(){return {
