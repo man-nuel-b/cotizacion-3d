@@ -36,7 +36,7 @@ test('Tabiques cruzados X/Z se rechazan con espesores reales',()=>{
  assert.deepEqual(store.getProjection(),beforeProjection);
  store.dispatch({type:'partition/add',orientation:'z',length:.6,height:2,x:2,z:.5,thickness:.08});
  assert.equal(store.getState().partitions.length,2);
- assert.equal(store.getProjection().bom.metrics.partitionArea,3*2.4+.6*2);
+ assert.equal(store.getProjection().bom.metrics.partitionArea,Math.round((3*2.4+.6*2)*1000)/1000);
  const second=store.getState(),priorCost=store.getProjection().quote.total;
  assert.throws(()=>store.dispatch({type:'partition/move',id:second.partitions[1].id,x:0,z:0}),/superpuestos/);
  assert.equal(store.getProjection().quote.total,priorCost);
