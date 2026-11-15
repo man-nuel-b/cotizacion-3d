@@ -14,7 +14,7 @@ button{cursor:pointer;font-weight:700}button:hover{background:#263b56}.accent{ba
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js" defer></script>
-<script src="core/project-state.js" defer></script><script src="core/spatial.js" defer></script><script src="core/materials.js" defer></script><script src="core/pricing.js" defer></script><script src="core/catalog.js" defer></script><script src="main.js" defer></script>
+<script src="core/project-state.js" defer></script><script src="core/spatial.js" defer></script><script src="core/materials.js" defer></script><script src="core/pricing.js" defer></script><script src="core/catalog.js" defer></script><script src="core/model-cost-bridge.js" defer></script><script src="main.js" defer></script>
 </head><body>
 <header><div><h1>BAT-CUBIKEITOR <small>V2 · Reconstrucción</small></h1><small>Motor 3D y costos con una única fuente de datos</small></div><small id="revision">Revisión 0</small></header>
 <main>
@@ -39,6 +39,8 @@ button{cursor:pointer;font-weight:700}button:hover{background:#263b56}.accent{ba
 <h2 style="margin-top:28px">3. Tabique interior</h2>
 <div class="actions"><label>Largo (m)<input id="partition-length" type="number" value="2" min=".5" max="6" step=".1"></label>
 <label>Altura (m)<input id="partition-height" type="number" value="2.4" min=".5" max="3" step=".1"></label></div>
+<div class="actions"><label>Orientación<select id="partition-orientation"><option value="x">En eje X</option><option value="z">En eje Z</option></select></label>
+<label>Espesor (m)<input id="partition-thickness" type="number" min=".04" max=".30" step=".01" value=".08"></label></div>
 <div class="actions"><label>Centro X (m)<input id="partition-x" type="number" value="0" step=".05"></label>
 <label>Centro Z (m)<input id="partition-z" type="number" value="0" step=".05"></label></div>
 <div class="actions"><button id="add-partition">Agregar tabique</button><button id="move-partition" type="button" disabled>Mover tabique elegido</button></div>
