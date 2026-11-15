@@ -127,6 +127,19 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
     try{
       await page.waitForFunction(()=>document.body.classList.contains('bat-preview-ready')&&document.querySelector('#canvas-container canvas'),null,{timeout:45000});
       await page.waitForTimeout(11000);
+      // Verify that the dynamic six-step wizard really finished installing in Chromium.
+      await page.waitForFunction(()=>document.querySelectorAll('.config-panel .wizard-step[data-step]').length===6
+        && Boolean(window.BAT_KUBIQUEITOR_SIX_STEP_WIZARD),null,{timeout:15000});
+      const wizardRoute=await page.evaluate(()=>{
+        goStep(6);
+        const visible=[...document.querySelectorAll('.config-panel .wizard-step')].filter(el=>!el.classList.contains('hidden'));
+        const quoteVisible=visible.length===1&&visible[0].dataset.step==='6';
+        goStep(5);
+        const extrasVisible=[...document.querySelectorAll('.config-panel .wizard-step')].filter(el=>!el.classList.contains('hidden')).every(el=>el.dataset.step==='5');
+        return {quoteVisible,extrasVisible};
+      });
+      assert.equal(wizardRoute.quoteVisible,true,'Step 6 must display only the quote pane');
+      assert.equal(wizardRoute.extrasVisible,true,'Step 5 must remain reachable');
       await page.waitForFunction(()=>document.querySelector('button[data-live-add="window"]')&&typeof adjustCount==='function'&&window.BAT_CUBIKEITOR_3D_SUPABASE?.getState().connected,null,{timeout:30000});
       await page.addStyleTag({content:'.hidden{display:none!important}.flex{display:flex!important}.wizard-step{display:block}.wizard-step.hidden{display:none!important}#mounted-face-modal{display:none}#mounted-face-modal.flex{display:flex!important}#mounted-face-modal.hidden{display:none!important}'});
       await page.evaluate(()=>goStep(Number(document.getElementById('extras-list')?.closest('.wizard-step')?.dataset.step)||3));
