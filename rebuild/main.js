@@ -2,7 +2,7 @@
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
-const store=BatProjectState.createStore();
+const store=BatModelCostBridge.createStore();
 const money=n=>Math.round(n).toLocaleString('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0});
 let renderer=null,scene=null,camera=null,controls=null,model=null,shellMesh=null;
 let openingMeshes=[],selectedOpeningId=null,selectedPartitionId=null,placementArmed=false;
@@ -59,7 +59,8 @@ function geometry3D(state){
   model.add(plane);openingMeshes.push(plane);
  }
  for(const p of state.partitions){
-  const wall=new THREE.Mesh(new THREE.BoxGeometry(p.length,p.height,.08),
+  const oriented=p.orientation==='z',thickness=p.thickness??.08;
+  const wall=new THREE.Mesh(new THREE.BoxGeometry(oriented?thickness:p.length,p.height,oriented?p.length:thickness),
    new THREE.MeshStandardMaterial({color:p.id===selectedPartitionId?0xfbbf24:0x22c55e,transparent:true,opacity:.78}));
   wall.name='partition-'+p.id;
   wall.position.set(p.x,p.height/2,p.z);model.add(wall);
@@ -159,10 +160,12 @@ function init3D(){
 function selectPartition(p){
  selectedPartitionId=p.id;selectedOpeningId=null;placementArmed=false;
  $('partition-x').value=p.x;$('partition-z').value=p.z;
+ $('partition-orientation').value=p.orientation??'x';
+ $('partition-thickness').value=p.thickness??.08;
  message('Tabique seleccionado. Ajusta X y Z y pulsa «Mover tabique elegido».');
  update(store.getState());
 }
-function update(state){
+function update(state,action,prepared){
  const c=state.project.container;
  $('revision').textContent='Revisión '+state.revision;
  $('project-name').value=state.project.name;
@@ -170,7 +173,8 @@ function update(state){
  $('transport').value=state.pricing.transport;
  if(selectedOpeningId&&!state.openings.some(o=>o.id===selectedOpeningId))selectedOpeningId=null;
  if(selectedPartitionId&&!state.partitions.some(p=>p.id===selectedPartitionId))selectedPartitionId=null;
- const bom=BatMaterials.takeoff(state),quote=BatPricing.calculate(bom,BatCatalog,state.pricing);
+ const {bom,quote}=prepared||store.getProjection();
+ if(state.revision!== (prepared||store.getProjection()).revision)throw new Error('Proyección BOM desactualizada');
  lastQuote=quote;
  $('bom').replaceChildren();
  for(const line of quote.lines){
@@ -189,7 +193,7 @@ function update(state){
   const select=document.createElement('button');select.type='button';
   select.textContent=item.kind?
    (item.kind==='window'?'Ventana':'Puerta')+' · cara '+item.face+' · '+(item.bottom??0)+' m desde piso':
-   'Tabique · X '+item.x+' · Z '+item.z;
+   'Tabique '+(item.orientation??'x').toUpperCase()+' · X '+item.x+' · Z '+item.z;
   select.addEventListener('click',()=>item.kind?chooseOpening(item.id):selectPartition(item));
   const remove=document.createElement('button');remove.type='button';remove.textContent='Eliminar';
   remove.addEventListener('click',()=>{
@@ -233,12 +237,14 @@ function bind(){
  });
  $('add-partition').addEventListener('click',()=>{
   const next=dispatch({type:'partition/add',length:$('partition-length').value,height:$('partition-height').value,
-   x:$('partition-x').value,z:$('partition-z').value});
+   x:$('partition-x').value,z:$('partition-z').value,
+   orientation:$('partition-orientation').value,thickness:$('partition-thickness').value});
   if(next){selectedPartitionId=next.partitions[next.partitions.length-1].id;selectedOpeningId=null;update(next);}
  });
  $('move-partition').addEventListener('click',()=>{
   if(!selectedPartitionId)return;
-  dispatch({type:'partition/move',id:selectedPartitionId,x:$('partition-x').value,z:$('partition-z').value});
+  dispatch({type:'partition/move',id:selectedPartitionId,x:$('partition-x').value,z:$('partition-z').value,
+   orientation:$('partition-orientation').value,thickness:$('partition-thickness').value});
  });
  $('transport').addEventListener('change',()=>dispatch({type:'pricing/update',key:'transport',value:$('transport').value}));
  $('export').addEventListener('click',()=>{
@@ -257,7 +263,12 @@ function bind(){
 }
 function start(){
  init3D();bind();store.subscribe(update);update(store.getState());
- window.BAT_V2=Object.freeze({getState:()=>store.getState(),getQuote:()=>JSON.parse(JSON.stringify(lastQuote))});
+ window.BAT_V2=Object.freeze({
+  getState:()=>store.getState(),
+  getQuote:()=>store.getProjection().quote,
+  getBOM:()=>store.getProjection().bom,
+  getRevision:()=>store.getProjection().revision
+ });
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })();
