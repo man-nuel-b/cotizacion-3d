@@ -35,11 +35,13 @@ function check(source){
   identifiers.add(o.id);
   const w=positive(o.width,'Ancho abertura'),h=positive(o.height,'Alto abertura');
   const offset=finite(o.offset,'Posición abertura'),max=['A','B'].includes(o.face)?length:width;
-  if(Math.abs(offset)+w/2>max/2+1e-8||h>height+1e-8)throw new RangeError('Abertura fuera del contenedor');
-  const interval=[offset-w/2,offset+w/2];
-  if(byFace[o.face].some(other=>overlaps(other,interval)))
+  const bottom=o.bottom===undefined?0:finite(o.bottom,'Altura abertura');
+  if(Math.abs(offset)+w/2>max/2+1e-8||bottom<0||bottom+h>height+1e-8)
+   throw new RangeError('Abertura fuera del contenedor');
+  const rectangle={horizontal:[offset-w/2,offset+w/2],vertical:[bottom,bottom+h]};
+  if(byFace[o.face].some(other=>overlaps(other.horizontal,rectangle.horizontal)&&overlaps(other.vertical,rectangle.vertical)))
    throw new RangeError('Aberturas superpuestas en la misma cara');
-  byFace[o.face].push(interval);
+  byFace[o.face].push(rectangle);
  }
  const occupiedPartitions=[];
  for(const p of state.partitions){
@@ -72,12 +74,14 @@ function reduce(state,action){
    width:positive(action.width,'Ancho'),height:positive(action.height,'Alto')};break;
   case 'opening/add':next.openings.push({id:id(),kind:action.kind,face:action.face,
    width:positive(action.width,'Ancho abertura'),height:positive(action.height,'Alto abertura'),
-   offset:action.offset===undefined?0:finite(action.offset,'Posición abertura')});break;
+   offset:action.offset===undefined?0:finite(action.offset,'Posición abertura'),
+   bottom:action.bottom===undefined?(action.kind==='window'?.9:0):nonnegative(action.bottom,'Altura abertura')});break;
   case 'opening/remove':next.openings=next.openings.filter(o=>o.id!==action.id);break;
   case 'opening/move':{
    const o=next.openings.find(o=>o.id===action.id);if(!o)throw new Error('Abertura no encontrada');
    o.face=action.face===undefined?o.face:action.face;
-   o.offset=action.offset===undefined?o.offset:finite(action.offset,'Posición abertura');break;
+   o.offset=action.offset===undefined?o.offset:finite(action.offset,'Posición abertura');
+   if(action.bottom!==undefined)o.bottom=nonnegative(action.bottom,'Altura abertura');break;
   }
   case 'partition/add':next.partitions.push({id:id(),length:positive(action.length,'Largo tabique'),
    height:positive(action.height,'Alto tabique'),x:action.x===undefined?0:finite(action.x,'X tabique'),
