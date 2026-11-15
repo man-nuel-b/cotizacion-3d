@@ -51,3 +51,15 @@ El workflow `.github/workflows/bat-v2-core.yml` ejecuta además Chromium con Pla
 ## Seguridad del cambio
 
 La nueva versión reside exclusivamente en `rebuild/` dentro de la rama `rebuild/bat-core-v2`. Ni el producto original en `main` ni el proyecto CUBIKEITOR 3000 fueron reemplazados.
+
+
+## Auditoría de integridad — 15 de noviembre de 2026
+
+- **Estado/BOM/presupuesto:** `model-cost-bridge.js` deriva la cubicación y la cotización antes de confirmar una acción. No se recalculan costos leyendo mallas o el DOM.
+- **Montos CLP:** `pricing.js` rechaza entradas vacías, valores no numéricos y resultados que desborden `Number.MAX_SAFE_INTEGER`, incluso cuando el desbordamiento aparece solo al sumar partidas, transporte o impuestos.
+- **Coordenadas:** `spatial.js` rechaza puntos fuera del contenedor y alturas fuera del muro. `fitPartitionCenter` prepara el ajuste interno para futuros arrastres; **no activa arrastre libre**.
+- **Carga/guardado:** `cloud-sync.js` bloquea guardados mientras se lee una versión remota, impide cargas simultáneas, exige aplicar el JSON remoto de forma síncrona y atómica y rechaza datos que quedarían obsoletos. Sus pruebas usan adaptadores simulados y **no hay conexión real a Supabase**.
+- **Separación APU:** `apu-catalog.js` solo valida un catálogo aislado. Por decisión funcional, **no debe conectarse el APU a los objetos 3D hasta diseñar la nueva asociación**.
+- **Pruebas:** `rebuild/tests/edge-guards.test.cjs` y los tests de nube refuerzan límites, redondeos, overflow y condiciones de carrera. Se ejecutan en CI junto a la prueba en Chromium.
+
+La carpeta raíz se conserva para referencia funcional y compatibilidad. Su migración futura será por componentes, no mediante eliminación masiva o reemplazo del producto existente.
