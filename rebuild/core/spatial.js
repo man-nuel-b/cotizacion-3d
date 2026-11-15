@@ -52,6 +52,8 @@ function fitPartitionCenter(partition,container,grid=.05){
  const orientation=partition?.orientation??'x';
  const L=finite(container?.length,'Longitud');
  const W=finite(container?.width,'Ancho');
+ grid=finite(grid,'Cuadrícula');
+ if(grid<.001||grid>1)throw new RangeError('Cuadrícula fuera de rango');
  if(length<=0||thickness<.04||thickness>.3||L<=0||W<=0||
    !['x','z'].includes(orientation))
   throw new RangeError('Geometría del tabique inválida');
