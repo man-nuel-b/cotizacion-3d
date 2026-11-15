@@ -10,8 +10,9 @@ function text(value,label){
  return value.trim();
 }
 function numeric(value,label,{zero=true,max=1e12}={}){
- if(value===null||value===undefined||value===''||typeof value==='boolean')
-  throw new RangeError('Celda APU vacía: '+label);
+ if((typeof value!=='number'&&typeof value!=='string')||
+    (typeof value==='string'&&!/^(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?$/.test(value.trim())))
+  throw new RangeError('Celda APU vacía o mal formada: '+label);
  const n=Number(value);
  if(!Number.isFinite(n)||n<0||(!zero&&n===0)||n>max)
   throw new RangeError('Valor APU inválido: '+label);
