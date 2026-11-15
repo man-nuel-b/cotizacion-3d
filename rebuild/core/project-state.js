@@ -11,7 +11,9 @@ const id=()=> 'item-'+Date.now().toString(36)+'-'+(++sequence).toString(36);
 const defaults=()=>({schemaVersion:1,project:{name:'Proyecto modular',container:{length:6.06,width:2.44,height:2.59}},
  openings:[],partitions:[],pricing:{transport:0,overheadPct:15,profitPct:10,taxPct:19,contingencyPct:0},revision:0});
 const finite=(value,label)=>{
- if(value===null||value===undefined||value===''||typeof value==='boolean')throw new RangeError(label+' inválido');
+ if((typeof value!=='number'&&typeof value!=='string')||
+    (typeof value==='string'&&!/^[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?$/.test(value.trim())))
+  throw new RangeError(label+' inválido');
  const number=Number(value);
  if(!Number.isFinite(number))throw new RangeError(label+' inválido');
  return number;
