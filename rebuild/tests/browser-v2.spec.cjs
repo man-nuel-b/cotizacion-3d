@@ -67,6 +67,22 @@ test('V2 browser: face click -> state -> 3D/BOM -> price, with validation rollba
   const p=await page.evaluate(()=>window.BAT_V2.getState());
   assert.equal(p.partitions[0].x,0);
   assert.match(await page.locator('#message').innerText(),/fuera/);
+  // Confirm the newly rotated partition is included in the same BOM and quote.
+  const beforeRotated=await page.evaluate(()=>window.BAT_V2.getQuote().total);
+  await page.locator('#partition-orientation').selectOption('z');
+  await page.locator('#partition-length').fill('1');
+  await page.locator('#partition-x').fill('2');
+  await page.locator('#partition-z').fill('.3');
+  await page.locator('#add-partition').click();
+  const rotated=await page.evaluate(()=>({
+   state:window.BAT_V2.getState(),quote:window.BAT_V2.getQuote(),
+   bom:window.BAT_V2.getBOM(),revision:window.BAT_V2.getRevision()
+  }));
+  assert.equal(rotated.state.partitions.length,2);
+  assert.equal(rotated.state.partitions[1].orientation,'z');
+  assert.ok(rotated.quote.total>beforeRotated);
+  assert.equal(rotated.state.revision,rotated.revision);
+  assert.equal(rotated.bom.lines.find(line=>line.code==='PARTITION').qty,14.4);
   assert.deepEqual(errors,[],errors.join('\n'));
  }catch(error){
   if(page)await page.screenshot({path:'/tmp/bat-v2-browser-diagnostic.png',fullPage:true}).catch(()=>{});
