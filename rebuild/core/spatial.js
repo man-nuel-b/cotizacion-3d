@@ -21,9 +21,10 @@ function placementFromHit(point,container,{kind,width,height}){
  if(w<=0||h<=0||w>span-.02||h>maximumHeight-.02)
   throw new RangeError('La abertura no cabe en esa pared');
  const axis=['A','B'].includes(face)?finite(point.x,'X'):finite(point.z,'Z');
- const horizontalLimit=(span-w)/2-.01;
+ const horizontalLimit=Math.floor(((span-w)/2-.01+1e-9)/.05)*.05;
  const offset=snap(clamp(snap(axis),-horizontalLimit,horizontalLimit));
- const bottom=kind==='door'?0:snap(clamp(snap(finite(point.y,'Altura')-h/2),0,maximumHeight-h-.01));
+ const verticalLimit=Math.floor((maximumHeight-h-.01+1e-9)/.05)*.05;
+ const bottom=kind==='door'?0:snap(clamp(snap(finite(point.y,'Altura')-h/2),0,verticalLimit));
  return Object.freeze({face,offset,bottom});
 }
 return Object.freeze({snap,faceFromPoint,placementFromHit});
