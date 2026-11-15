@@ -154,3 +154,19 @@ test('Error de validación al aplicar un proyecto remoto conserva la versión an
  assert.equal(sync.getVersion(),4);
  assert.equal(sync.isLoading(),false);
 });
+
+test('Adaptador de aplicación asíncrono no puede sustituir el proyecto mientras carga',async()=>{
+ const store=State.createStore(),before=store.getState();
+ let reads=0,applies=0;
+ const sync=Cloud.create({
+  getSnapshot:()=>store.getState(),initialVersion:1,
+  writeRemote:async()=>({version:2}),
+  readRemote:async()=>{reads++;return {version:2,project:State.defaults()};},
+  applyRemote:async p=>{applies++;store.dispatch({type:'project/replace',project:p});}
+ });
+ await assert.rejects(sync.load(),/síncrona y atómica/);
+ assert.equal(reads,0);
+ assert.equal(applies,0);
+ assert.deepEqual(store.getState(),before);
+ assert.equal(sync.isLoading(),false);
+});
