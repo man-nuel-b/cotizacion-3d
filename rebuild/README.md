@@ -9,6 +9,9 @@ Todos los cambios se procesan en `BatProjectState` de forma síncrona y validada
 | Archivo | Función |
 |---|---|
 | `core/project-state.js` | Estado único, eventos, medidas, límites y colisiones de aberturas/tabiques |
+| `core/model-cost-bridge.js` | Proyección atómica y síncrona de estado → BOM → precio antes de confirmar un cambio |
+| `core/cloud-sync.js` | Cola desacoplada para futuros guardados, control de versiones optimista y rechazo de cargas obsoletas; **no conectada a Supabase** |
+| `core/apu-catalog.js` | Validación estricta de catálogos APU; **no reemplaza el catálogo comercial actual** |
 | `core/spatial.js` | Interpretación de clic sobre caras A/B/C/D y ajuste de posición a cuadrícula de 5 cm |
 | `core/materials.js` | Cubicación geométrica, superficies y cantidades |
 | `core/pricing.js` | Totales centralizados en CLP, gastos generales, utilidad, imprevistos e IVA |
@@ -21,10 +24,12 @@ Todos los cambios se procesan en `BatProjectState` de forma síncrona y validada
 - Editar dimensiones del contenedor.
 - Agregar ventana o puerta por coordenadas, o activando el modo «Elegir cara y posición en el visor 3D» y haciendo clic sobre una pared.
 - Seleccionar una abertura existente desde el visor o la lista y moverla haciendo clic sobre otra pared.
-- Agregar, seleccionar, mover o eliminar tabiques mediante coordenadas X/Z.
+- Agregar, seleccionar, mover o eliminar tabiques mediante coordenadas X/Z, con orientación X/Z y espesor entre 4 y 30 cm.
 - Validar límites, superposiciones horizontales y verticales y entrada numérica antes de modificar el proyecto.
 - Ver recalcular la BOM y el costo con cada modificación válida.
-- Rechazar cambios inválidos sin cambiar el estado ni el presupuesto.
+- Rechazar cambios inválidos sin cambiar el estado ni el presupuesto. Los cálculos BOM y precios se validan antes del commit.
+- Pruebas de estrés con más de 20 ventanas, 20 tabiques y cambios financieros consecutivos.
+- Validación aislada de APU con celdas vacías, precios nulos, referencias inexistentes y rendimientos cero.
 - Exportar e importar JSON validado de esta versión.
 
 ## Pruebas
@@ -33,13 +38,13 @@ Todos los cambios se procesan en `BatProjectState` de forma síncrona y validada
 node --test rebuild/tests/*.test.cjs
 ```
 
-El workflow `.github/workflows/bat-v2-core.yml` ejecuta además Chromium con Playwright y Three.js. Comprueba la interfaz en navegador, la colocación 3D de una abertura, el recálculo BOM/precio y el rechazo de movimientos fuera de rango. **Estas pruebas no equivalen a una certificación completa de producción.**
+El workflow `.github/workflows/bat-v2-core.yml` ejecuta además Chromium con Playwright y Three.js. Las pruebas de sincronización cloud usan exclusivamente dobles de prueba (sin cuenta de Supabase, sin conexión real). Comprueba la interfaz en navegador, la colocación 3D de una abertura, el recálculo BOM/precio y el rechazo de movimientos fuera de rango. **Estas pruebas no equivalen a una certificación completa de producción.**
 
 ## Limitaciones deliberadas
 
 - Las puertas y ventanas son marcadores visuales sobre superficies; **aún no hay perforación constructiva real de mallas** ni generación de planimetría.
 - Los tabiques se representan esquemáticamente y la edición espacial inicial se hace con coordenadas; arrastre libre con detección de obstáculos especializados está pendiente.
-- APU Excel completo, instalación eléctrica, sanitaria, mobiliario, control de usuarios, Supabase y sincronización en nube **aún no están integrados en V2**.
+- APU Excel completo, instalación eléctrica, sanitaria, mobiliario, control de usuarios, Supabase y sincronización en nube **aún no están integrados en V2**. El validador APU y el controlador de sincronización son componentes aislados de preparación, no conectores activos.
 - La exportación/importación JSON es manual: esta fase **no tiene guardado automático en Supabase**.
 - Catálogo de referencia no representa precios actuales de proveedores.
 
