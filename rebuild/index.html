@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BAT-CUBIKEITOR V2 · Núcleo reconstruido</title><style>
+:root{font-family:Inter,system-ui,sans-serif;color:#e2e8f0;background:#0b1220}*{box-sizing:border-box}
+body{margin:0}header{padding:16px 24px;background:#111c30;border-bottom:1px solid #26344a;display:flex;justify-content:space-between;gap:12px;align-items:center}
+h1{font-size:17px;margin:0}small,.muted{color:#94a3b8}main{display:grid;grid-template-columns:minmax(285px,340px) minmax(300px,1fr) minmax(275px,330px);min-height:calc(100vh - 68px)}
+section{padding:20px;border-right:1px solid #26344a}h2{font-size:15px;color:#f8fafc;margin:0 0 18px}label{font-size:12px;display:block;margin:10px 0}
+input,select,button{width:100%;border-radius:9px;border:1px solid #324359;background:#18263c;color:white;padding:10px;margin-top:5px;font:inherit}
+button{cursor:pointer;font-weight:700}button:hover{background:#263b56}.accent{background:#f59e0b;color:#111827;border:0}.accent:hover{background:#fbbf24}.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#viewer{min-height:430px;position:relative;padding:0;background:linear-gradient(#132239,#07101d)}#canvas{position:absolute;inset:0}#viewer .hint{position:absolute;top:14px;left:14px;font-size:12px;background:#08101cc9;border-radius:9px;padding:10px}
+#summary{background:#111c30}table{border-collapse:collapse;width:100%;font-size:12px}td,th{padding:9px 4px;border-bottom:1px solid #28384b;text-align:left}td:last-child,th:last-child{text-align:right}
+.total{font-size:30px;font-weight:800;color:#fbbf24;margin:14px 0}.status{font-size:12px;color:#94a3b8}.error{color:#fda4af}#items{font-size:12px;color:#aab9cb}
+@media(max-width:1050px){main{grid-template-columns:300px 1fr}#summary{grid-column:1/-1}}@media(max-width:680px){main{display:block}#viewer{height:430px}}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js" defer></script>
+<script src="core/project-state.js" defer></script><script src="core/materials.js" defer></script><script src="core/pricing.js" defer></script><script src="core/catalog.js" defer></script><script src="main.js" defer></script>
+</head><body>
+<header><div><h1>BAT-CUBIKEITOR <small>V2 · Reconstrucción</small></h1><small>Motor 3D y costos con una única fuente de datos</small></div><small id="revision">Revisión 0</small></header>
+<main>
+<section><h2>1. Configura el módulo</h2>
+<label>Nombre del proyecto<input id="project-name" value="Proyecto modular" maxlength="120"></label>
+<label>Longitud (m)<input id="length" type="number" min="2" max="15" step=".01" value="6.06"></label>
+<label>Ancho (m)<input id="width" type="number" min="1" max="5" step=".01" value="2.44"></label>
+<label>Altura (m)<input id="height" type="number" min="2" max="5" step=".01" value="2.59"></label>
+<button id="resize" class="accent">Aplicar dimensiones</button>
+<h2 style="margin-top:30px">2. Puertas y ventanas</h2>
+<div class="actions"><label>Elemento<select id="kind"><option value="window">Ventana</option><option value="door">Puerta</option></select></label>
+<label>Cara<select id="face"><option>A</option><option>B</option><option>C</option><option>D</option></select></label></div>
+<div class="actions"><label>Ancho (m)<input id="opening-width" type="number" value="1.2" min=".3" max="4" step=".1"></label>
+<label>Alto (m)<input id="opening-height" type="number" value="1.1" min=".3" max="2.5" step=".1"></label></div>
+<button id="add-opening">Agregar elemento a la cara</button><div id="items"></div>
+<h2 style="margin-top:28px">3. Tabique interior</h2>
+<div class="actions"><label>Largo (m)<input id="partition-length" type="number" value="2" min=".5" max="6" step=".1"></label>
+<label>Altura (m)<input id="partition-height" type="number" value="2.4" min=".5" max="3" step=".1"></label></div>
+<button id="add-partition">Agregar tabique</button><p class="status">Esta primera versión reconstruye el núcleo. Edición avanzada, colisiones y nube se migrarán después de validar cada módulo.</p>
+</section>
+<section id="viewer"><div id="canvas"></div><div class="hint">Arrastra para girar · rueda para acercar</div></section>
+<section id="summary"><h2>Resumen y cubicación</h2><div id="metrics" class="status"></div>
+<table><thead><tr><th>Material / partida</th><th>Cantidad</th><th>Subtotal CLP</th></tr></thead><tbody id="bom"></tbody></table>
+<label>Transporte referencial (CLP)<input id="transport" type="number" value="0" min="0" step="1000"></label>
+<div class="status">Precios ilustrativos: NO son cotizaciones verificadas de proveedores</div>
+<div class="total" id="total">$0</div><div id="net-vat" class="status"></div>
+<button class="accent" id="export">Exportar proyecto JSON</button><label>Cargar proyecto guardado<input type="file" accept=".json,application/json" id="import"></label>
+<p class="status" id="message" role="status" aria-live="polite"></p>
+</section></main></body></html>
