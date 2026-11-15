@@ -16,6 +16,7 @@ function create({getSnapshot,writeRemote,readRemote,applyRemote,initialVersion=n
   throw new RangeError('Versión remota inválida');
  let remoteVersion=initialVersion;
  let inFlight=null;
+ let loading=false;
  function checkedSnapshot(){
   const project=copy(getSnapshot());
   if(!project||!Number.isSafeInteger(project.revision)||project.revision<0)
@@ -24,6 +25,7 @@ function create({getSnapshot,writeRemote,readRemote,applyRemote,initialVersion=n
  }
  function save(){
   if(inFlight)return inFlight;
+  if(loading)return Promise.reject(new Error('No se puede guardar mientras se abre un proyecto remoto'));
   const job=(async()=>{
    let cycles=0,wasSaved=false;
    do{
@@ -53,26 +55,38 @@ function create({getSnapshot,writeRemote,readRemote,applyRemote,initialVersion=n
   return job;
  }
  async function load(){
-  if(!readRemote||!applyRemote)throw new Error('La lectura remota no está configurada');
+  if(typeof readRemote!=='function'||typeof applyRemote!=='function')
+   throw new Error('La lectura remota no está configurada');
+  if(loading)throw new Error('Ya existe una carga remota en curso');
   if(inFlight)throw new Error('No se puede abrir otro proyecto durante un guardado');
-  const before=JSON.stringify(checkedSnapshot());
-  const result=await readRemote();
-  if(inFlight||JSON.stringify(checkedSnapshot())!==before)
-   throw new Error('El diseño cambió durante la descarga; no se aplicaron datos obsoletos');
-  const version=result?.version;
-  if(!Number.isSafeInteger(version)||version<1)
-   throw new Error('La nube no proporcionó versión válida');
-  if(remoteVersion!==null&&version<remoteVersion)
-   throw new Error('La nube devolvió una versión obsoleta');
-  if(!result?.project)throw new Error('La nube devolvió un proyecto vacío');
-  // The caller is responsible for validating/importing the remote snapshot
-  // atomically before it replaces local state.
-  await applyRemote(copy(result.project));
-  remoteVersion=version;
-  return true;
+  // Protect the entire read+apply window. A save cannot interleave and
+  // applyRemote must synchronously validate + commit through the store.
+  loading=true;
+  try{
+   const before=JSON.stringify(checkedSnapshot());
+   const result=await readRemote();
+   if(inFlight||JSON.stringify(checkedSnapshot())!==before)
+    throw new Error('El diseño cambió durante la descarga; no se aplicaron datos obsoletos');
+   const version=result?.version;
+   if(!Number.isSafeInteger(version)||version<1)
+    throw new Error('La nube no proporcionó versión válida');
+   if(remoteVersion!==null&&version<remoteVersion)
+    throw new Error('La nube devolvió una versión obsoleta');
+   if(!result?.project)throw new Error('La nube devolvió un proyecto vacío');
+   // This adapter is intentionally transport-independent. applyRemote
+   // must be an atomic, synchronous store.dispatch({type:'project/replace'}).
+   // Never merge a remote response directly into mutable rendering objects.
+   const applied=applyRemote(copy(result.project));
+   if(applied&&typeof applied.then==='function')
+    throw new Error('La aplicación remota debe ser síncrona y atómica');
+   remoteVersion=version;
+   return true;
+  }finally{
+   loading=false;
+  }
  }
  return Object.freeze({
-  save,load,getVersion:()=>remoteVersion,isSaving:()=>inFlight!==null
+  save,load,getVersion:()=>remoteVersion,isSaving:()=>inFlight!==null,isLoading:()=>loading
  });
 }
 return Object.freeze({version:1,create});
