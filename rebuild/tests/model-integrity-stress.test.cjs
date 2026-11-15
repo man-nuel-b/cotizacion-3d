@@ -99,3 +99,14 @@ test('Texto numérico vacío y tipos objeto no se convierten en precios cero',()
   assert.throws(()=>Bridge.createStore(State.defaults(),{...Catalog,FLOOR:invalid}),/inválido/);
  }
 });
+
+test('Los formularios HTML envían texto decimal válido sin alterar el BOM',()=>{
+ const store=Bridge.createStore();
+ const updated=store.dispatch({type:'opening/add',kind:'window',face:'A',width:'1.20',height:'1.10',offset:'-0.25',bottom:'0.90'});
+ assert.equal(updated.openings.length,1);
+ assert.equal(updated.openings[0].offset,-.25);
+ const after=store.dispatch({type:'pricing/update',key:'transport',value:'125000'});
+ assert.equal(after.pricing.transport,125000);
+ assert.equal(store.getProjection().quote.transport,125000);
+ assert.equal(store.getProjection().bom.lines.find(r=>r.code==='WINDOW').qty,1);
+});
