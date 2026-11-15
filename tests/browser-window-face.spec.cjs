@@ -135,7 +135,8 @@ test('Real app browser: Ventana -> click face A marker on 3D -> BOM update', {ti
         const visible=[...document.querySelectorAll('.config-panel .wizard-step')].filter(el=>!el.classList.contains('hidden'));
         const quoteVisible=visible.length===1&&visible[0].dataset.step==='6';
         goStep(5);
-        const extrasVisible=[...document.querySelectorAll('.config-panel .wizard-step')].filter(el=>!el.classList.contains('hidden')).every(el=>el.dataset.step==='5');
+        const visibleExtras=[...document.querySelectorAll('.config-panel .wizard-step')].filter(el=>!el.classList.contains('hidden'));
+        const extrasVisible=visibleExtras.length===1&&visibleExtras[0].dataset.step==='5';
         return {quoteVisible,extrasVisible};
       });
       assert.equal(wizardRoute.quoteVisible,true,'Step 6 must display only the quote pane');
