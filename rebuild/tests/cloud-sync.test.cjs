@@ -30,6 +30,27 @@ test('Three rapid edits while cloud write is pending save latest revision in str
  assert.equal(remote.project.revision,3);
  assert.equal(sync.getVersion(),3);
 });
+test('An imported project with the same revision still triggers a second save',async()=>{
+ const store=State.createStore(),gate=deferred(),written=[];
+ let version=1;
+ const sync=Cloud.create({
+  getSnapshot:()=>store.getState(),initialVersion:1,
+  writeRemote:async input=>{
+   written.push(input.project.project.name);
+   if(written.length===1)await gate.promise;
+   assert.equal(input.expectedVersion,version);
+   return {version:++version};
+  }
+ });
+ const saving=sync.save();
+ const replacement=store.getState();
+ replacement.project.name='Proyecto importado';
+ store.dispatch({type:'project/replace',project:replacement});
+ gate.resolve();
+ await saving;
+ assert.deepEqual(written,['Proyecto modular','Proyecto importado']);
+ assert.equal(sync.getVersion(),3);
+});
 test('Optimistic version conflict prevents silent overwrite and preserves state',async()=>{
  const store=State.createStore(),before=store.getState();
  const sync=Cloud.create({
