@@ -4,7 +4,7 @@
 const roundCLP=n=>Math.round((n+Number.EPSILON));
 const assertNum=(value,label)=>{
  if((typeof value!=='number'&&typeof value!=='string')||
-    (typeof value==='string'&&!/^(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?$/.test(value.trim())))
+    (typeof value==='string'&&!/^(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value.trim())))
   throw new RangeError('Valor financiero inválido: '+label);
  const n=Number(value);
  if(!Number.isFinite(n)||n<0)throw new RangeError('Valor financiero inválido: '+label);
