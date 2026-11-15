@@ -8,7 +8,11 @@
     let apuMaterial=0,apuLabor=0,nonApuMaterials=0,nonApuLabor=0,equipment=0;
     const invalid=[];
     for(let i=0;i<bom.length;i++){
-      const item=bom[i]||{},qty=number(item.qty,NaN),subtotal=number(item.subtotal,NaN);
+      const item=bom[i]||{};
+      // Missing/null cells are invalid, never silently coerced to zero CLP.
+      const supplied=v=>v!==null&&v!==undefined&&v!==''&&typeof v!=='boolean';
+      const qty=supplied(item.qty)?number(item.qty,NaN):NaN;
+      const subtotal=supplied(item.subtotal)?number(item.subtotal,NaN):NaN;
       if(!Number.isFinite(qty)||qty<0||!Number.isFinite(subtotal)||subtotal<0){
         invalid.push(i+1);continue;
       }
