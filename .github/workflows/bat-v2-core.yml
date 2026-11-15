@@ -1,0 +1,31 @@
+name: BAT V2 - Integridad del núcleo
+on:
+  push:
+    branches:
+      - rebuild/bat-core-v2
+    paths:
+      - 'rebuild/**'
+      - '.github/workflows/bat-v2-core.yml'
+  pull_request:
+    paths:
+      - 'rebuild/**'
+      - '.github/workflows/bat-v2-core.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verificar sintaxis JavaScript
+        run: |
+          for f in rebuild/core/*.js rebuild/main.js; do node --check "$f"; done
+      - name: Ejecutar pruebas del nuevo núcleo
+        run: node --test rebuild/tests/*.test.cjs
