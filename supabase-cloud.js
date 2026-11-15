@@ -222,7 +222,12 @@
   async function saveCloudProject(options={}){
     if(!session?.user){openCloudModal();notify('Inicia sesión para guardar en la nube');return false;}
     try{
-      if(!organizationId)await initializeMembership();
+      // Revalidate the user against Supabase before any cloud write.
+      // A locally cached session alone is not an authorization decision.
+      const {data:verified,error:authError}=await client.auth.getUser();
+      if(authError||!verified?.user||verified.user.id!==session.user.id)
+        throw new Error('La sesión no pudo validarse. Inicia sesión nuevamente.');
+      await initializeMembership(); // Refresh tenant membership instead of trusting a cached ID.
       ensureLocalProjectId();
       const core=persistence();
       // El proyecto se valida antes de cualquier INSERT/UPDATE. No descartar geometría o medidas.
