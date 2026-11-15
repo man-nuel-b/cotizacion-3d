@@ -41,6 +41,7 @@ function check(source){
    throw new RangeError('Aberturas superpuestas en la misma cara');
   byFace[o.face].push(interval);
  }
+ const occupiedPartitions=[];
  for(const p of state.partitions){
   if(!p||typeof p.id!=='string'||!p.id||identifiers.has(p.id))throw new Error('Identificador duplicado o inválido');
   identifiers.add(p.id);
@@ -48,6 +49,10 @@ function check(source){
   const x=finite(p.x,'X tabique'),z=finite(p.z,'Z tabique');
   if(h>height+1e-8||span>length+1e-8||Math.abs(x)+span/2>length/2+1e-8
     ||Math.abs(z)+.04>width/2+1e-8)throw new RangeError('Tabique fuera del contenedor');
+  const bounds={x:[x-span/2,x+span/2],z:[z-.04,z+.04]};
+  if(occupiedPartitions.some(other=>overlaps(bounds.x,other.x)&&overlaps(bounds.z,other.z)))
+   throw new RangeError('Tabiques superpuestos');
+  occupiedPartitions.push(bounds);
  }
  for(const [key,value] of Object.entries(state.pricing)){
   const n=nonnegative(value,key);
