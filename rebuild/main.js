@@ -88,9 +88,11 @@ function onViewerClick(event){
  if(!scene||!raycaster||!shellMesh)return;
  try{
   pointerToRay(event);
+  const hit=raycaster.intersectObject(shellMesh,false)[0];
   if(!placementArmed){
    const selectedHit=raycaster.intersectObjects(openingMeshes,false)[0];
-   if(selectedHit?.object?.userData?.openingId){
+   // Never select a rear-face marker through the nearer container shell.
+   if(selectedHit?.object?.userData?.openingId&&(!hit||selectedHit.distance<=hit.distance+.025)){
     chooseOpening(selectedHit.object.userData.openingId);
     return;
    }
@@ -98,8 +100,9 @@ function onViewerClick(event){
   if(!placementArmed&&!selectedOpeningId){
    message('Elige una ventana o puerta y pulsa «Elegir cara y posición», o selecciona una abertura existente.');return;
   }
-  const hit=raycaster.intersectObject(shellMesh,false)[0];
-  if(!hit){message('Haz clic sobre una pared del contenedor.',true);return;}
+  if(!hit||Math.abs(hit.face?.normal?.y||0)>.5){
+   message('Haz clic sobre una pared vertical, no sobre el techo o el piso.',true);return;
+  }
   const state=store.getState();
   const existing=selectedOpeningId?state.openings.find(o=>o.id===selectedOpeningId):null;
   if(selectedOpeningId&&!existing){selectedOpeningId=null;message('El objeto seleccionado ya no existe.',true);return;}
