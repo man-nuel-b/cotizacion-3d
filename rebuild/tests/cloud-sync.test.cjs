@@ -104,3 +104,53 @@ test('Remote opens are blocked during save',async()=>{
  gate.resolve();
  await saving;
 });
+
+test('Carga remota bloquea simultáneamente guardados y segundas cargas',async()=>{
+ const store=State.createStore(),gate=deferred();
+ let reads=0,applied=0;
+ const sync=Cloud.create({
+  getSnapshot:()=>store.getState(),initialVersion:1,
+  writeRemote:async()=>{throw Error('No debió guardar');},
+  readRemote:async()=>{reads++;await gate.promise;return {version:2,project:State.defaults()};},
+  applyRemote:p=>{applied++;store.dispatch({type:'project/replace',project:p});}
+ });
+ const opening=sync.load();
+ assert.equal(sync.isLoading(),true);
+ await assert.rejects(sync.save(),/mientras se abre/);
+ await assert.rejects(sync.load(),/carga remota en curso/);
+ assert.equal(reads,1);
+ assert.equal(applied,0);
+ gate.resolve();
+ assert.equal(await opening,true);
+ assert.equal(sync.isLoading(),false);
+ assert.equal(sync.getVersion(),2);
+ assert.equal(applied,1);
+});
+test('Una carga fallida libera el bloqueo para poder reintentar',async()=>{
+ const store=State.createStore();
+ let calls=0;
+ const sync=Cloud.create({
+  getSnapshot:()=>store.getState(),initialVersion:1,
+  writeRemote:async()=>({version:2}),
+  readRemote:async()=>{calls++;if(calls===1)throw Error('network offline');return {version:2,project:State.defaults()};},
+  applyRemote:p=>store.dispatch({type:'project/replace',project:p})
+ });
+ await assert.rejects(sync.load(),/network offline/);
+ assert.equal(sync.isLoading(),false);
+ assert.equal(await sync.load(),true);
+ assert.equal(sync.getVersion(),2);
+});
+test('Error de validación al aplicar un proyecto remoto conserva la versión anterior',async()=>{
+ const store=State.createStore(),before=store.getState();
+ const bad=State.defaults();bad.project.container.length=0;
+ const sync=Cloud.create({
+  getSnapshot:()=>store.getState(),initialVersion:4,
+  writeRemote:async()=>({version:5}),
+  readRemote:async()=>({version:5,project:bad}),
+  applyRemote:p=>store.dispatch({type:'project/replace',project:p})
+ });
+ await assert.rejects(sync.load(),/inválido/);
+ assert.deepEqual(store.getState(),before);
+ assert.equal(sync.getVersion(),4);
+ assert.equal(sync.isLoading(),false);
+});
