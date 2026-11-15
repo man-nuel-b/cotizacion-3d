@@ -219,7 +219,7 @@
     }
   }
 
-  async function saveCloudProject(options={}){
+  async function performCloudSave(options={}){
     if(!session?.user){openCloudModal();notify('Inicia sesión para guardar en la nube');return false;}
     try{
       // Revalidate the user against Supabase before any cloud write.
@@ -278,6 +278,35 @@
     }
   }
 
+  // Serialize concurrent cloud writes. A second click during a save queues a
+  // fresh snapshot instead of racing UPDATEs or silently dropping edits.
+  let saveInFlight=null,saveQueued=false;
+  function saveCloudProject(options={}){
+    if(saveInFlight){
+      saveQueued=true;
+      return saveInFlight;
+    }
+    saveInFlight=(async()=>{
+      let outcome=true;
+      try{
+        do{
+          saveQueued=false;
+          const revisionBefore=JSON.stringify(state);
+          const ok=await performCloudSave(options);
+          outcome=ok&&outcome;
+          // When the user edits the 3D model during I/O, save a new snapshot.
+          // If the first write failed, do not retry indefinitely.
+          if(ok&&JSON.stringify(state)!==revisionBefore)saveQueued=true;
+          if(!ok)saveQueued=false;
+        }while(saveQueued);
+        return outcome;
+      }finally{
+        saveInFlight=null;
+      }
+    })();
+    return saveInFlight;
+  }
+
   async function refreshCloudProjects(){
     const root=document.getElementById('bat-cloud-projects');if(!root||!session?.user)return;
     root.innerHTML='<div class="text-xs text-slate-400 py-3">Cargando…</div>';
@@ -289,6 +318,9 @@
   }
 
   async function openCloudProject(id){
+    if(saveInFlight){notify('Espera a que termine el guardado en nube antes de abrir otro proyecto.');return false;}
+    // Never overwrite local edits made while the remote request is in flight.
+    const localStateAtRequest=JSON.stringify(state);
     try{
       if(!session?.user)throw new Error('Inicia sesión para abrir proyectos');
       if(!organizationId)await initializeMembership();
@@ -297,6 +329,8 @@
         .eq('id',id).eq('organization_id',organizationId).single();
       if(error)throw error;
       if(!data?.project_state)throw new Error('Proyecto sin estado guardado');
+      if(JSON.stringify(state)!==localStateAtRequest)
+        throw new Error('El diseño cambió durante la descarga. No se reemplazaron tus cambios; vuelve a abrir el proyecto.');
       const core=persistence();
       if(!core)throw new Error('El sistema de recuperación todavía no está disponible.');
       // Validación antes de tocar el diseño abierto: un JSONB corrupto nunca desplaza el proyecto actual.
