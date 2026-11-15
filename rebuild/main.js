@@ -19,8 +19,8 @@ function geometry3D(state){
  for(const o of state.openings){
   const plane=new THREE.Mesh(new THREE.PlaneGeometry(o.width,o.height),o.kind==='window'?matWindow:matDoor);
   const long=['A','B'].includes(o.face);
-  const offset=long?o.offset:0, other=long?0:o.offset;
-  plane.position.set(offset,o.height/2,other);
+  // The same canonical face offset drives both the metric state and 3D.
+  plane.position.set(long?o.offset:0,o.height/2,long?0:o.offset);
   if(o.face==='A')plane.position.z=-c.width/2-.006;
   if(o.face==='B')plane.position.z=c.width/2+.006;
   if(o.face==='C'){plane.position.x=-c.length/2-.006;plane.rotation.y=Math.PI/2;}
@@ -44,7 +44,10 @@ function init3D(){
  resize();function frame(){requestAnimationFrame(frame);controls?.update();renderer.render(scene,camera);}frame();
 }
 function message(text){$('message').textContent=text;}
-function dispatch(action){try{store.dispatch(action);message('Cambios aplicados y presupuesto actualizado.');}catch(e){message(e.message);$('message').classList.add('error');}}
+function dispatch(action){
+ try{store.dispatch(action);$('message').classList.remove('error');message('Cambios aplicados y presupuesto actualizado.');}
+ catch(e){$('message').classList.add('error');message(e.message);}
+}
 function update(state){
  $('revision').textContent='Revisión '+state.revision;
  const c=state.project.container;
@@ -67,7 +70,7 @@ function update(state){
 function bind(){
  $('resize').addEventListener('click',()=>dispatch({type:'container/resize',length:$('length').value,width:$('width').value,height:$('height').value}));
  $('project-name').addEventListener('change',()=>dispatch({type:'project/rename',name:$('project-name').value}));
- $('add-opening').addEventListener('click',()=>dispatch({type:'opening/add',kind:$('kind').value,face:$('face').value,width:$('opening-width').value,height:$('opening-height').value}));
+ $('add-opening').addEventListener('click',()=>dispatch({type:'opening/add',kind:$('kind').value,face:$('face').value,width:$('opening-width').value,height:$('opening-height').value,offset:$('opening-offset').value}));
  $('add-partition').addEventListener('click',()=>dispatch({type:'partition/add',length:$('partition-length').value,height:$('partition-height').value,x:0,z:0}));
  $('transport').addEventListener('change',()=>dispatch({type:'pricing/update',key:'transport',value:$('transport').value}));
  $('export').addEventListener('click',()=>{const blob=new Blob([JSON.stringify(store.getState(),null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='bat-cubikeitor-v2.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
