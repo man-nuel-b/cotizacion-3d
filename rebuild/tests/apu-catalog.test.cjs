@@ -46,3 +46,11 @@ test('valid percentages and unit counts reject extreme overflow',()=>{
  const catalog=Apu.importCatalog(high);
  assert.throws(()=>Apu.costPartida(catalog,'TAB-01'),/rango/);
 });
+
+test('Precios expresados como texto decimal normalizado se validan',()=>{
+ const data=valid();
+ data.resources[0].priceClp='14500.50';
+ const catalog=Apu.importCatalog(data);
+ assert.equal(catalog.resources['MAT-01'].priceClp,14500.5);
+ assert.equal(Apu.costPartida(catalog,'TAB-01'),20201);
+});
