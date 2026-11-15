@@ -12,7 +12,7 @@ const defaults=()=>({schemaVersion:1,project:{name:'Proyecto modular',container:
  openings:[],partitions:[],pricing:{transport:0,overheadPct:15,profitPct:10,taxPct:19,contingencyPct:0},revision:0});
 const finite=(value,label)=>{
  if((typeof value!=='number'&&typeof value!=='string')||
-    (typeof value==='string'&&!/^[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?$/.test(value.trim())))
+    (typeof value==='string'&&!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value.trim())))
   throw new RangeError(label+' inválido');
  const number=Number(value);
  if(!Number.isFinite(number))throw new RangeError(label+' inválido');
