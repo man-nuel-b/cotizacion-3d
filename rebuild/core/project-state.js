@@ -49,9 +49,16 @@ function check(source){
   identifiers.add(p.id);
   const span=positive(p.length,'Largo tabique'),h=positive(p.height,'Alto tabique');
   const x=finite(p.x,'X tabique'),z=finite(p.z,'Z tabique');
-  if(h>height+1e-8||span>length+1e-8||Math.abs(x)+span/2>length/2+1e-8
-    ||Math.abs(z)+.04>width/2+1e-8)throw new RangeError('Tabique fuera del contenedor');
-  const bounds={x:[x-span/2,x+span/2],z:[z-.04,z+.04]};
+  const orientation=p.orientation===undefined?'x':p.orientation;
+  if(!['x','z'].includes(orientation))throw new RangeError('Orientación de tabique inválida');
+  const thickness=p.thickness===undefined?.08:positive(p.thickness,'Espesor tabique');
+  if(thickness<.04||thickness>.3)throw new RangeError('Espesor tabique fuera de rango');
+  const bounds=orientation==='x'
+   ?{x:[x-span/2,x+span/2],z:[z-thickness/2,z+thickness/2]}
+   :{x:[x-thickness/2,x+thickness/2],z:[z-span/2,z+span/2]};
+  if(h>height+1e-8||bounds.x[0]<-length/2-1e-8||bounds.x[1]>length/2+1e-8
+    ||bounds.z[0]<-width/2-1e-8||bounds.z[1]>width/2+1e-8)
+   throw new RangeError('Tabique fuera del contenedor');
   if(occupiedPartitions.some(other=>overlaps(bounds.x,other.x)&&overlaps(bounds.z,other.z)))
    throw new RangeError('Tabiques superpuestos');
   occupiedPartitions.push(bounds);
@@ -85,12 +92,17 @@ function reduce(state,action){
   }
   case 'partition/add':next.partitions.push({id:id(),length:positive(action.length,'Largo tabique'),
    height:positive(action.height,'Alto tabique'),x:action.x===undefined?0:finite(action.x,'X tabique'),
-   z:action.z===undefined?0:finite(action.z,'Z tabique')});break;
+   z:action.z===undefined?0:finite(action.z,'Z tabique'),
+   orientation:action.orientation===undefined?'x':action.orientation,
+   thickness:action.thickness===undefined?.08:positive(action.thickness,'Espesor tabique')});break;
   case 'partition/remove':next.partitions=next.partitions.filter(p=>p.id!==action.id);break;
   case 'partition/move':{
    const p=next.partitions.find(p=>p.id===action.id);if(!p)throw new Error('Tabique no encontrado');
    if(action.x!==undefined)p.x=finite(action.x,'X tabique');
-   if(action.z!==undefined)p.z=finite(action.z,'Z tabique');break;
+   if(action.z!==undefined)p.z=finite(action.z,'Z tabique');
+   if(action.orientation!==undefined)p.orientation=action.orientation;
+   if(action.thickness!==undefined)p.thickness=positive(action.thickness,'Espesor tabique');
+   break;
   }
   case 'pricing/update':
    if(!Object.prototype.hasOwnProperty.call(next.pricing,action.key))throw new Error('Campo de precio desconocido');
@@ -100,15 +112,24 @@ function reduce(state,action){
  next.revision=state.revision+1;
  return check(next);
 }
-function createStore(initial=defaults()){
+function createStore(initial=defaults(),options={}){
+ // A pure derived projection can be supplied to validate BOM/pricing before
+ // the state commits. Rendering and cloud I/O must never be performed here.
+ const derive=options.derive;
+ if(derive!==undefined&&typeof derive!=='function')throw new TypeError('Proyección inválida');
  let state=check(initial);
+ let projection=derive?deepCopy(derive(deepCopy(state))):null;
  const listeners=new Set();
  return Object.freeze({
   getState:()=>deepCopy(state),
+  getProjection:()=>projection===null?null:deepCopy(projection),
   dispatch(action){
    const updated=reduce(state,action);
+   const nextProjection=derive?deepCopy(derive(deepCopy(updated))):null;
+   // No partial commit if geometry, BOM or pricing calculations reject inputs.
    state=updated;
-   for(const listener of listeners)listener(deepCopy(state),action);
+   projection=nextProjection;
+   for(const listener of listeners)listener(deepCopy(state),action,projection===null?null:deepCopy(projection));
    return deepCopy(state);
   },
   subscribe(listener){
