@@ -1,0 +1,96 @@
+name: Exportar codigo BAT-KUBIQUEITOR en PDF
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/export-source-pdf.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Instalar dependencia PDF
+        run: python -m pip install reportlab
+      - name: Crear PDF del codigo fuente versionado
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess, os, textwrap, datetime
+          from reportlab.pdfgen.canvas import Canvas
+          from reportlab.lib.pagesizes import A4
+          from reportlab.lib.colors import HexColor
+          from reportlab.pdfbase.pdfmetrics import stringWidth
+          output = Path('BAT_KUBIQUEITOR_Codigo_Fuente_Completo.pdf')
+          allowed = {'.html','.css','.js','.mjs','.cjs','.json','.md','.txt','.yml','.yaml','.sql','.sh','.py'}
+          files = []
+          for p in subprocess.check_output(['git','ls-files'],text=True).splitlines():
+              file=Path(p)
+              if file.suffix.lower() in allowed and file.is_file() and file.stat().st_size < 1_000_000:
+                  files.append(file)
+          files.sort(key=lambda p:(p.name!='index.html',str(p)))
+          w,h=A4
+          c=Canvas(str(output),pagesize=A4,pageCompression=1)
+          c.setTitle('BAT-KUBIQUEITOR - Codigo fuente completo')
+          c.setAuthor('Repositorio man-nuel-b/cotizacion-3d')
+          navy=HexColor('#0c182b');gray=HexColor('#536477')
+          margin=35; line_h=9.1; font_size=7.0
+          page=0; y=0
+          def begin(file_label):
+              global page,y
+              page+=1
+              c.setFillColor(navy);c.rect(0,h-40,w,40,fill=1,stroke=0)
+              c.setFillColorRGB(1,1,1)
+              c.setFont('Helvetica-Bold',11)
+              c.drawString(margin,h-26,'BAT-KUBIQUEITOR  |  Codigo fuente')
+              c.setFillColor(gray);c.setFont('Helvetica',8)
+              c.drawString(margin,20,file_label[:96])
+              c.drawRightString(w-margin,20,f'Pagina {page}')
+              c.setStrokeColor(HexColor('#cbd5e1'));c.line(margin,31,w-margin,31)
+              y=h-58
+          def write_line(s):
+              global y
+              if y<40:
+                  c.showPage();begin(current_label)
+              c.setFillColor(navy);c.setFont('Courier',font_size)
+              c.drawString(margin,y,s)
+              y-=line_h
+          begin('Inventario de archivos')
+          current_label='Inventario de archivos'
+          for header in ['Exportacion de codigo del repositorio BAT-KUBIQUEITOR', 'Repositorio: https://github.com/man-nuel-b/cotizacion-3d',
+                         'Fecha UTC: '+datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M'),
+                         f'Archivos de texto incluidos: {len(files)}','',
+                         'CONTENIDO (rutas del repositorio):']:
+              write_line(header)
+          for file in files:
+              write_line('  '+str(file)[:90])
+          c.showPage()
+          for idx,file in enumerate(files,1):
+              current_label=str(file)
+              begin(current_label)
+              c.setFont('Helvetica-Bold',11);c.setFillColor(HexColor('#b45309'))
+              c.drawString(margin,y,f'Archivo {idx}/{len(files)}: {str(file)}')
+              y-=20
+              raw=file.read_text(encoding='utf-8',errors='replace')
+              for line_number,line in enumerate(raw.splitlines(),1):
+                  # Preserve all source characters; render escaped non-ascii as \\u sequences for monospace clarity
+                  normalized=line.expandtabs(2).encode('ascii','backslashreplace').decode('ascii')
+                  max_cols=94
+                  segments=[normalized[i:i+max_cols] for i in range(0,len(normalized),max_cols)] or ['']
+                  for n,segment in enumerate(segments):
+                      prefix=f'{line_number:5d} ' if n==0 else '      '
+                      write_line(prefix+segment)
+              c.showPage()
+          c.save()
+          print('SOURCE_FILES',len(files),'PDF_BYTES',output.stat().st_size,'PAGES',page)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BAT-KUBIQUEITOR-Codigo-Fuente-Completo
+          path: BAT_KUBIQUEITOR_Codigo_Fuente_Completo.pdf
+          retention-days: 30
