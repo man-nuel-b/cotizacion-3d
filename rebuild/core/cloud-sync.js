@@ -57,6 +57,8 @@ function create({getSnapshot,writeRemote,readRemote,applyRemote,initialVersion=n
  async function load(){
   if(typeof readRemote!=='function'||typeof applyRemote!=='function')
    throw new Error('La lectura remota no está configurada');
+  if(applyRemote.constructor?.name==='AsyncFunction')
+   throw new Error('La aplicación remota debe ser síncrona y atómica');
   if(loading)throw new Error('Ya existe una carga remota en curso');
   if(inFlight)throw new Error('No se puede abrir otro proyecto durante un guardado');
   // Protect the entire read+apply window. A save cannot interleave and
