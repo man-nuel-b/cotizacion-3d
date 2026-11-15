@@ -88,3 +88,14 @@ test('No se admite catálogo de precios incompleto ni estado de lectura mutable'
  assert.ok(store.getProjection().bom.lines[0].qty>0);
  assert.throws(()=>store.dispatch({type:'partition/add',orientation:'z',length:4,height:2,x:0,z:0,thickness:.08}),/fuera/);
 });
+
+test('Texto numérico vacío y tipos objeto no se convierten en precios cero',()=>{
+ for(const invalid of ['   ',[],{},'0x20']){
+  const store=Bridge.createStore();
+  const before=store.getState(),projection=store.getProjection();
+  assert.throws(()=>store.dispatch({type:'pricing/update',key:'transport',value:invalid}),/inválido/);
+  assert.deepEqual(store.getState(),before);
+  assert.deepEqual(store.getProjection(),projection);
+  assert.throws(()=>Bridge.createStore(State.defaults(),{...Catalog,FLOOR:invalid}),/inválido/);
+ }
+});
