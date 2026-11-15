@@ -25,6 +25,8 @@ test('Shared suppliers, materials and supplier prices are read-only for clients'
 test('Project storage validates snapshot, organization and optimistic version before writing',()=>{
  const cloud=read('supabase-cloud.js');
  assert.match(cloud,/core\.normalize\(state,DEFAULT_STATE,DATA\)/);
+ assert.match(cloud,/const \{data:verified,error:authError\}=await client\.auth\.getUser\(\)/);
+ assert.match(cloud,/verified\.user\.id!==session\.user\.id/);
  assert.match(cloud,/\.eq\('organization_id',organizationId\)/);
  assert.match(cloud,/\.eq\('version',knownVersion\)/);
  assert.match(cloud,/remote\.project_state\?\.projectMeta\?\.id!==snapshot\.projectMeta\.id/);
