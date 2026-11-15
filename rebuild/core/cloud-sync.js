@@ -29,6 +29,7 @@ function create({getSnapshot,writeRemote,readRemote,applyRemote,initialVersion=n
    do{
     if(++cycles>1000)throw new Error('Demasiados cambios durante el guardado; inténtalo nuevamente');
     const snapshot=checkedSnapshot(),revision=snapshot.revision;
+    const fingerprint=JSON.stringify(snapshot);
     // Only one network write may be active, and each must enforce a remote CAS.
     const result=await writeRemote({
      project:snapshot,
@@ -43,7 +44,7 @@ function create({getSnapshot,writeRemote,readRemote,applyRemote,initialVersion=n
     wasSaved=true;
     // Continue until edits made while awaiting the write are included.
     // The stored project is never replaced by an older server response.
-    if(checkedSnapshot().revision===revision)break;
+    if(JSON.stringify(checkedSnapshot())===fingerprint)break;
    }while(true);
    return wasSaved;
   })();
