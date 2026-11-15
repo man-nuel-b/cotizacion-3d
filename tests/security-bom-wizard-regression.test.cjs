@@ -22,6 +22,17 @@ test('Shared suppliers, materials and supplier prices are read-only for clients'
  }
 });
 
+test('Supplier price policies verify ownership of both foreign keys',()=>{
+ const sql=read('supabase/migrations/20261115_restrict_shared_catalog_writes.sql');
+ const policies=sql.slice(sql.indexOf('create policy "members read supplier prices"'));
+ for(const policy of policies.split(/create policy "/).slice(1)){
+   assert.match(policy,/public\.materials m/);
+   assert.match(policy,/public\.suppliers s/);
+   assert.match(policy,/m\.id = material_id/);
+   assert.match(policy,/s\.id = supplier_id/);
+ }
+});
+
 test('Project storage validates snapshot, organization and optimistic version before writing',()=>{
  const cloud=read('supabase-cloud.js');
  assert.match(cloud,/core\.normalize\(state,DEFAULT_STATE,DATA\)/);
