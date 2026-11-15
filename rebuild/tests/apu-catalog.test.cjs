@@ -20,7 +20,7 @@ test('APU import preserves deterministic material and labor unit costs',()=>{
  assert.deepEqual(catalog,again);
 });
 test('null, blank, NaN, malformed and negative prices fail before quoting',()=>{
- for(const price of [null,undefined,'',false,'12,5','CLP 2000',NaN,Infinity,-5]){
+ for(const price of [null,undefined,'','   ',[],{},false,'12,5','0x10','CLP 2000',NaN,Infinity,-5]){
   const data=valid();data.resources[0].priceClp=price;
   assert.throws(()=>Apu.importCatalog(data),/APU/);
  }
