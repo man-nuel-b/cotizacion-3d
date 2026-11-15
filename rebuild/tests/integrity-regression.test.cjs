@@ -60,6 +60,18 @@ test('partitions cannot escape container bounds, including on import',()=>{
  assert.throws(()=>store.dispatch({type:'project/replace',project:corrupt}),/fuera/);
  assert.deepEqual(store.getState(),before);
 });
+test('partition collision is rejected without mutating revision or BOM',()=>{
+ const store=State.createStore();
+ store.dispatch({type:'partition/add',length:2,height:2,x:0,z:0});
+ const before=store.getState();
+ const bomBefore=Materials.takeoff(before);
+ assert.throws(()=>store.dispatch({type:'partition/add',length:1,height:2,x:.3,z:0}),/superpuestos/);
+ assert.deepEqual(store.getState(),before);
+ assert.deepEqual(Materials.takeoff(store.getState()),bomBefore);
+ store.dispatch({type:'partition/add',length:1,height:2,x:0,z:.3});
+ assert.equal(store.getState().partitions.length,2);
+});
+
 test('numeric quotes reject absent/null/blank pricing and BOM inputs',()=>{
  const state=State.defaults(),bom=Materials.takeoff(state);
  for(const invalid of [null,undefined,'',false,NaN,Infinity]){
