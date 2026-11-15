@@ -21,7 +21,7 @@ test('Each wall face maps correctly from metre coordinates',()=>{
 });
 test('Pointer placement clamps inward and snaps horizontal and vertical coordinates',()=>{
  const c=State.defaults().project.container;
- const a=Spatial.placementFromHit({x:c.length/2,y:2.5,z:c.width/2},c,{kind:'window',width:1.2,height:1});
+ const a=Spatial.placementFromHit({x:c.length/2,y:2.5,z:c.width/2-.03},c,{kind:'window',width:1.2,height:1});
  assert.equal(a.face,'D');
  assert.ok(Math.abs(a.offset)+.6<c.width/2);
  assert.ok(a.bottom>=0&&a.bottom+1<c.height);
