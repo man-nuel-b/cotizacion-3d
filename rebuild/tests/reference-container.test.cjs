@@ -6,7 +6,7 @@ const Bridge=require('../core/model-cost-bridge');
 const Visual=require('../container-visual');
 test('the user reference container is the canonical 12.03 × 2.35 × 2.39 m starting module',()=>{
  const c=State.defaults().project.container;
- assert.deepEqual(c,{length:12.03,width:2.35,height:2.39,color:'#7d8388'});
+ assert.deepEqual(c,{length:12.03,width:2.35,height:2.39,color:'#7d8388',type:'maritimo'});
  assert.equal(Visual.FLOOR,.14);
  assert.deepEqual(Object.keys(Visual.FACES).sort(),['A','B','C','D']);
  assert.deepEqual(Visual.FACES.A.normal,[0,0,-1]);
