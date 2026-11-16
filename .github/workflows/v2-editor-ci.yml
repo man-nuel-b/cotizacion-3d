@@ -1,0 +1,44 @@
+name: BAT-CUBIKEITOR V2 editor 3D
+on:
+  push:
+    branches:
+      - rebuild/bat-core-v2
+    paths:
+      - 'rebuild/**'
+      - '.github/workflows/v2-editor-ci.yml'
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate project files and module syntax
+        run: |
+          for file in rebuild/index.html rebuild/container-engine.js rebuild/container-catalog.js rebuild/container-object-models.js rebuild/container-editor-ui.js; do test -s "$file"; done
+          for file in rebuild/container-engine.js rebuild/container-catalog.js rebuild/container-object-models.js rebuild/container-editor-ui.js; do node --experimental-default-type=module --check "$file"; done
+          node --experimental-default-type=module --input-type=module -e "
+            import {CATALOG,CATALOG_BY_CODE,FAMILIES} from './rebuild/container-catalog.js';
+            import assert from 'node:assert/strict';
+            assert.equal(CATALOG.length,60);
+            assert.equal(new Set(CATALOG.map(x=>x.code)).size,60);
+            assert.equal(FAMILIES.length,8);
+            for(const c of CATALOG)assert.equal(CATALOG_BY_CODE[c.code],c);
+          "
+      - name: Install isolated test dependencies
+        run: npm install --prefix rebuild --no-save --no-package-lock three@0.160.0 playwright@1.58.2
+      - name: Validate catalog models
+        run: node --experimental-default-type=module --test rebuild/tests/catalog-geometry.mjs
+      - name: Install Chromium
+        run: rebuild/node_modules/.bin/playwright install --with-deps chromium
+      - name: WebGL editor E2E
+        run: node --experimental-default-type=module --test rebuild/tests/editor-smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bat-v2-3d-editor-screenshots
+          path: /tmp/bat-v2-editor-*.png
+          if-no-files-found: ignore
