@@ -169,21 +169,28 @@ function init3D(){
    const w=Math.max(rect.width,300),h=Math.max(rect.height,350);
    renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();
   };
-  if(typeof ResizeObserver!=='undefined')new ResizeObserver(resize).observe(container);
-  else window.addEventListener('resize',resize);
+  if(typeof ResizeObserver!=='undefined'){
+   resizeObserver=new ResizeObserver(resize);resizeObserver.observe(container);
+  }else listen(window,'resize',resize);
   resize();
   const canvas=renderer.domElement;
-  canvas.addEventListener('pointerdown',event=>{
+  listen(canvas,'pointerdown',event=>{
    pressStart=event.button===0?{x:event.clientX,y:event.clientY}:null;
   });
-  canvas.addEventListener('pointerup',event=>{
+  listen(canvas,'pointerup',event=>{
    if(!pressStart)return;
    const distance=Math.hypot(event.clientX-pressStart.x,event.clientY-pressStart.y);
    pressStart=null;
    if(distance<7)onViewerClick(event);
   });
-  canvas.addEventListener('pointercancel',()=>{pressStart=null;});
-  function frame(){requestAnimationFrame(frame);controls?.update();renderer.render(scene,camera);}frame();
+  listen(canvas,'pointercancel',()=>{pressStart=null;});
+  function frame(){
+   if(!started||!renderer||!scene)return;
+   controls?.update();
+   if(!document.hidden)renderer.render(scene,camera);
+   frameId=requestAnimationFrame(frame);
+  }
+  frameId=requestAnimationFrame(frame);
  }catch(error){
   scene=null;renderer=null;message('El navegador no pudo iniciar WebGL: '+error.message,true);
  }
@@ -320,14 +327,43 @@ function bind(){
   event.target.value='';
  });
 }
+function destroy(){
+ if(!started)return;
+ started=false;
+ eventController?.abort();eventController=null;
+ unsubscribe?.();unsubscribe=null;
+ resizeObserver?.disconnect();resizeObserver=null;
+ if(frameId!==null){cancelAnimationFrame(frameId);frameId=null;}
+ controls?.dispose?.();controls=null;
+ if(scene)disposeModel();
+ renderer?.dispose?.();
+ renderer?.domElement?.remove();
+ renderer=null;scene=null;camera=null;shellMesh=null;
+ openingMeshes=[];pressStart=null;
+}
 function start(){
- init3D();bind();store.subscribe(update);update(store.getState());
+ if(started)return; // reopening a panel must not register duplicate listeners
+ started=true;eventController=new AbortController();
+ initLocalBackup();
+ init3D();
+ bind();
+ unsubscribe=store.subscribe((state,action,prepared)=>{
+  update(state,action,prepared);
+ });
+ // Backup is an independent subscriber: failed rendering must not skip persistence.
+ const detachBackup=store.subscribe(state=>saveLocal(state));
+ const detachView=unsubscribe;
+ unsubscribe=()=>{detachView();detachBackup();};
+ update(store.getState());
  window.BAT_V2=Object.freeze({
   getState:()=>store.getState(),
   getQuote:()=>store.getProjection().quote,
   getBOM:()=>store.getProjection().bom,
-  getRevision:()=>store.getProjection().revision
+  getRevision:()=>store.getProjection().revision,
+  destroy,reinit:start
  });
 }
+window.addEventListener('pagehide',destroy);
+window.addEventListener('pageshow',()=>{if(!started)start();});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })();
