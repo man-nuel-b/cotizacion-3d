@@ -44,3 +44,13 @@ test('errores por cuota o privacidad se propagan al llamador sin modificar proye
  assert.throws(()=>backup.save(state),/QuotaExceededError/);
  assert.deepEqual(state,State.defaults());
 });
+
+test('no se guarda automáticamente en servicios proxy de dominio compartido',()=>{
+ assert.equal(Backup.trustedOrigin('raw.githack.com','https:'),false);
+ assert.equal(Backup.trustedOrigin('raw.githubusercontent.com','https:'),false);
+ assert.equal(Backup.trustedOrigin('htmlpreview.github.io','https:'),false);
+ assert.equal(Backup.trustedOrigin('man-nuel-b.github.io','https:'),true);
+ assert.equal(Backup.trustedOrigin('man-nuel-b.github.io','http:'),false);
+ assert.equal(Backup.trustedOrigin('127.0.0.1','http:'),true);
+ assert.equal(Backup.trustedOrigin('localhost','http:'),true);
+});
