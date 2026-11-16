@@ -86,11 +86,18 @@ function reduce(state,action){
    offset:action.offset===undefined?0:finite(action.offset,'Posición abertura'),
    bottom:action.bottom===undefined?(action.kind==='window'?.9:0):nonnegative(action.bottom,'Altura abertura')});break;
   case 'opening/remove':next.openings=next.openings.filter(o=>o.id!==action.id);break;
-  case 'opening/move':{
+  case 'opening/move':
+  case 'opening/update':{
    const o=next.openings.find(o=>o.id===action.id);if(!o)throw new Error('Abertura no encontrada');
-   o.face=action.face===undefined?o.face:action.face;
-   o.offset=action.offset===undefined?o.offset:finite(action.offset,'Posición abertura');
-   if(action.bottom!==undefined)o.bottom=nonnegative(action.bottom,'Altura abertura');break;
+   if(action.face!==undefined)o.face=action.face;
+   if(action.offset!==undefined)o.offset=finite(action.offset,'Posición abertura');
+   if(action.bottom!==undefined)o.bottom=nonnegative(action.bottom,'Altura abertura');
+   if(action.type==='opening/update'){
+    if(action.kind!==undefined)o.kind=action.kind;
+    if(action.width!==undefined)o.width=positive(action.width,'Ancho abertura');
+    if(action.height!==undefined)o.height=positive(action.height,'Alto abertura');
+   }
+   break;
   }
   case 'partition/add':next.partitions.push({id:id(),length:positive(action.length,'Largo tabique'),
    height:positive(action.height,'Alto tabique'),x:action.x===undefined?0:finite(action.x,'X tabique'),
@@ -98,12 +105,17 @@ function reduce(state,action){
    orientation:action.orientation===undefined?'x':action.orientation,
    thickness:action.thickness===undefined?.08:positive(action.thickness,'Espesor tabique')});break;
   case 'partition/remove':next.partitions=next.partitions.filter(p=>p.id!==action.id);break;
-  case 'partition/move':{
+  case 'partition/move':
+  case 'partition/update':{
    const p=next.partitions.find(p=>p.id===action.id);if(!p)throw new Error('Tabique no encontrado');
    if(action.x!==undefined)p.x=finite(action.x,'X tabique');
    if(action.z!==undefined)p.z=finite(action.z,'Z tabique');
    if(action.orientation!==undefined)p.orientation=action.orientation;
    if(action.thickness!==undefined)p.thickness=positive(action.thickness,'Espesor tabique');
+   if(action.type==='partition/update'){
+    if(action.length!==undefined)p.length=positive(action.length,'Largo tabique');
+    if(action.height!==undefined)p.height=positive(action.height,'Alto tabique');
+   }
    break;
   }
   case 'pricing/update':
@@ -117,8 +129,9 @@ function reduce(state,action){
 function createStore(initial=defaults(),options={}){
  // A pure derived projection can be supplied to validate BOM/pricing before
  // the state commits. Rendering and cloud I/O must never be performed here.
- const derive=options.derive;
+ const derive=options.derive,onListenerError=options.onListenerError;
  if(derive!==undefined&&typeof derive!=='function')throw new TypeError('Proyección inválida');
+ if(onListenerError!==undefined&&typeof onListenerError!=='function')throw new TypeError('Manejador de errores inválido');
  let state=check(initial);
  let projection=derive?deepCopy(derive(deepCopy(state))):null;
  const listeners=new Set();
@@ -131,7 +144,18 @@ function createStore(initial=defaults(),options={}){
    // No partial commit if geometry, BOM or pricing calculations reject inputs.
    state=updated;
    projection=nextProjection;
-   for(const listener of listeners)listener(deepCopy(state),action,projection===null?null:deepCopy(projection));
+   for(const listener of [...listeners]){
+    try{
+     listener(deepCopy(state),action,projection===null?null:deepCopy(projection));
+    }catch(error){
+     // A failed UI listener must not report a committed action as rejected,
+     // or prevent backup/other subscribers from receiving the same revision.
+     try{
+      if(onListenerError)onListenerError(error,action);
+      else if(typeof console!=='undefined'&&console.error)console.error('[BAT V2] Error de suscriptor',error);
+     }catch(_ignored){/* Reporting cannot roll back an already committed revision. */}
+    }
+   }
    return deepCopy(state);
   },
   subscribe(listener){
