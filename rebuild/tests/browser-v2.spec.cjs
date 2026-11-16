@@ -96,7 +96,7 @@ test('V2 browser: face click -> state -> 3D/BOM -> price, with validation rollba
   assert.match(await page.locator('#catalog-count').innerText(),/1 de 60/);
   await page.locator('#catalog-results .catalog-entry').first().click();
   assert.match(await page.locator('#catalog-detail').innerText(),/CAT-SAN-010/);
-  assert.match(await page.locator('#catalog-detail').innerText(),/sin.*APU/i);
+  assert.match(await page.locator('#catalog-detail').innerText(),/no coloca objetos 3D ni vincula costos o APU/i);
   const afterCatalog=await page.evaluate(()=>({
    state:window.BAT_V2.getState(),quote:window.BAT_V2.getQuote()
   }));
