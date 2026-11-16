@@ -233,10 +233,10 @@ function refreshPlaced() {
      const label = CATALOG_BY_CODE[record.code]?.name || 'Abertura manual';
      btn.textContent = record.code + ' · ' + label;
      btn.addEventListener('click', () => {
-       if (record.kind === 'service') api.removeService(record.id);
+       if (record.kind === 'service') { if (window.confirm('¿Quitar este servicio del proyecto?')) api.removeService(record.id); }
        else api.selectEntity(record.kind, record.id);
      });
-     if (record.kind === 'service') btn.title = 'Quitar servicio administrativo del listado';
+     if (record.kind === 'service') btn.title = 'Quitar servicio (requiere confirmación)';
      list.appendChild(btn);
   }
 }
