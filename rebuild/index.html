@@ -22,15 +22,25 @@ button{cursor:pointer;font-weight:700}button:hover{background:#263b56}.accent{ba
 #catalog-detail p{margin:8px 0}
 .model-toggle{display:flex;gap:9px;align-items:center;line-height:1.4}
 .model-toggle input{width:auto;flex:none;accent-color:#f59e0b}
+.type-segment{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.type-segment button{margin:0;padding:10px 4px;font-size:12px;font-weight:600}
+.type-segment button[aria-pressed="true"]{background:#f59e0b;color:#171717;border-color:#f59e0b}
 input[type=color]{min-height:42px;padding:3px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js" defer></script>
-<script src="core/project-state.js" defer></script><script src="core/spatial.js" defer></script><script src="core/materials.js" defer></script><script src="core/pricing.js" defer></script><script src="core/catalog.js" defer></script><script src="core/model-cost-bridge.js" defer></script><script src="core/local-backup.js" defer></script><script src="core/catalog-families.js" defer></script><script src="core/catalog-elements.js" defer></script><script src="core/catalog-ui-map.js" defer></script><script src="container-visual.js" defer></script><script src="main.js" defer></script><script src="catalog-view.js" defer></script>
+<script src="core/container-types.js" defer></script><script src="core/project-state.js" defer></script><script src="core/spatial.js" defer></script><script src="core/materials.js" defer></script><script src="core/pricing.js" defer></script><script src="core/catalog.js" defer></script><script src="core/model-cost-bridge.js" defer></script><script src="core/local-backup.js" defer></script><script src="core/catalog-families.js" defer></script><script src="core/catalog-elements.js" defer></script><script src="core/catalog-ui-map.js" defer></script><script src="container-visual.js" defer></script><script src="main.js" defer></script><script src="catalog-view.js" defer></script>
 </head><body>
 <header><div><h1>BAT-CUBIKEITOR <small>V2 · Reconstrucción</small></h1><small>Motor 3D y costos con una única fuente de datos</small></div><small id="revision">Revisión 0</small></header>
 <main>
-<section><h2>1. Configura el módulo</h2>
+<section><h2>1. Tipo de contenedor</h2>
+<div id="container-types" class="type-segment" role="group" aria-label="Tipo de contenedor">
+<button type="button" data-container-type="maritimo" aria-pressed="true">Marítimo</button>
+<button type="button" data-container-type="reefer" aria-pressed="false">Reefer</button>
+<button type="button" data-container-type="modular" aria-pressed="false">Modular</button>
+</div>
+<p id="container-type-description" class="status">Acero corrugado, esquineros ISO y barras de cierre.</p>
+<h2 style="margin-top:24px">Dimensiones del contenedor</h2>
 <label>Nombre del proyecto<input id="project-name" value="Proyecto modular" maxlength="120"></label>
 <label>Longitud (m)<input id="length" type="number" min="2" max="15" step=".01" value="12.03"></label>
 <label>Ancho (m)<input id="width" type="number" min="1" max="5" step=".01" value="2.35"></label>
@@ -38,7 +48,7 @@ input[type=color]{min-height:42px;padding:3px}
 <button id="resize" class="accent">Aplicar dimensiones</button>
 <div class="actions"><label>Color del contenedor<input id="container-color" type="color" value="#7d8388"></label>
 <label class="model-toggle"><input id="see-inside" type="checkbox"> Ver interior (paredes y techo transparentes)</label></div>
-<p class="status">Modelo de contenedor corrugado de 12,03 × 2,35 × 2,39 m de altura interior (base de 0,14 m), adaptado del diseño proporcionado.</p>
+<p class="status">Modelos y acabados del archivo «contenedores-3-tipos(1).html». Cambiar el tipo reinicia las aberturas y tabiques del proyecto; los precios siguen siendo referenciales.</p>
 <h2 style="margin-top:30px">2. Puertas y ventanas</h2>
 <div class="actions"><label>Elemento<select id="kind"><option value="window">Ventana</option><option value="door">Puerta</option></select></label>
 <label>Cara<select id="face"><option>A</option><option>B</option><option>C</option><option>D</option></select></label></div>
@@ -46,7 +56,9 @@ input[type=color]{min-height:42px;padding:3px}
 <label>Alto (m)<input id="opening-height" type="number" value="1.1" min=".3" max="2.5" step=".1"></label></div>
 <div class="actions"><label>Posición horizontal (m)<input id="opening-offset" type="number" value="0" step=".05"></label>
 <label>Altura desde piso (m)<input id="opening-bottom" type="number" min="0" value=".9" step=".05"></label></div>
+<label class="model-toggle"><input id="opening-bars" type="checkbox"> Ventana con barrotes</label>
 <button id="add-opening">Agregar con coordenadas</button>
+<button id="clear-openings" type="button">Quitar todas las aberturas</button>
 <button id="update-opening" type="button" disabled>Actualizar dimensiones de abertura seleccionada</button>
 <button id="arm-placement" class="accent" type="button">Elegir cara y posición en el visor 3D</button>
 <p id="selected-info" class="status" aria-live="polite">Sin objeto seleccionado</p>
