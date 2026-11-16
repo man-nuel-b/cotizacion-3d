@@ -58,6 +58,8 @@ test('BAT V2: catálogo 60 partidas, selección de objetos, edición y exportaci
   assert.equal(state.objects[0].code,'P60');
   assert.equal(await page.locator('#props-form').isVisible(),true);
   assert.equal(await page.locator('#prop-x').count(),1,'X input must survive label update');
+  await page.locator('#prop-x').fill('0');
+  await page.locator('#prop-z').fill('0');
   await page.locator('#prop-w').fill('0.45');
   await page.locator('#prop-rot').fill('15');
   await page.locator('#prop-apply').click();
@@ -78,7 +80,12 @@ test('BAT V2: catálogo 60 partidas, selección de objetos, edición y exportaci
   assert.equal(state.openings.length,1,'Window is placed via surface click');
   assert.equal(state.openings[0].catalogCode,'P83');
   assert.equal(state.openings[0].type,'window');
-  await page.screenshot({path:'/tmp/bat-v2-editor-objects.png'});
+  const rendered=await page.evaluate(()=>{
+   const group=window.Container3D.getEntityMeshes()[0];
+   let meshes=0;group?.traverse(x=>{if(x.isMesh)meshes++;});
+   return meshes;
+  });
+  assert.ok(rendered>8,'WC geometry must contain actual meshes');
   assert.deepEqual(errors,[],errors.join('\n'));
  }finally{if(fixture)await close(fixture);await new Promise(resolve=>server.close(resolve));}
 });
@@ -110,7 +117,7 @@ test('BAT V2: three model types, safe dimensions, save & import', {timeout:18000
   const restored=await page.evaluate(data=>window.Container3D.setState(data),exported);
   assert.equal(restored.ok,true);
   assert.deepEqual(await page.evaluate(()=>window.Container3D.getState()),exported);
-  await page.screenshot({path:'/tmp/bat-v2-editor-types.png'});
+  assert.ok(await page.locator('#view canvas').count()===1);
   assert.deepEqual(errors,[],errors.join('\n'));
  }finally{if(fixture)await close(fixture);await new Promise(resolve=>server.close(resolve));}
 });
