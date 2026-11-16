@@ -94,7 +94,7 @@ Desde esta etapa el editor incluye **actualización de dimensiones de aberturas 
 El controlador principal libera explícitamente recursos al salir de la página o al reiniciar el visor: elimina escuchas vinculadas mediante `AbortController`, desconecta `ResizeObserver`, cancela `requestAnimationFrame`, elimina objetos de Three.js y libera los controles de cámara/WebGL. `start()` es idempotente y se restaura en `pageshow` cuando corresponde; los avisos y la copia local se mantienen separados de errores de renderizado.
 
 ### Recuperación local, sin nube
-- `core/local-backup.js` guarda **solo el estado del proyecto** en `localStorage` del mismo navegador después de cada acción válida. No guarda contraseñas ni conecta Supabase.
+- `core/local-backup.js` guarda **solo el estado del proyecto** en `localStorage` del navegador después de cada acción válida **únicamente en `localhost`, `127.0.0.1` o `https://man-nuel-b.github.io`**. En vistas previas de dominio compartido como `raw.githack.com`, el respaldo se desactiva por seguridad y debe usarse la exportación JSON. No guarda contraseñas ni conecta Supabase.
 - La recuperación es **manual** con el botón «Restaurar copia local», que solicita confirmación. Al iniciar, V2 no reemplaza automáticamente un proyecto con una copia antigua.
 - Los datos almacenados localmente pueden perderse al borrar la caché/datos del sitio, usar navegación privada o cambiar de navegador. También pueden fallar por cuota o bloqueos de privacidad; el error se informa, sin bloquear el proyecto.
 - El respaldo externo mediante archivo JSON continúa disponible y es recomendable para proyectos importantes. No se deben ingresar datos personales o confidenciales en el prototipo de vista previa.
