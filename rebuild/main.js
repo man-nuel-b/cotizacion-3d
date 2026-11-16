@@ -65,53 +65,21 @@ function dispatch(action){
   return updated;
  }catch(error){message(error.message||'Acción rechazada',true);return null;}
 }
+let containerVisual=null,groundMesh=null;
 function disposeModel(){
- if(!model)return;
- scene.remove(model);
- const geometries=new Set(),materials=new Set();
- model.traverse(obj=>{
-  if(obj.geometry)geometries.add(obj.geometry);
-  if(obj.material)(Array.isArray(obj.material)?obj.material:[obj.material]).forEach(m=>materials.add(m));
- });
- geometries.forEach(g=>g.dispose?.());materials.forEach(m=>m.dispose?.());
- model=null;shellMesh=null;openingMeshes=[];
+ if(containerVisual){containerVisual.dispose();containerVisual=null;}
+ shellMesh=null;openingMeshes=[];
 }
 function geometry3D(state){
  if(!scene)return;
- disposeModel();
- model=new THREE.Group();scene.add(model);
+ if(!containerVisual)containerVisual=BatContainerVisual.create({scene});
+ const visual=containerVisual.update(state,{
+  selectedOpeningId,selectedPartitionId,
+  seeInside:$('see-inside').checked,camera
+ });
+ shellMesh=visual.shellMesh;openingMeshes=visual.openingMeshes;
  const c=state.project.container;
- const shell=new THREE.Mesh(new THREE.BoxGeometry(c.length,c.height,c.width),
-   new THREE.MeshStandardMaterial({color:0x475569,transparent:true,opacity:.27,side:THREE.DoubleSide,depthWrite:false}));
- shell.position.y=c.height/2;
- shell.name='container-shell';shellMesh=shell;model.add(shell);
- const edges=new THREE.LineSegments(new THREE.EdgesGeometry(shell.geometry),
-   new THREE.LineBasicMaterial({color:0xfbbf24}));
- edges.position.copy(shell.position);model.add(edges);
- for(const o of state.openings){
-  const highlighted=o.id===selectedOpeningId;
-  const material=new THREE.MeshStandardMaterial({
-   color:highlighted?0xfbbf24:(o.kind==='window'?0x38bdf8:0xc084fc),
-   transparent:true,opacity:highlighted?1:.85,side:THREE.DoubleSide,depthTest:false
-  });
-  const plane=new THREE.Mesh(new THREE.PlaneGeometry(o.width,o.height),material);
-  plane.name='opening-'+o.id;plane.userData.openingId=o.id;
-  const long=['A','B'].includes(o.face);
-  plane.position.set(long?o.offset:0,(o.bottom??0)+o.height/2,long?0:o.offset);
-  if(o.face==='A')plane.position.z=-c.width/2-.01;
-  if(o.face==='B')plane.position.z=c.width/2+.01;
-  if(o.face==='C'){plane.position.x=-c.length/2-.01;plane.rotation.y=Math.PI/2;}
-  if(o.face==='D'){plane.position.x=c.length/2+.01;plane.rotation.y=Math.PI/2;}
-  model.add(plane);openingMeshes.push(plane);
- }
- for(const p of state.partitions){
-  const oriented=p.orientation==='z',thickness=p.thickness??.08;
-  const wall=new THREE.Mesh(new THREE.BoxGeometry(oriented?thickness:p.length,p.height,oriented?p.length:thickness),
-   new THREE.MeshStandardMaterial({color:p.id===selectedPartitionId?0xfbbf24:0x22c55e,transparent:true,opacity:.78}));
-  wall.name='partition-'+p.id;
-  wall.position.set(p.x,p.height/2,p.z);model.add(wall);
- }
- controls?.target.set(0,c.height/2,0);
+ controls?.target.set(0,c.height/2+BatContainerVisual.FLOOR,0);
  controls?.update();
 }
 function pointerToRay(event){
@@ -172,13 +140,31 @@ function init3D(){
  if(typeof THREE==='undefined'){message('No se pudo cargar Three.js; comprueba tu conexión.',true);return;}
  try{
   const container=$('canvas');
-  scene=new THREE.Scene();scene.background=new THREE.Color(0x101c30);
-  camera=new THREE.PerspectiveCamera(45,1,.1,150);camera.position.set(9,7,9);
+  scene=new THREE.Scene();scene.background=new THREE.Color(0xdfe3e8);
+  scene.fog=new THREE.Fog(0xdfe3e8,45,130);
+  camera=new THREE.PerspectiveCamera(40,1,.1,400);camera.position.set(11,5.5,13);
   renderer=new THREE.WebGLRenderer({antialias:true});
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));container.appendChild(renderer.domElement);
-  scene.add(new THREE.HemisphereLight(0xffffff,0x64748b,1.8));
-  const light=new THREE.DirectionalLight(0xffffff,1.6);light.position.set(8,12,6);scene.add(light);
-  if(THREE.OrbitControls){controls=new THREE.OrbitControls(camera,renderer.domElement);controls.enableDamping=true;}
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+  renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
+  container.appendChild(renderer.domElement);
+  scene.add(new THREE.HemisphereLight(0xffffff,0x8a8f96,.8));
+  const light=new THREE.DirectionalLight(0xfff1dd,2.4);
+  light.position.set(9,15,11);light.castShadow=true;
+  light.shadow.mapSize.set(2048,2048);
+  light.shadow.camera.left=-15;light.shadow.camera.right=15;
+  light.shadow.camera.top=15;light.shadow.camera.bottom=-15;
+  light.shadow.camera.near=1;light.shadow.camera.far=50;
+  light.shadow.bias=-.0004;light.shadow.normalBias=.03;light.shadow.radius=4;
+  scene.add(light);
+  groundMesh=new THREE.Mesh(new THREE.PlaneGeometry(300,300),
+   new THREE.MeshStandardMaterial({color:0xcfd3d8,roughness:1}));
+  groundMesh.rotation.x=-Math.PI/2;groundMesh.receiveShadow=true;scene.add(groundMesh);
+  if(THREE.OrbitControls){
+   controls=new THREE.OrbitControls(camera,renderer.domElement);
+   controls.enableDamping=true;controls.maxPolarAngle=Math.PI/2-.02;
+   controls.minDistance=2;controls.maxDistance=60;
+  }
   const resize=()=>{
    const rect=container.getBoundingClientRect();
    const w=Math.max(rect.width,300),h=Math.max(rect.height,350);
@@ -202,6 +188,7 @@ function init3D(){
   function frame(){
    if(!started||!renderer||!scene)return;
    controls?.update();
+   containerVisual?.refreshXray(camera);
    if(!document.hidden)renderer.render(scene,camera);
    frameId=requestAnimationFrame(frame);
   }
@@ -225,6 +212,7 @@ function update(state,action,prepared){
  $('project-name').value=state.project.name;
  for(const key of ['length','width','height'])$(key).value=c[key];
  $('transport').value=state.pricing.transport;
+ $('container-color').value=c.color||'#7d8388';
  if(selectedOpeningId&&!state.openings.some(o=>o.id===selectedOpeningId))selectedOpeningId=null;
  if(selectedPartitionId&&!state.partitions.some(p=>p.id===selectedPartitionId))selectedPartitionId=null;
  const {bom,quote}=prepared||store.getProjection();
@@ -273,6 +261,8 @@ function update(state,action,prepared){
 function bind(){
  listen($('resize'),'click',()=>dispatch({type:'container/resize',length:$('length').value,width:$('width').value,height:$('height').value}));
  listen($('project-name'),'change',()=>dispatch({type:'project/rename',name:$('project-name').value}));
+ listen($('container-color'),'change',()=>dispatch({type:'container/color',color:$('container-color').value}));
+ listen($('see-inside'),'change',()=>geometry3D(store.getState()));
  listen($('kind'),'change',()=>{$('opening-bottom').value=$('kind').value==='door'?0:.9;});
  listen($('add-opening'),'click',()=>{
   const next=dispatch({type:'opening/add',kind:$('kind').value,face:$('face').value,
@@ -351,6 +341,11 @@ function destroy(){
  if(frameId!==null){cancelAnimationFrame(frameId);frameId=null;}
  controls?.dispose?.();controls=null;
  if(scene)disposeModel();
+ if(groundMesh){
+  scene?.remove(groundMesh);
+  groundMesh.geometry?.dispose();groundMesh.material?.dispose();
+  groundMesh=null;
+ }
  renderer?.dispose?.();
  renderer?.domElement?.remove();
  renderer=null;scene=null;camera=null;shellMesh=null;
@@ -375,6 +370,7 @@ function start(){
   getQuote:()=>store.getProjection().quote,
   getBOM:()=>store.getProjection().bom,
   getRevision:()=>store.getProjection().revision,
+  getVisualStats:()=>containerVisual?.getStats()||null,
   destroy,reinit:start
  });
 }
