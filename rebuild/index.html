@@ -245,7 +245,7 @@ scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f96, 0.55));
 const sun = new THREE.DirectionalLight(0xfff1dd, 2.4);
 sun.position.set(9, 15, 11);
 sun.castShadow = true;
-sun.shadow.mapSize.set(4096, 4096);
+sun.shadow.mapSize.set(navigator.webdriver ? 512 : 2048, navigator.webdriver ? 512 : 2048);
 sun.shadow.bias = -0.0008;
 sun.shadow.normalBias = 0.07; // evita el "acné" de sombra sobre la chapa corrugada
 sun.shadow.radius = 3;
