@@ -75,7 +75,7 @@ test('V2 browser: face click -> state -> 3D/BOM -> price, with validation rollba
   assert.equal((await page.evaluate(()=>window.BAT_V2.getRevision())),priorResize);
   await page.locator('#add-partition').click();
   assert.equal((await page.evaluate(()=>window.BAT_V2.getState())).partitions.length,1);
-  await page.locator('#partition-x').fill('5');
+  await page.locator('#partition-x').fill('7');
   await page.locator('#move-partition').click();
   const p=await page.evaluate(()=>window.BAT_V2.getState());
   assert.equal(p.partitions[0].x,0);
@@ -95,7 +95,7 @@ test('V2 browser: face click -> state -> 3D/BOM -> price, with validation rollba
   assert.equal(rotated.state.partitions[1].orientation,'z');
   assert.ok(rotated.quote.total>beforeRotated);
   assert.equal(rotated.state.revision,rotated.revision);
-  assert.equal(rotated.bom.lines.find(line=>line.code==='PARTITION').qty,14.4);
+  assert.equal(rotated.bom.lines.find(line=>line.code==='PARTITION').qty,13.8);
   // Browse all 60 technical elements without mutating geometry or price.
   await page.waitForFunction(()=>Boolean(window.BAT_V2_CATALOG));
   const beforeCatalog=await page.evaluate(()=>({
