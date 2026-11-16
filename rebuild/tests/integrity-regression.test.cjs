@@ -37,7 +37,7 @@ test('face C and D offsets enforce short-face boundaries',()=>{
  assert.deepEqual(store.getState(),before);
  const source=read('container-visual.js');
  assert.match(source,/face\.sign\*opening\.offset/);
- assert.match(source,/offset:\$\('opening-offset'\)\.value/);
+ assert.match(read('main.js'),/offset:\$\('opening-offset'\)\.value/);
 });
 test('moving an opening recalculates store synchronously without changing BOM count',()=>{
  const store=State.createStore();
