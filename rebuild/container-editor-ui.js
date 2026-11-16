@@ -108,8 +108,9 @@ export function installEditor({THREE,renderer,camera,controls,root,api,state,FAC
    if(!point){hint('Haz clic sobre la superficie del contenedor.',true);return;}
    const result=api.setFinish(code);
    if(!result.ok){hint(result.error,true);return;}
+   clearPending();
    hint(code+' aplicado a '+(item.mode==='ceiling'?'cielo':item.mode==='skirting'?'perímetro':'piso')+'.');
-   clearPending();return;
+   return;
   }
   if(item.mode==='wall-finish'||item.mode==='opening'){
    const hit=wallHit(ray);
@@ -152,9 +153,8 @@ export function installEditor({THREE,renderer,camera,controls,root,api,state,FAC
    const rz=(Math.abs(Math.sin(rad))*w+Math.abs(Math.cos(rad))*d)/2;
    x=clamp(x,-state.L/2+rx+.065,state.L/2-rx-.065);
    z=clamp(z,-state.W/2+rz+.065,state.W/2-rz-.065);
-   const result=api.addObject(code,x,z);
+   const result=api.addObject(code,x,z,undefined,rot);
    if(!result.ok){hint(code+': '+result.error,true);return;}
-   if(rot!==0)api.updateObject(result.id,{rot});
    clearPending();hint(code+' agregado. Haz clic sobre él para moverlo o editarlo.');
    return;
   }
