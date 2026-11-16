@@ -66,7 +66,7 @@ const groups=[
 {family:'sanitarios',prefix:'SAN',rows:[
 ['Inodoro (WC) two piece instalado, con llave de paso y flexible','un','sanitary-object'],
 ['Lavamanos con pedestal, grifería monomando y sifón instalado','un','sanitary-object'],
-['Ducha completa: receptáculo 80x80, grifería monomando y sumidero instalados','un','sanitary-object',[.8,.8]],
+['Ducha completa: receptáculo 80x80, grifería monomando y sumidero instalados','un','sanitary-object'],
 ['Termo eléctrico 50 L instalado con válvula de seguridad (sin punto eléctrico)','un','equipment'],
 ['Punto de agua potable fría o caliente PPR 20 mm (hasta 3 m)','un','utility-point'],
 ['Punto de desagüe PVC 50 mm (lavamanos/ducha/lavaplatos, hasta 2 m)','un','utility-point'],
