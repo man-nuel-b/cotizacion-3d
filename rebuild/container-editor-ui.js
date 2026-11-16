@@ -160,6 +160,12 @@ export function installEditor({THREE,renderer,camera,controls,root,api,state,FAC
   }
  }
  function setLabel(id,label){const node=$(id);if(node)node.textContent=label;}
+ function setInputLabel(id,label){
+  const node=$(id);if(!node)return;
+  const labelNode=Array.from(node.childNodes).find(n=>n.nodeType===3);
+  if(labelNode)labelNode.textContent=label;
+  else node.insertBefore(document.createTextNode(label),node.firstChild);
+ }
  function visible(id,show){$(id).hidden=!show;}
  function refreshProperties(){
   const selection=api.getSelected(),form=$('props-form');
@@ -176,8 +182,8 @@ export function installEditor({THREE,renderer,camera,controls,root,api,state,FAC
    {x:obj.u,z:0,y:obj.v,rot:0,w:obj.w,h:obj.h,d:0}:
    {x:obj.x,z:obj.z,y:obj.y,rot:obj.rot,w:obj.w,h:obj.h,d:obj.d};
   for(const [k,value] of Object.entries(values))$('prop-'+k).value=value;
-  setLabel('px-label',opening?'Distancia horizontal en cara (m)':'X (m)');
-  setLabel('py-label',opening?'Altura desde piso (m)':'Altura desde piso (m)');
+  setInputLabel('px-label',opening?'Distancia horizontal en cara (m)':'X (m)');
+  setInputLabel('py-label','Altura desde piso (m)');
   visible('pz-label',!opening);visible('prot-label',!opening);
   visible('pd-label',!opening);visible('pface-label',opening);
   $('prop-face').value=opening?obj.face:'A';
