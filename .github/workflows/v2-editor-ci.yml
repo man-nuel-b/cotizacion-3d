@@ -42,6 +42,8 @@ jobs:
           node --check /tmp/bat-v2-page.mjs
       - name: Install isolated Three.js and Playwright test dependencies
         run: npm install --prefix rebuild --no-save --no-package-lock three@0.160.0 playwright@1.58.2
+      - name: Validate meshes for all physical catalog elements
+        run: node --test rebuild/tests/catalog-geometry.mjs
       - name: Install Chromium
         run: rebuild/node_modules/.bin/playwright install --with-deps chromium
       - name: End-to-end WebGL editor test
