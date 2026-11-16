@@ -124,7 +124,10 @@ function onViewerClick(event){
   const kind=existing?.kind||$('kind').value;
   const width=existing?.width??$('opening-width').value;
   const height=existing?.height??$('opening-height').value;
-  const placement=BatSpatial.placementFromHit(hit.point,state.project.container,{kind,width,height});
+  // Visual floor is 14 cm above world ground. Spatial/state dimensions
+  // are measured from the interior floor, not from the world origin.
+  const point={x:hit.point.x,y:hit.point.y-BatContainerVisual.FLOOR,z:hit.point.z};
+  const placement=BatSpatial.placementFromHit(point,state.project.container,{kind,width,height});
   const action=existing?{type:'opening/move',id:existing.id,...placement}:
    {type:'opening/add',kind,width,height,...placement};
   const next=dispatch(action);
