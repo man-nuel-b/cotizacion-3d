@@ -7,7 +7,7 @@ h1{font-size:17px;margin:0}small,.muted{color:#94a3b8}main{display:grid;grid-tem
 section{padding:20px;border-right:1px solid #26344a}h2{font-size:15px;color:#f8fafc;margin:0 0 18px}label{font-size:12px;display:block;margin:10px 0}
 input,select,button{width:100%;border-radius:9px;border:1px solid #324359;background:#18263c;color:white;padding:10px;margin-top:5px;font:inherit}
 button{cursor:pointer;font-weight:700}button:hover{background:#263b56}.accent{background:#f59e0b;color:#111827;border:0}.accent:hover{background:#fbbf24}.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-#viewer{min-height:430px;position:relative;padding:0;background:linear-gradient(#132239,#07101d)}#canvas{position:absolute;inset:0}#viewer .hint{position:absolute;top:14px;left:14px;font-size:12px;background:#08101cc9;border-radius:9px;padding:10px}
+#viewer{min-height:430px;position:relative;padding:0;background:#dfe3e8}#canvas{position:absolute;inset:0}#viewer .hint{position:absolute;top:14px;left:14px;font-size:12px;background:#08101cc9;border-radius:9px;padding:10px}
 #viewer .hint{max-width:80%}#viewer canvas{touch-action:pan-y}#summary{background:#111c30}table{border-collapse:collapse;width:100%;font-size:12px}td,th{padding:9px 4px;border-bottom:1px solid #28384b;text-align:left}td:last-child,th:last-child{text-align:right}
 .total{font-size:30px;font-weight:800;color:#fbbf24;margin:14px 0}.status{font-size:12px;color:#94a3b8}.error{color:#fda4af}#items{font-size:12px;color:#aab9cb}
 @media(max-width:1050px){main{grid-template-columns:300px 1fr}#summary{grid-column:1/-1}}@media(max-width:680px){main{display:block}#viewer{height:430px}}
@@ -20,19 +20,25 @@ button{cursor:pointer;font-weight:700}button:hover{background:#263b56}.accent{ba
 #catalog-results{max-height:350px;overflow-y:auto;margin-top:10px}
 #catalog-detail{border-top:1px solid #334155;padding-top:10px;margin-top:10px;font-size:12px}
 #catalog-detail p{margin:8px 0}
+.model-toggle{display:flex;gap:9px;align-items:center;line-height:1.4}
+.model-toggle input{width:auto;flex:none;accent-color:#f59e0b}
+input[type=color]{min-height:42px;padding:3px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js" defer></script>
-<script src="core/project-state.js" defer></script><script src="core/spatial.js" defer></script><script src="core/materials.js" defer></script><script src="core/pricing.js" defer></script><script src="core/catalog.js" defer></script><script src="core/model-cost-bridge.js" defer></script><script src="core/local-backup.js" defer></script><script src="core/catalog-families.js" defer></script><script src="core/catalog-elements.js" defer></script><script src="core/catalog-ui-map.js" defer></script><script src="main.js" defer></script><script src="catalog-view.js" defer></script>
+<script src="core/project-state.js" defer></script><script src="core/spatial.js" defer></script><script src="core/materials.js" defer></script><script src="core/pricing.js" defer></script><script src="core/catalog.js" defer></script><script src="core/model-cost-bridge.js" defer></script><script src="core/local-backup.js" defer></script><script src="core/catalog-families.js" defer></script><script src="core/catalog-elements.js" defer></script><script src="core/catalog-ui-map.js" defer></script><script src="container-visual.js" defer></script><script src="main.js" defer></script><script src="catalog-view.js" defer></script>
 </head><body>
 <header><div><h1>BAT-CUBIKEITOR <small>V2 · Reconstrucción</small></h1><small>Motor 3D y costos con una única fuente de datos</small></div><small id="revision">Revisión 0</small></header>
 <main>
 <section><h2>1. Configura el módulo</h2>
 <label>Nombre del proyecto<input id="project-name" value="Proyecto modular" maxlength="120"></label>
-<label>Longitud (m)<input id="length" type="number" min="2" max="15" step=".01" value="6.06"></label>
-<label>Ancho (m)<input id="width" type="number" min="1" max="5" step=".01" value="2.44"></label>
-<label>Altura (m)<input id="height" type="number" min="2" max="5" step=".01" value="2.59"></label>
+<label>Longitud (m)<input id="length" type="number" min="2" max="15" step=".01" value="12.03"></label>
+<label>Ancho (m)<input id="width" type="number" min="1" max="5" step=".01" value="2.35"></label>
+<label>Altura (m)<input id="height" type="number" min="2" max="5" step=".01" value="2.39"></label>
 <button id="resize" class="accent">Aplicar dimensiones</button>
+<div class="actions"><label>Color del contenedor<input id="container-color" type="color" value="#7d8388"></label>
+<label class="model-toggle"><input id="see-inside" type="checkbox"> Ver interior (paredes y techo transparentes)</label></div>
+<p class="status">Modelo de contenedor corrugado de 12,03 × 2,35 × 2,39 m de altura interior (base de 0,14 m), adaptado del diseño proporcionado.</p>
 <h2 style="margin-top:30px">2. Puertas y ventanas</h2>
 <div class="actions"><label>Elemento<select id="kind"><option value="window">Ventana</option><option value="door">Puerta</option></select></label>
 <label>Cara<select id="face"><option>A</option><option>B</option><option>C</option><option>D</option></select></label></div>
