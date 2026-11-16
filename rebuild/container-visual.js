@@ -161,9 +161,14 @@ function create({scene}={}){
    box(w+.1,.03,.14,frame,0,-h/2-fb-.015,.03,g,id);
    if(opening.bars){
     const count=Math.max(2,Math.round(w/.12));
-    for(let k=1;k<count;k++)box(.016,h,.016,m.bars,-w/2+w*k/count,0,fd/2+.012,g,id);
-    box(w,.016,.016,m.bars,0,h*.25,fd/2+.012,g,id);
-    box(w,.016,.016,m.bars,0,-h*.25,fd/2+.012,g,id);
+    for(let k=1;k<count;k++){
+     const bar=box(.016,h,.016,m.bars,-w/2+w*k/count,0,fd/2+.012,g,id);
+     bar.userData.barredWindow=true;
+    }
+    for(const y of [h*.25,-h*.25]){
+     const bar=box(w,.016,.016,m.bars,0,y,fd/2+.012,g,id);
+     bar.userData.barredWindow=true;
+    }
    }
   }
   parent.add(g);
@@ -183,7 +188,7 @@ function create({scene}={}){
  }
  function buildMachine(lw, totalH, m, parent) {
   const mw = lw - 0.36, mh = 1.25, fb = 0.07;
-  const g = new THREE.Group();
+  const g = new THREE.Group();g.name='reefer-refrigeration-machine';
   g.position.set(0, FLOOR + 0.08 + mh / 2, 0);
   parent.add(g);
 
@@ -363,8 +368,12 @@ function create({scene}={}){
   paintTexture=null;woodTexture=null;hazardTexture=null;signature='';
  }
  function getStats(){
-  let corrugatedPanels=0;
-  rootGroup.traverse(obj=>{if(obj.userData.corrugatedPanel)corrugatedPanels++;});
+  let corrugatedPanels=0,barMeshes=0,seamMeshes=0;
+  rootGroup.traverse(obj=>{
+   if(obj.userData.corrugatedPanel)corrugatedPanels++;
+   if(obj.userData.barredWindow)barMeshes++;
+   if(obj.userData.seam)seamMeshes++;
+  });
   // Verify physical corrugated-wall holes by casting inward through the
   // centre of each opening against wall panels (not glass or structural frames).
   rootGroup.updateMatrixWorld(true);
@@ -382,7 +391,8 @@ function create({scene}={}){
   });
   return Object.freeze({
    source:'contenedores-3-tipos(1).html',type:lastState?.project.container.type||'maritimo',
-   corrugatedPanels,actualWallCuts:wallFaces.reduce((n,w)=>n+(w.cutCount||0),0),
+   hasReeferMachine:!!rootGroup.getObjectByName('reefer-refrigeration-machine'),
+   barMeshes,seamMeshes,corrugatedPanels,actualWallCuts:wallFaces.reduce((n,w)=>n+(w.cutCount||0),0),
    cutoutsClear:cutoutChecks.every(Boolean),cutoutChecks,
    openingSelectableMeshes:openings.length,
    container:lastState?{...lastState.project.container}:null,
