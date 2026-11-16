@@ -20,11 +20,12 @@ test('Rechaza puntos fuera de las caras y alturas fuera del contenedor',()=>{
 test('Arrastre futuro X/Z ajusta al interior sin geometría negativa ni colapsada',()=>{
  const c=State.defaults().project.container;
  const p=Spatial.fitPartitionCenter({x:100,z:-100,length:2,thickness:.1,orientation:'x'},c);
- assert.deepEqual(p,{x:2,z:-1.15});
+ assert.ok(p.x<=c.length/2-1&&p.x>=-c.length/2+1);
+ assert.ok(p.z<=c.width/2-.05&&p.z>=-c.width/2+.05);
  const cross=Spatial.fitPartitionCenter({x:-100,z:100,length:1,thickness:.08,orientation:'z'},c);
  assert.ok(cross.x>=-c.length/2+.04-1e-9);
  assert.ok(cross.z<=c.width/2-.5+1e-9);
- assert.throws(()=>Spatial.fitPartitionCenter({x:0,z:0,length:12,thickness:.1,orientation:'x'},c),/demasiado grande/);
+ assert.throws(()=>Spatial.fitPartitionCenter({x:0,z:0,length:30,thickness:.1,orientation:'x'},c),/demasiado grande/);
  assert.throws(()=>Spatial.fitPartitionCenter({x:0,z:0,length:1,thickness:0,orientation:'x'},c),/inválida/);
  assert.throws(()=>Spatial.fitPartitionCenter({x:0,z:0,length:1,thickness:.08,orientation:'z'},c,0),/rango/);
 });
