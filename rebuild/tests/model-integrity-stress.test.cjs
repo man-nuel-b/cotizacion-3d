@@ -29,14 +29,14 @@ test('25 aberturas -> una revisión y un presupuesto consistente por cambio',()=
 });
 test('Tabiques cruzados X/Z se rechazan con espesores reales',()=>{
  const store=Bridge.createStore();
- store.dispatch({type:'partition/add',orientation:'x',length:3,height:2.4,x:0,z:0,thickness:.12});
+ store.dispatch({type:'partition/add',orientation:'x',length:3,height:2.3,x:0,z:0,thickness:.12});
  const before=store.getState(),beforeProjection=store.getProjection();
  assert.throws(()=>store.dispatch({type:'partition/add',orientation:'z',length:1.5,height:2,x:0,z:0,thickness:.08}),/superpuestos/);
  assert.deepEqual(store.getState(),before);
  assert.deepEqual(store.getProjection(),beforeProjection);
  store.dispatch({type:'partition/add',orientation:'z',length:.6,height:2,x:2,z:.5,thickness:.08});
  assert.equal(store.getState().partitions.length,2);
- assert.equal(store.getProjection().bom.metrics.partitionArea,Math.round((3*2.4+.6*2)*1000)/1000);
+ assert.equal(store.getProjection().bom.metrics.partitionArea,Math.round((3*2.3+.6*2)*1000)/1000);
  const second=store.getState(),priorCost=store.getProjection().quote.total;
  assert.throws(()=>store.dispatch({type:'partition/move',id:second.partitions[1].id,x:0,z:0}),/superpuestos/);
  assert.equal(store.getProjection().quote.total,priorCost);
