@@ -238,37 +238,57 @@ function create({scene}={}){
  function build(state,selectedOpeningId,selectedPartitionId){
   ensureTextures();clear();
   const c=state.project.container,L=c.length,W=c.width,H=c.height,totalH=H+FLOOR;
-  // Visual quality-of-service: keep extremely large imported dimensions from
-  // generating millions of triangles. Canonical state/BOM remains unmodified.
-  const corrugated=L<=25&&W<=12&&H<=8;
-  const color=/^#[0-9a-f]{6}$/i.test(c.color||'')?c.color:'#7d8388';
+  const cfg=Types.get(c.type||Types.defaultId);
+  if(!cfg)throw new Error('Tipo de contenedor no disponible');
+  // Avoid unbounded triangle growth for malformed large imported containers.
+  const detailed=L<=25&&W<=12&&H<=8;
+  const wallDepth=cfg.ridge+cfg.sheet;
+  const color=/^#[0-9a-f]{6}$/i.test(c.color||'')?c.color:cfg.color;
+  woodTexture.repeat.set(L/2,1);
+  const frame=mat(cfg.frameColor?
+   {color:cfg.frameColor,roughness:.5,metalness:.15}:
+   {color:new THREE.Color(color).multiplyScalar(.72),map:paintTexture,roughness:cfg.roughness,metalness:cfg.metalness+.05});
   const m={
-   darkPaint:mat({color:new THREE.Color(color).multiplyScalar(.72),map:paintTexture,roughness:.62,metalness:.45}),
-   dark:mat({color:0x25282c,roughness:.72,metalness:.3}),
-   chrome:mat({color:0xd9dde1,roughness:.25,metalness:.88}),
+   wallDepth,frame,
+   dark:mat({color:0x25282c,roughness:.7,metalness:.3}),
+   chrome:mat({color:0xd9dde1,roughness:.25,metalness:.9}),
    yellow:mat({color:0xe8c11a,roughness:.5}),
-   door:mat({color:0x59636b,roughness:.55,metalness:.5}),
-   doorInset:mat({color:0x4c555c,roughness:.6,metalness:.5}),
+   door:mat({color:cfg.frameColor?0xdfe3e5:0x59636b,roughness:.55,metalness:.4}),
+   doorInset:mat({color:cfg.frameColor?0xcfd4d7:0x4c555c,roughness:.6,metalness:.4}),
    aluminium:mat({color:0xe6e9ec,roughness:.35,metalness:.8}),
-   glass:mat({color:0xbfd8e6,roughness:.1,transparent:true,opacity:.35,depthWrite:false,side:THREE.DoubleSide}),
+   bars:mat({color:cfg.frameColor?0x4b5258:0xdfe3e6,roughness:.4,metalness:.7}),
+   glass:mat({color:0xbfd8e6,roughness:.05,metalness:0,transparent:true,opacity:.28,depthWrite:false,side:THREE.DoubleSide}),
    wood:mat({color:0xffffff,map:woodTexture,roughness:.8}),
+   floorAlu:mat({color:0xaab0b5,roughness:.4,metalness:.8}),
+   floorVinyl:mat({color:0xb9b5ab,roughness:.9,metalness:0}),
    partition:mat({color:0xe9e4da,roughness:.9}),
    selected:mat({color:0xfbbf24,roughness:.55}),
-   highlight:mat({color:0xfbbf24,roughness:.4,metalness:.2})
+   highlight:mat({color:0xfbbf24,roughness:.4,metalness:.2}),
+   blue:mat({color:0x1f4fa8,roughness:.45,metalness:.3}),
+   light:mat({color:0xe3e6e8,roughness:.5,metalness:.1}),
+   fanDark:mat({color:0x0e1014,roughness:.8,metalness:.2}),
+   fanBlade:mat({color:0x1b2f63,roughness:.5,metalness:.3}),
+   ledGreen:mat({color:0x35c05a,roughness:.4,emissive:0x0f4d20}),
+   hazard:mat({color:0xffffff,map:hazardTexture,roughness:.6}),
+   seam:mat({color:0x8e9396,roughness:.6,metalness:.2})
   };
-  const floorW=Math.max(.01,W-2*WALL-.02),floorL=Math.max(.01,L-2*WALL-.02);
-  box(floorL,.05,floorW,m.wood,0,FLOOR-.025,0,rootGroup);
+  const floorW=Math.max(.01,W-2*wallDepth-.02),floorL=Math.max(.01,L-2*wallDepth-.02);
+  const floorMaterial=cfg.floor==='alu'?m.floorAlu:cfg.floor==='vinyl'?m.floorVinyl:m.wood;
+  box(floorL,.05,floorW,floorMaterial,0,FLOOR-.025,0,rootGroup);
   for(let x=-L/2+.35;x<L/2-.2&&x<50;x+=.6)box(.1,.1,Math.max(.02,W-.2),m.dark,x,.05,0,rootGroup);
-  for(const s of [-1,1]){
-   box(L,.14,.1,m.darkPaint,0,.07,s*(W/2-.05),rootGroup);
-   box(L,.09,.08,m.darkPaint,0,totalH-.045,s*(W/2-.04),rootGroup);
-   box(.1,.14,Math.max(.02,W-.3),m.darkPaint,s*(L/2-.05),.07,0,rootGroup);
-   box(.1,.1,Math.max(.02,W-.3),m.darkPaint,s*(L/2-.05),totalH-.05,0,rootGroup);
-   for(const t of [-1,1]){
-    box(.12,totalH,.12,m.darkPaint,s*(L/2-.06),totalH/2,t*(W/2-.06),rootGroup);
-    for(const y of [.065,totalH-.065])box(.178,.13,.178,m.dark,s*(L/2-.089),y,t*(W/2-.089),rootGroup);
+  for(const sign of [-1,1]){
+   box(L,.14,.1,m.frame,0,.07,sign*(W/2-.05),rootGroup);
+   box(L,.09,.08,m.frame,0,totalH-.045,sign*(W/2-.04),rootGroup);
+   box(.1,.14,Math.max(.02,W-.3),m.frame,sign*(L/2-.05),.07,0,rootGroup);
+   box(.1,.1,Math.max(.02,W-.3),m.frame,sign*(L/2-.05),totalH-.05,0,rootGroup);
+   for(const side of [-1,1]){
+    box(.12,totalH,.12,m.frame,sign*(L/2-.06),totalH/2,side*(W/2-.06),rootGroup);
+    for(const y of [.065,totalH-.065])
+     box(.178,.13,.178,cfg.frameColor?m.frame:m.dark,sign*(L/2-.089),y,side*(W/2-.089),rootGroup);
    }
-   for(const x of [-1.9,1.9])if(Math.abs(x)<L/2-.2)box(.36,.09,.11,m.dark,x,.07,s*(W/2-.05),rootGroup);
+   if(cfg.id!=='modular')
+    for(const x of [-1.9,1.9])
+     if(Math.abs(x)<L/2-.2)box(.36,.09,.11,m.dark,x,.07,sign*(W/2-.05),rootGroup);
   }
   for(const [key,face] of Object.entries(FACES)){
    const span=face.long?L:W,half=face.long?W/2:L/2;
@@ -278,22 +298,27 @@ function create({scene}={}){
     return {u0:center-o.width/2,u1:center+o.width/2,
      v0:FLOOR+(o.bottom||0),v1:FLOOR+(o.bottom||0)+o.height};
    });
-   const material=mat({color,map:paintTexture,roughness:.63,metalness:.4,side:THREE.DoubleSide});
-   const group=corrugated?corrugatedWall(span,totalH,cuts,material):new THREE.Group();
-   if(!corrugated)box(span,totalH,WALL,material,0,totalH/2,0,group);
+   const material=mat({color,map:paintTexture,roughness:cfg.roughness,metalness:cfg.metalness,side:THREE.DoubleSide});
+   const group=detailed?corrugatedWall(span,totalH,cuts,material,cfg,m.seam):new THREE.Group();
+   if(!detailed)box(span,totalH,wallDepth,material,0,totalH/2,0,group);
    group.rotation.y=face.angle;
    group.position.set(face.normal[0]*half,0,face.normal[2]*half);
    rootGroup.add(group);
    for(const o of ops)buildOpening(o,span,face,m,group,o.id===selectedOpeningId);
-   if(key===CARGO_FACE&&ops.length===0)endDoors(span,totalH,m,group);
+   if(ops.length===0){
+    const decoration=cfg.decoration[key];
+    if(decoration==='doors')
+     endDoors(span,totalH,m,group,cfg.id==='reefer'?[-.95,-.5,.5,.95]:[-.9,-.2,.2,.9]);
+    if(decoration==='machine')buildMachine(span,totalH,m,group);
+   }
    wallFaces.push({key,group,material,normal:new THREE.Vector3(...face.normal),half,cutCount:cuts.length,roof:false,hidden:null});
   }
   // Reuse the source's transverse corrugation on the roof.
-  const roofMat=mat({color,map:paintTexture,roughness:.64,metalness:.42,side:THREE.DoubleSide});
+  const roofMat=mat({color,map:paintTexture,roughness:cfg.roughness,metalness:cfg.metalness,side:THREE.DoubleSide});
   const roofSpan=Math.max(.1,L-.2),roofDepth=Math.max(.1,W-.2);
-  const roof=corrugated?corrugatedWall(roofSpan,roofDepth,[],roofMat):new THREE.Group();
-  if(!corrugated){box(roofSpan,.04,roofDepth,roofMat,0,totalH-.02,0,roof);}
-  else{roof.rotation.x=-Math.PI/2;roof.position.set(0,totalH-WALL+.0005,roofDepth/2);}
+  const roof=detailed?corrugatedWall(roofSpan,roofDepth,[],roofMat,cfg):new THREE.Group();
+  if(!detailed){box(roofSpan,.04,roofDepth,roofMat,0,totalH-.02,0,roof);}
+  else{roof.rotation.x=-Math.PI/2;roof.position.set(0,totalH-wallDepth+.0005,roofDepth/2);}
   rootGroup.add(roof);
   wallFaces.push({group:roof,material:roofMat,normal:new THREE.Vector3(0,1,0),half:0,roof:true,hidden:null});
   for(const p of state.partitions){
@@ -334,8 +359,8 @@ function create({scene}={}){
  function setSeeInside(value,camera){xray=!!value;refreshXray(camera);}
  function dispose(){
   clear();rootGroup.parent?.remove(rootGroup);
-  paintTexture?.dispose();woodTexture?.dispose();
-  paintTexture=null;woodTexture=null;signature='';
+  paintTexture?.dispose();woodTexture?.dispose();hazardTexture?.dispose();
+  paintTexture=null;woodTexture=null;hazardTexture=null;signature='';
  }
  function getStats(){
   let corrugatedPanels=0;
@@ -356,17 +381,17 @@ function create({scene}={}){
    return ray.intersectObjects(panels,false).length===0;
   });
   return Object.freeze({
-   source:'contenedor-realista.html',
+   source:'contenedores-3-tipos(1).html',type:lastState?.project.container.type||'maritimo',
    corrugatedPanels,actualWallCuts:wallFaces.reduce((n,w)=>n+(w.cutCount||0),0),
    cutoutsClear:cutoutChecks.every(Boolean),cutoutChecks,
    openingSelectableMeshes:openings.length,
    container:lastState?{...lastState.project.container}:null,
-   floorBaseHeight:FLOOR,cargoDoorFace:CARGO_FACE,
+   floorBaseHeight:FLOOR,decorations:Types.get(lastState?.project.container.type||'maritimo')?.decoration||{},
    visibleWalls:wallFaces.filter(w=>!w.hidden).length,
    faceMapping:'BAT-V2'
   });
  }
  return Object.freeze({update,setSeeInside,refreshXray,dispose,getStats,getRoot:()=>rootGroup});
 }
-return Object.freeze({create,FACES,FLOOR,version:1});
+return Object.freeze({create,FACES,FLOOR,TYPES:Types.byId,version:2});
 });
