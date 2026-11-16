@@ -920,7 +920,13 @@ setFinish(code, face = 'A') {
       for (const o of state.objects) if (objectError(o)) throw Error('Objeto inválido: ' + o.code);
       for (const o of state.services) if (CATALOG_BY_CODE[o.code]?.mode !== 'service') throw Error('Servicio inválido');
       for (const p of state.partitions) {
-        if (![p.length, p.height, p.thickness, p.cx, p.cz].every(Number.isFinite) || p.height > state.H || p.height <= 0)throw Error('Tabique inválido');
+        if (![p.length, p.height, p.thickness, p.cx, p.cz].every(Number.isFinite) ||
+            !['x', 'z'].includes(p.axis) || p.length <= 0 || p.height <= 0 ||
+            p.thickness <= 0 || p.height > state.H) throw Error('Tabique inválido');
+        const rx = p.axis === 'x' ? p.length / 2 : p.thickness / 2;
+        const rz = p.axis === 'z' ? p.length / 2 : p.thickness / 2;
+        if (Math.abs(p.cx) + rx > state.L / 2 || Math.abs(p.cz) + rz > state.W / 2)
+          throw Error('Tabique fuera del contenedor');
       }
 
       selectedEntity = null;
@@ -930,6 +936,7 @@ setFinish(code, face = 'A') {
       return { ok: true };
     } catch (error) {
       Object.assign(state, backup);
+      selectedEntity = null;
       // La importación fallida no debe dejar desincronizados el modelo y el visor.
       try { build(); syncPanel(); } catch (restoreError) { console.error('[BAT-V2] Fallo al restaurar escena:', restoreError); }
       return { ok: false, error: String(error.message || error) };
