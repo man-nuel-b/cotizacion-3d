@@ -23,7 +23,7 @@ button{cursor:pointer;font-weight:700}button:hover{background:#263b56}.accent{ba
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js" defer></script>
-<script src="core/project-state.js" defer></script><script src="core/spatial.js" defer></script><script src="core/materials.js" defer></script><script src="core/pricing.js" defer></script><script src="core/catalog.js" defer></script><script src="core/model-cost-bridge.js" defer></script><script src="core/catalog-families.js" defer></script><script src="core/catalog-elements.js" defer></script><script src="core/catalog-ui-map.js" defer></script><script src="main.js" defer></script><script src="catalog-view.js" defer></script>
+<script src="core/project-state.js" defer></script><script src="core/spatial.js" defer></script><script src="core/materials.js" defer></script><script src="core/pricing.js" defer></script><script src="core/catalog.js" defer></script><script src="core/model-cost-bridge.js" defer></script><script src="core/local-backup.js" defer></script><script src="core/catalog-families.js" defer></script><script src="core/catalog-elements.js" defer></script><script src="core/catalog-ui-map.js" defer></script><script src="main.js" defer></script><script src="catalog-view.js" defer></script>
 </head><body>
 <header><div><h1>BAT-CUBIKEITOR <small>V2 · Reconstrucción</small></h1><small>Motor 3D y costos con una única fuente de datos</small></div><small id="revision">Revisión 0</small></header>
 <main>
@@ -41,6 +41,7 @@ button{cursor:pointer;font-weight:700}button:hover{background:#263b56}.accent{ba
 <div class="actions"><label>Posición horizontal (m)<input id="opening-offset" type="number" value="0" step=".05"></label>
 <label>Altura desde piso (m)<input id="opening-bottom" type="number" min="0" value=".9" step=".05"></label></div>
 <button id="add-opening">Agregar con coordenadas</button>
+<button id="update-opening" type="button" disabled>Actualizar dimensiones de abertura seleccionada</button>
 <button id="arm-placement" class="accent" type="button">Elegir cara y posición en el visor 3D</button>
 <p id="selected-info" class="status" aria-live="polite">Sin objeto seleccionado</p>
 <div class="actions"><button id="clear-selection" type="button">Cancelar selección</button><button id="remove-selected" type="button" disabled>Eliminar seleccionado</button></div>
@@ -52,7 +53,7 @@ button{cursor:pointer;font-weight:700}button:hover{background:#263b56}.accent{ba
 <label>Espesor (m)<input id="partition-thickness" type="number" min=".04" max=".30" step=".01" value=".08"></label></div>
 <div class="actions"><label>Centro X (m)<input id="partition-x" type="number" value="0" step=".05"></label>
 <label>Centro Z (m)<input id="partition-z" type="number" value="0" step=".05"></label></div>
-<div class="actions"><button id="add-partition">Agregar tabique</button><button id="move-partition" type="button" disabled>Mover tabique elegido</button></div>
+<div class="actions"><button id="add-partition">Agregar tabique</button><button id="move-partition" type="button" disabled>Actualizar tabique elegido</button></div>
 <p class="status">La posición se valida antes de modificar el estado. Las aberturas son marcadores visuales: los cortes reales de muro se implementarán en una etapa posterior.</p>
 <details id="technical-catalog" open>
 <summary>4. Catálogo técnico · 60 elementos</summary>
@@ -72,6 +73,9 @@ button{cursor:pointer;font-weight:700}button:hover{background:#263b56}.accent{ba
 <label>Transporte referencial (CLP)<input id="transport" type="number" value="0" min="0" step="1000"></label>
 <div class="status">Precios ilustrativos: NO son cotizaciones verificadas de proveedores</div>
 <div class="total" id="total">$0</div><div id="net-vat" class="status"></div>
+<div id="backup-status" class="status" role="status" aria-live="polite">Copia local: pendiente de comprobación</div>
+<div class="actions"><button type="button" id="save-local">Guardar copia en este navegador</button><button type="button" id="restore-local" disabled>Restaurar copia local</button></div>
+<p class="status">Copia local automática después de cada cambio válido, solo en este navegador. No se envía a Supabase. Para respaldos externos usa la exportación JSON.</p>
 <button class="accent" id="export">Exportar proyecto JSON</button><label>Cargar proyecto guardado<input type="file" accept=".json,application/json" id="import"></label>
 <p class="status" id="message" role="status" aria-live="polite"></p>
 </section></main></body></html>
