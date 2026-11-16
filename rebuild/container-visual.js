@@ -159,7 +159,6 @@ function create({scene}={}){
   // generating millions of triangles. Canonical state/BOM remains unmodified.
   const corrugated=L<=25&&W<=12&&H<=8;
   const color=/^#[0-9a-f]{6}$/i.test(c.color||'')?c.color:'#7d8388';
-  const paint=mat({color,map:paintTexture,roughness:.63,metalness:.4,side:THREE.DoubleSide});
   const m={
    darkPaint:mat({color:new THREE.Color(color).multiplyScalar(.72),map:paintTexture,roughness:.62,metalness:.45}),
    dark:mat({color:0x25282c,roughness:.72,metalness:.3}),
@@ -210,7 +209,7 @@ function create({scene}={}){
   const roofMat=mat({color,map:paintTexture,roughness:.64,metalness:.42,side:THREE.DoubleSide});
   const roofSpan=Math.max(.1,L-.2),roofDepth=Math.max(.1,W-.2);
   const roof=corrugated?corrugatedWall(roofSpan,roofDepth,[],roofMat):new THREE.Group();
-  if(!corrugated)box(roofSpan,.04,roofDepth,roofMat,0,0,0,roof);
+  if(!corrugated){box(roofSpan,.04,roofDepth,roofMat,0,totalH-.02,0,roof);}
   else{roof.rotation.x=-Math.PI/2;roof.position.set(0,totalH-WALL+.0005,roofDepth/2);}
   rootGroup.add(roof);
   wallFaces.push({group:roof,material:roofMat,normal:new THREE.Vector3(0,1,0),half:0,roof:true,hidden:null});
@@ -255,7 +254,20 @@ function create({scene}={}){
   paintTexture?.dispose();woodTexture?.dispose();
   paintTexture=null;woodTexture=null;signature='';
  }
- return Object.freeze({update,setSeeInside,refreshXray,dispose,getRoot:()=>rootGroup});
+ function getStats(){
+  let corrugatedPanels=0;
+  rootGroup.traverse(obj=>{if(obj.userData.corrugatedPanel)corrugatedPanels++;});
+  return Object.freeze({
+   source:'contenedor-realista.html',
+   corrugatedPanels,actualWallCuts:lastState?.openings?.length||0,
+   openingSelectableMeshes:openings.length,
+   container:lastState?{...lastState.project.container}:null,
+   floorBaseHeight:FLOOR,cargoDoorFace:CARGO_FACE,
+   visibleWalls:wallFaces.filter(w=>!w.hidden).length,
+   faceMapping:'BAT-V2'
+  });
+ }
+ return Object.freeze({update,setSeeInside,refreshXray,dispose,getStats,getRoot:()=>rootGroup});
 }
 return Object.freeze({create,FACES,FLOOR,version:1});
 });
