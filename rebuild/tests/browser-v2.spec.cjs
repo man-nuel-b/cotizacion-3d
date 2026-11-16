@@ -40,7 +40,17 @@ test('V2 browser: face click -> state -> 3D/BOM -> price, with validation rollba
    return route.abort();
   });
   await page.goto('http://127.0.0.1:'+http.address().port+'/rebuild/index.html',{waitUntil:'domcontentloaded'});
-  await page.waitForFunction(()=>Boolean(window.BAT_V2)&&Boolean(document.querySelector('#canvas canvas')),null,{timeout:30000});
+  try{
+   await page.waitForFunction(()=>Boolean(window.BAT_V2)&&Boolean(document.querySelector('#canvas canvas')),null,{timeout:30000});
+  }catch(error){
+   const state=await page.evaluate(()=>({
+    scripts:[...document.scripts].map(script=>script.src).filter(Boolean),
+    message:document.querySelector('#message')?.textContent,
+    canvasCount:document.querySelectorAll('#canvas canvas').length,
+    hasApi:Boolean(window.BAT_V2),hasTypes:Boolean(window.BatContainerTypes)
+   }));
+   throw new Error('V2 failed to initialize: '+JSON.stringify({state,errors,pageError:String(error)}));
+  }
   const initial=await page.evaluate(()=>({state:window.BAT_V2.getState(),quote:window.BAT_V2.getQuote()}));
   assert.equal(initial.state.openings.length,0);
   await page.locator('#arm-placement').click();
