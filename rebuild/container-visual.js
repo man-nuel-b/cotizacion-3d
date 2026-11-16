@@ -84,8 +84,12 @@ function create({scene}={}){
   });
  }
  function clear(){
+  // Dispose every geometry, including source-specific reefer fan meshes
+  // and decorative fixtures that do not pass through ownedGeometry().
+  const unique=new Set();
+  rootGroup.traverse(obj=>{if(obj.geometry)unique.add(obj.geometry);});
   for(const item of [...rootGroup.children])rootGroup.remove(item);
-  for(const g of geometries)g.dispose();
+  for(const g of unique)g.dispose();
   for(const m of materials)m.dispose();
   geometries=[];materials=[];wallFaces=[];openings=[];shellMesh=null;
  }
@@ -164,19 +168,73 @@ function create({scene}={}){
   }
   parent.add(g);
  }
- function endDoors(span,height,m,parent){
-  const rodH=height-.32,rodPositions=[-.9,-.2,.2,.9].map(x=>Math.max(-span/2+.17,Math.min(span/2-.17,x)));
+ function endDoors(span,height,m,parent,rods){
+  const rodH=height-.32,rodPositions=rods.map(x=>Math.max(-span/2+.17,Math.min(span/2-.17,x)));
   for(const x of rodPositions){
    const rod=new THREE.Mesh(ownedGeometry(new THREE.CylinderGeometry(.0165,.0165,rodH,14)),m.chrome);
    rod.position.set(x,height/2,.034);rod.castShadow=true;parent.add(rod);
-   for(const p of [.1,.36,.64,.9])box(.07,.05,.05,m.darkPaint,x,height*p,.02,parent);
+   for(const p of [.1,.36,.64,.9])box(.07,.05,.05,m.frame,x,height*p,.02,parent);
    box(.14,.035,.035,m.chrome,x+(x<0?.08:-.08),Math.min(1.05,height*.5),.062,parent);
   }
   box(.014,rodH,.012,m.dark,0,height/2,.006,parent);
   box(.18,.14,.004,m.yellow,-span/2+.3,height-.5,.004,parent);
-  box(.05,rodH,.03,m.darkPaint,-span/2+.06,height/2,.012,parent);
-  box(.05,rodH,.03,m.darkPaint,span/2-.06,height/2,.012,parent);
+  box(.05,rodH,.03,m.frame,-span/2+.06,height/2,.012,parent);
+  box(.05,rodH,.03,m.frame,span/2-.06,height/2,.012,parent);
  }
+ function buildMachine(lw, totalH, m, parent) {
+  const mw = lw - 0.36, mh = 1.25, fb = 0.07;
+  const g = new THREE.Group();
+  g.position.set(0, FLOOR + 0.08 + mh / 2, 0);
+  parent.add(g);
+
+  box(mw, mh, 0.06, m.dark, 0, 0, 0.03, g);
+  box(mw, fb, 0.2, m.blue, 0, mh / 2 - fb / 2, 0.1, g);
+  box(mw, fb, 0.2, m.blue, 0, -mh / 2 + fb / 2, 0.1, g);
+  box(fb, mh, 0.2, m.blue, -mw / 2 + fb / 2, 0, 0.1, g);
+  box(fb, mh, 0.2, m.blue, mw / 2 - fb / 2, 0, 0.1, g);
+
+  // Ventilador
+  const fx = -mw / 2 + 0.62, fy = 0.1;
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.035, 12, 40), m.blue);
+  ring.position.set(fx, fy, 0.1); ring.castShadow = true; g.add(ring);
+  const disk = new THREE.Mesh(new THREE.CircleGeometry(0.34, 32), m.fanDark);
+  disk.position.set(fx, fy, 0.065); g.add(disk);
+  for (let i = 0; i < 7; i++) {
+    const piv = new THREE.Group();
+    piv.position.set(fx, fy, 0.09);
+    piv.rotation.z = (i * Math.PI * 2) / 7;
+    const bl = box(0.3, 0.09, 0.012, m.fanBlade, 0.19, 0, 0, piv);
+    bl.rotation.x = 0.5;
+    g.add(piv);
+  }
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.05, 20), m.chrome);
+  hub.rotation.x = Math.PI / 2; hub.position.set(fx, fy, 0.1); g.add(hub);
+  const grille = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.008, 8, 40), m.chrome);
+  grille.position.set(fx, fy, 0.17); g.add(grille);
+  box(0.7, 0.012, 0.012, m.chrome, fx, fy, 0.17, g);
+  box(0.012, 0.7, 0.012, m.chrome, fx, fy, 0.17, g);
+
+  // Panel de control
+  const cx = mw / 2 - 0.36;
+  box(0.42, 0.9, 0.05, m.light, cx, 0.05, 0.1, g);
+  box(0.3, 0.2, 0.012, m.dark, cx, 0.3, 0.13, g);
+  box(0.05, 0.03, 0.01, m.ledGreen, cx - 0.1, 0.1, 0.13, g);
+  box(0.05, 0.03, 0.01, m.yellow, cx, 0.1, 0.13, g);
+  box(0.05, 0.03, 0.01, m.ledGreen, cx + 0.1, 0.1, 0.13, g);
+  box(0.3, 0.05, 0.012, m.dark, cx, -0.15, 0.13, g);
+
+  // Ventilas y detalles superiores
+  const vent = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.03, 28), m.light);
+  vent.rotation.x = Math.PI / 2; vent.position.set(-0.6, totalH - 0.4, 0.015); vent.castShadow = true; parent.add(vent);
+  const vent2 = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.035, 24), m.dark);
+  vent2.rotation.x = Math.PI / 2; vent2.position.set(-0.6, totalH - 0.4, 0.02); parent.add(vent2);
+  box(0.22, 0.22, 0.025, m.light, 0.45, totalH - 0.4, 0.012, parent);
+  box(0.2, 0.2, 0.025, m.light, 0.8, totalH - 0.4, 0.012, parent);
+  box(0.12, 0.12, 0.004, m.yellow, 0.95, totalH - 0.85, 0.004, parent);
+  // Marcas negro/amarillo en las esquinas superiores
+  for (const s of [-1, 1]) box(0.3, 0.06, 0.01, m.hazard, s * (lw / 2 - 0.3), totalH - 0.08, 0.005, parent);
+}
+
  function build(state,selectedOpeningId,selectedPartitionId){
   ensureTextures();clear();
   const c=state.project.container,L=c.length,W=c.width,H=c.height,totalH=H+FLOOR;
