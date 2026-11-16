@@ -8,7 +8,7 @@ const deepCopy=value=>{
 };
 let sequence=0;
 const id=()=> 'item-'+Date.now().toString(36)+'-'+(++sequence).toString(36);
-const defaults=()=>({schemaVersion:1,project:{name:'Proyecto modular',container:{length:6.06,width:2.44,height:2.59}},
+const defaults=()=>({schemaVersion:1,project:{name:'Proyecto modular',container:{length:12.03,width:2.35,height:2.39,color:'#7d8388'}},
  openings:[],partitions:[],pricing:{transport:0,overheadPct:15,profitPct:10,taxPct:19,contingencyPct:0},revision:0});
 const finite=(value,label)=>{
  if((typeof value!=='number'&&typeof value!=='string')||
@@ -26,6 +26,8 @@ function check(source){
    ||!source.project||!source.project.container)throw new Error('Versión de proyecto incompatible');
  const state=deepCopy(source),c=state.project.container;
  const length=positive(c.length,'Longitud'),width=positive(c.width,'Ancho'),height=positive(c.height,'Alto');
+ if(c.color!==undefined&&(typeof c.color!=='string'||!/^#[0-9a-f]{6}$/i.test(c.color)))
+  throw new RangeError('Color de contenedor inválido');
  if(!Array.isArray(state.openings)||!Array.isArray(state.partitions)
    ||state.openings.length>200||state.partitions.length>200)throw new Error('Elementos inválidos');
  if(!state.pricing||typeof state.pricing!=='object'||Array.isArray(state.pricing))throw new Error('Precios inválidos');
@@ -79,8 +81,9 @@ function reduce(state,action){
  const next=deepCopy(state);
  switch(action.type){
   case 'project/rename':next.project.name=String(action.name||'').slice(0,120);break;
-  case 'container/resize':next.project.container={length:positive(action.length,'Longitud'),
+  case 'container/resize':next.project.container={...next.project.container,length:positive(action.length,'Longitud'),
    width:positive(action.width,'Ancho'),height:positive(action.height,'Alto')};break;
+  case 'container/color':next.project.container.color=action.color;break;
   case 'opening/add':next.openings.push({id:id(),kind:action.kind,face:action.face,
    width:positive(action.width,'Ancho abertura'),height:positive(action.height,'Alto abertura'),
    offset:action.offset===undefined?0:finite(action.offset,'Posición abertura'),
