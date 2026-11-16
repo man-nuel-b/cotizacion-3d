@@ -26,7 +26,7 @@ jobs:
           node-version: '22'
       - name: Verificar sintaxis JavaScript
         run: |
-          for f in rebuild/core/*.js rebuild/main.js rebuild/catalog-view.js; do node --check "$f"; done
+          for f in rebuild/core/*.js rebuild/main.js rebuild/catalog-view.js rebuild/container-visual.js; do node --check "$f"; done
       - name: Ejecutar pruebas del nuevo núcleo
         run: node --test rebuild/tests/*.test.cjs
 
