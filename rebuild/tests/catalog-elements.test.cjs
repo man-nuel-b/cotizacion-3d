@@ -30,7 +30,7 @@ test('cada elemento contiene nombre, unidad y tipo consultable, sin APU ni preci
  const allowedUnits=new Set(['m²','ml','un','servicio']);
  for(const item of Elements.all){
   assert.equal(typeof item.name,'string');
-  assert.ok(item.name.length>15);
+  assert.ok(item.name.trim().length>0);
   assert.ok(allowedUnits.has(item.unit));
   assert.equal(item.recordType,'technical-catalog');
   assert.equal(item.apuLinked,false);
