@@ -11,10 +11,19 @@ button{cursor:pointer;font-weight:700}button:hover{background:#263b56}.accent{ba
 #viewer .hint{max-width:80%}#viewer canvas{touch-action:pan-y}#summary{background:#111c30}table{border-collapse:collapse;width:100%;font-size:12px}td,th{padding:9px 4px;border-bottom:1px solid #28384b;text-align:left}td:last-child,th:last-child{text-align:right}
 .total{font-size:30px;font-weight:800;color:#fbbf24;margin:14px 0}.status{font-size:12px;color:#94a3b8}.error{color:#fda4af}#items{font-size:12px;color:#aab9cb}
 @media(max-width:1050px){main{grid-template-columns:300px 1fr}#summary{grid-column:1/-1}}@media(max-width:680px){main{display:block}#viewer{height:430px}}
+#technical-catalog{margin-top:24px;border:1px solid #334155;border-radius:12px;background:#0d1b2f;overflow:hidden}
+#technical-catalog summary{padding:13px;cursor:pointer;font-weight:700;color:#fbbf24}
+#technical-catalog .catalog-inner{padding:0 12px 14px}
+#technical-catalog .catalog-entry{display:flex;flex-direction:column;text-align:left;align-items:start;gap:4px;margin:0 0 5px;font-size:12px;font-weight:500;line-height:1.3}
+#technical-catalog .catalog-entry small{font-size:10px}
+#technical-catalog .catalog-entry[aria-pressed="true"]{border-color:#fbbf24;background:#263953}
+#catalog-results{max-height:350px;overflow-y:auto;margin-top:10px}
+#catalog-detail{border-top:1px solid #334155;padding-top:10px;margin-top:10px;font-size:12px}
+#catalog-detail p{margin:8px 0}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js" defer></script>
-<script src="core/project-state.js" defer></script><script src="core/spatial.js" defer></script><script src="core/materials.js" defer></script><script src="core/pricing.js" defer></script><script src="core/catalog.js" defer></script><script src="core/model-cost-bridge.js" defer></script><script src="main.js" defer></script>
+<script src="core/project-state.js" defer></script><script src="core/spatial.js" defer></script><script src="core/materials.js" defer></script><script src="core/pricing.js" defer></script><script src="core/catalog.js" defer></script><script src="core/model-cost-bridge.js" defer></script><script src="core/catalog-families.js" defer></script><script src="core/catalog-elements.js" defer></script><script src="core/catalog-ui-map.js" defer></script><script src="main.js" defer></script><script src="catalog-view.js" defer></script>
 </head><body>
 <header><div><h1>BAT-CUBIKEITOR <small>V2 · Reconstrucción</small></h1><small>Motor 3D y costos con una única fuente de datos</small></div><small id="revision">Revisión 0</small></header>
 <main>
@@ -45,6 +54,17 @@ button{cursor:pointer;font-weight:700}button:hover{background:#263b56}.accent{ba
 <label>Centro Z (m)<input id="partition-z" type="number" value="0" step=".05"></label></div>
 <div class="actions"><button id="add-partition">Agregar tabique</button><button id="move-partition" type="button" disabled>Mover tabique elegido</button></div>
 <p class="status">La posición se valida antes de modificar el estado. Las aberturas son marcadores visuales: los cortes reales de muro se implementarán en una etapa posterior.</p>
+<details id="technical-catalog" open>
+<summary>4. Catálogo técnico · 60 elementos</summary>
+<div class="catalog-inner">
+<p class="status">Catálogo de consulta, sin vinculación con precios, APU ni creación automática de objetos 3D.</p>
+<label>Buscar elemento<input id="catalog-search" type="search" autocomplete="off" placeholder="Ej.: porcelanato, WC, ventana"></label>
+<label>Familia<select id="catalog-family"><option value="">Todas las familias</option></select></label>
+<p id="catalog-count" class="status" aria-live="polite">Cargando catálogo...</p>
+<div id="catalog-results" role="list" aria-label="Elementos técnicos"></div>
+<div id="catalog-detail" aria-live="polite"><p class="muted">Selecciona un elemento para consultar su ficha.</p></div>
+</div>
+</details>
 </section>
 <section id="viewer"><div id="canvas"></div><div class="hint" id="viewer-hint">Arrastra para girar · rueda para acercar · selecciona una abertura para moverla</div></section>
 <section id="summary"><h2>Resumen y cubicación</h2><div id="metrics" class="status"></div>
