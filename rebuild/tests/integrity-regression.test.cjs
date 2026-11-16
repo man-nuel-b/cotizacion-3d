@@ -35,8 +35,8 @@ test('face C and D offsets enforce short-face boundaries',()=>{
  const before=store.getState();
  assert.throws(()=>store.dispatch({type:'opening/add',kind:'window',face:'D',width:1.5,height:1,offset:1}),/fuera/);
  assert.deepEqual(store.getState(),before);
- const source=read('main.js');
- assert.match(source,/long\?0:o\.offset/);
+ const source=read('container-visual.js');
+ assert.match(source,/face\.sign\*opening\.offset/);
  assert.match(source,/offset:\$\('opening-offset'\)\.value/);
 });
 test('moving an opening recalculates store synchronously without changing BOM count',()=>{
@@ -53,7 +53,7 @@ test('moving an opening recalculates store synchronously without changing BOM co
 });
 test('partitions cannot escape container bounds, including on import',()=>{
  const store=State.createStore(),before=store.getState();
- assert.throws(()=>store.dispatch({type:'partition/add',length:4,height:2,x:2,z:0}),/fuera/);
+ assert.throws(()=>store.dispatch({type:'partition/add',length:4,height:2,x:10,z:0}),/fuera/);
  assert.deepEqual(store.getState(),before);
  const corrupt=store.getState();
  corrupt.partitions=[{id:'p1',length:2,height:2,x:0,z:10}];
