@@ -844,11 +844,11 @@ const api={
  removeOpening(id){state.openings=state.openings.filter(o=>o.id!==id);
   if(selectedEntity?.kind==='opening'&&selectedEntity.id===id)selectedEntity=null;return markChanged();},
  clearOpenings(){state.openings=[];if(selectedEntity?.kind==='opening')selectedEntity=null;return markChanged();},
- addObject(code,x,z,y=undefined){
+ addObject(code,x,z,y=undefined,rot=0){
   const entry=CATALOG_BY_CODE[code];
   if(!entry||!['object','wall-object'].includes(entry.mode))return {ok:false,error:'Esta partida requiere seleccionar una superficie, no colocar un objeto'};
   const [w,h,d]=entry.size;
-  const obj={id:'obj-'+state.nextId,code,x,y:y===undefined?defaultElevation(entry):y,z,w,h,d,rot:0};
+  const obj={id:'obj-'+state.nextId,code,x,y:y===undefined?defaultElevation(entry):y,z,w,h,d,rot};
   const err=objectError(obj);if(err)return {ok:false,error:err};
   state.nextId++;state.objects.push(obj);selectedEntity={kind:'object',id:obj.id};
   build();return {ok:true,id:obj.id};
