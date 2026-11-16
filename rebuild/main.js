@@ -7,6 +7,37 @@ const money=n=>Math.round(n).toLocaleString('es-CL',{style:'currency',currency:'
 let renderer=null,scene=null,camera=null,controls=null,model=null,shellMesh=null;
 let openingMeshes=[],selectedOpeningId=null,selectedPartitionId=null,placementArmed=false;
 let lastQuote=null,pressStart=null;
+let started=false,eventController=null,frameId=null,resizeObserver=null,unsubscribe=null,localBackup=null;
+function listen(target,type,listener){
+ target.addEventListener(type,listener,{signal:eventController.signal});
+}
+function backupStatus(text,warning=false){
+ const el=$('backup-status');if(!el)return;
+ el.textContent=text;el.classList.toggle('error',warning);
+}
+function initLocalBackup(){
+ try{
+  localBackup=BatLocalBackup.create({storage:window.localStorage});
+  const existing=localBackup.info();
+  $('restore-local').disabled=!existing;
+  backupStatus(existing?'Copia local disponible · revisión '+existing.revision:'Sin copia local aún');
+ }catch(error){
+  localBackup=null;$('restore-local').disabled=true;
+  backupStatus('No se pudo consultar la copia local: '+error.message,true);
+ }
+}
+function saveLocal(state){
+ if(!localBackup)return false;
+ try{
+  const record=localBackup.save(state);
+  $('restore-local').disabled=false;
+  backupStatus('Copia local guardada · revisión '+record.revision);
+  return true;
+ }catch(error){
+  backupStatus('No se pudo guardar en este navegador: '+error.message,true);
+  return false;
+ }
+}
 const raycaster=typeof THREE!=='undefined'?new THREE.Raycaster():null;
 const pointer=new (typeof THREE!=='undefined'?THREE.Vector2:class{})();
 function message(text,isError=false){
@@ -160,6 +191,7 @@ function init3D(){
 function selectPartition(p){
  selectedPartitionId=p.id;selectedOpeningId=null;placementArmed=false;
  $('partition-x').value=p.x;$('partition-z').value=p.z;
+ $('partition-length').value=p.length;$('partition-height').value=p.height;
  $('partition-orientation').value=p.orientation??'x';
  $('partition-thickness').value=p.thickness??.08;
  message('Tabique seleccionado. Ajusta X y Z y pulsa «Mover tabique elegido».');
@@ -208,6 +240,7 @@ function update(state,action,prepared){
     '. Haz clic en otra pared para moverla.':
   selectedPartitionId?'Tabique seleccionado: edita X y Z en la sección 3.':'Sin objeto seleccionado';
  $('remove-selected').disabled=!selectedOpeningId&&!selectedPartitionId;
+ $('update-opening').disabled=!selectedOpeningId;
  $('move-partition').disabled=!selectedPartitionId;
  $('arm-placement').textContent=placementArmed?'Cancelar colocación 3D':'Elegir cara y posición en el visor 3D';
  $('viewer-hint').textContent=placementArmed?'Haz clic sobre una pared para colocar una abertura':
@@ -216,44 +249,70 @@ function update(state,action,prepared){
  geometry3D(state);
 }
 function bind(){
- $('resize').addEventListener('click',()=>dispatch({type:'container/resize',length:$('length').value,width:$('width').value,height:$('height').value}));
- $('project-name').addEventListener('change',()=>dispatch({type:'project/rename',name:$('project-name').value}));
- $('kind').addEventListener('change',()=>{$('opening-bottom').value=$('kind').value==='door'?0:.9;});
- $('add-opening').addEventListener('click',()=>{
+ listen($('resize'),'click',()=>dispatch({type:'container/resize',length:$('length').value,width:$('width').value,height:$('height').value}));
+ listen($('project-name'),'change',()=>dispatch({type:'project/rename',name:$('project-name').value}));
+ listen($('kind'),'change',()=>{$('opening-bottom').value=$('kind').value==='door'?0:.9;});
+ listen($('add-opening'),'click',()=>{
   const next=dispatch({type:'opening/add',kind:$('kind').value,face:$('face').value,
    width:$('opening-width').value,height:$('opening-height').value,
    offset:$('opening-offset').value,bottom:$('opening-bottom').value});
   if(next){selectedOpeningId=next.openings[next.openings.length-1].id;selectedPartitionId=null;placementArmed=false;update(next);}
  });
- $('arm-placement').addEventListener('click',()=>{
+ listen($('update-opening'),'click',()=>{
+  if(!selectedOpeningId)return;
+  dispatch({type:'opening/update',id:selectedOpeningId,kind:$('kind').value,face:$('face').value,
+   width:$('opening-width').value,height:$('opening-height').value,
+   offset:$('opening-offset').value,bottom:$('opening-bottom').value});
+ });
+ listen($('arm-placement'),'click',()=>{
   placementArmed=!placementArmed;selectedOpeningId=null;selectedPartitionId=null;update(store.getState());
  });
- $('clear-selection').addEventListener('click',()=>{
+ listen($('clear-selection'),'click',()=>{
   placementArmed=false;selectedOpeningId=null;selectedPartitionId=null;update(store.getState());
  });
- $('remove-selected').addEventListener('click',()=>{
+ listen($('remove-selected'),'click',()=>{
   if(selectedOpeningId){const id=selectedOpeningId;selectedOpeningId=null;dispatch({type:'opening/remove',id});}
   else if(selectedPartitionId){const id=selectedPartitionId;selectedPartitionId=null;dispatch({type:'partition/remove',id});}
  });
- $('add-partition').addEventListener('click',()=>{
+ listen($('add-partition'),'click',()=>{
   const next=dispatch({type:'partition/add',length:$('partition-length').value,height:$('partition-height').value,
    x:$('partition-x').value,z:$('partition-z').value,
    orientation:$('partition-orientation').value,thickness:$('partition-thickness').value});
   if(next){selectedPartitionId=next.partitions[next.partitions.length-1].id;selectedOpeningId=null;update(next);}
  });
- $('move-partition').addEventListener('click',()=>{
+ listen($('move-partition'),'click',()=>{
   if(!selectedPartitionId)return;
-  dispatch({type:'partition/move',id:selectedPartitionId,x:$('partition-x').value,z:$('partition-z').value,
+  dispatch({type:'partition/update',id:selectedPartitionId,
+   length:$('partition-length').value,height:$('partition-height').value,
+   x:$('partition-x').value,z:$('partition-z').value,
    orientation:$('partition-orientation').value,thickness:$('partition-thickness').value});
  });
- $('transport').addEventListener('change',()=>dispatch({type:'pricing/update',key:'transport',value:$('transport').value}));
- $('export').addEventListener('click',()=>{
+ listen($('transport'),'change',()=>dispatch({type:'pricing/update',key:'transport',value:$('transport').value}));
+ listen($('save-local'),'click',()=>{
+  if(!saveLocal(store.getState()))message('No se pudo guardar la copia local.',true);
+  else message('Copia guardada en este navegador.');
+ });
+ listen($('restore-local'),'click',()=>{
+  if(!localBackup)return;
+  try{
+   const backup=localBackup.read();
+   if(!backup){backupStatus('No hay copia local disponible.');$('restore-local').disabled=true;return;}
+   if(!window.confirm('La copia local reemplazará el proyecto actual. ¿Deseas continuar?'))return;
+   const applied=dispatch({type:'project/replace',project:backup.project});
+   if(applied){
+    selectedOpeningId=null;selectedPartitionId=null;placementArmed=false;
+    update(applied);
+    message('Copia local restaurada correctamente.');
+   }
+  }catch(error){message('No se pudo restaurar la copia local: '+error.message,true);}
+ });
+ listen($('export'),'click',()=>{
   const blob=new Blob([JSON.stringify(store.getState(),null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob),link=document.createElement('a');
   link.href=url;link.download='bat-cubikeitor-v2.json';link.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
  });
- $('import').addEventListener('change',async event=>{
+ listen($('import'),'change',async event=>{
   const file=event.target.files?.[0];if(!file)return;
   try{const parsed=JSON.parse(await file.text());const next=dispatch({type:'project/replace',project:parsed});
    if(next){selectedOpeningId=null;selectedPartitionId=null;placementArmed=false;update(next);}
