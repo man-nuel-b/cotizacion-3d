@@ -10,6 +10,15 @@
 'use strict';
 const State=root.BatProjectState||(typeof require==='function'?require('./project-state'):null);
 const DEFAULT_KEY='bat-cubikeitor-v2:project-backup:v1';
+// Shared proxy domains such as raw.githack.com serve code from many authors
+// under one origin. Do not put potentially sensitive project data in their storage.
+function trustedOrigin(hostname,protocol){
+ const host=String(hostname||'').toLowerCase();
+ const scheme=String(protocol||'').toLowerCase();
+ if((host==='localhost'||host==='127.0.0.1')&&
+   (scheme==='http:'||scheme==='https:'))return true;
+ return host==='man-nuel-b.github.io'&&scheme==='https:';
+}
 function create({storage,key=DEFAULT_KEY,now=()=>new Date().toISOString()}={}){
  if(!State?.check)throw new Error('Validador de proyecto no disponible');
  if(!storage||typeof storage.setItem!=='function'||typeof storage.getItem!=='function')
@@ -37,5 +46,5 @@ function create({storage,key=DEFAULT_KEY,now=()=>new Date().toISOString()}={}){
  }
  return Object.freeze({save,read,info,clear:()=>storage.removeItem(key),key});
 }
-return Object.freeze({create,DEFAULT_KEY});
+return Object.freeze({create,DEFAULT_KEY,trustedOrigin});
 });
