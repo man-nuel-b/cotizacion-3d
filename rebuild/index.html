@@ -412,22 +412,29 @@ function wallPanels(lw, h, cuts, mat, seam = null) {
 const state = {
   type: 'maritimo',
   L: 12.03, W: 2.35, H: 2.39, color: '#7d8388',
-  openings: [], partitions: [], seeInside: false, nextId: 1,
+  openings: [], partitions: [], objects: [], services: [],
+  finishes: { floor:null, ceiling:null, skirting:null, walls:{A:null,B:null,C:null,D:null} },
+  seeInside: false, nextId: 1,
 };
 const root = new THREE.Group();
 scene.add(root);
 let walls = [];     // {group, mat, n, half, hidden, roof}
 let owned = [];     // materiales a liberar al reconstruir
+let ownedTextures = [];
+let objectGroups = [];
+let selectedEntity = null; // {kind:'object'|'opening',id}
+let editor = null;
 
 function mat(opts) { const m = new THREE.MeshStandardMaterial(opts); owned.push(m); return m; }
 
 function clearRoot() {
-  while (root.children.length) {
-    const c = root.children.pop();
+  for (const c of [...root.children]) {
+    root.remove(c);
     c.traverse(o => { if (o.geometry) o.geometry.dispose(); });
   }
   owned.forEach(m => m.dispose());
-  owned = []; walls = [];
+  ownedTextures.forEach(t => t.dispose());
+  owned = [];ownedTextures=[];walls=[];objectGroups=[];
 }
 
 function box(w, h, d, material, x, y, z, parent, rounded = false) {
@@ -442,7 +449,7 @@ function box(w, h, d, material, x, y, z, parent, rounded = false) {
 function validateOpening(o, excludeId = null) {
   const f = FACES[o.face];
   if (!f) return 'Cara inválida';
-  if (!(o.w > 0 && o.h > 0)) return 'Dimensiones inválidas';
+  if (![o.w,o.h,o.u,o.v].every(Number.isFinite)||!(o.w > 0 && o.h > 0)) return 'Dimensiones inválidas';
   const lw = f.long ? state.L : state.W;
   if (o.u < -1e-9 || o.u + o.w > lw + 1e-9 || o.v < -1e-9 || o.v + o.h > state.H + 1e-9)
     return 'Abertura fuera del contenedor';
@@ -458,7 +465,8 @@ function validateOpening(o, excludeId = null) {
 function buildOpening(o, lw, m, parent) {
   const g = new THREE.Group();
   const w = o.w, h = o.h, fb = 0.05, fd = Math.max(0.09, WALL + 0.03);
-  const frameMat = o.type === 'window' ? m.alu : m.frame;
+  const frameMat = selectedEntity?.kind==='opening'&&selectedEntity.id===o.id ?
+    m.yellow : o.type==='window' ? m.alu : m.frame;
   g.position.set(o.u + w / 2 - lw / 2, FLOOR + o.v + h / 2, -WALL / 2 + (fd - WALL) / 2 - 0.0);
 
   box(w + 2 * fb, fb, fd, frameMat, 0, h / 2 + fb / 2, 0, g);
@@ -468,7 +476,8 @@ function buildOpening(o, lw, m, parent) {
 
   const zFront = fd / 2; // cara exterior del marco
   if (o.type === 'door') {
-    box(w - 0.02, h - 0.02, 0.035, m.door, 0, 0, -0.012, g);
+    const leaf=o.catalogCode==='P80'?m.wood:o.catalogCode==='P81'?m.light:m.door;
+    box(w - 0.02, h - 0.02, 0.035, leaf, 0, 0, -0.012, g);
     box(w * 0.72, h * 0.8, 0.012, m.doorInset, 0, 0, 0.012, g);
     const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.14, 12), m.chrome);
     handle.rotation.z = Math.PI / 2;
@@ -489,6 +498,8 @@ function buildOpening(o, lw, m, parent) {
       box(w, 0.016, 0.016, m.bars, 0, -h * 0.25, zFront + 0.012, g);
     }
   }
+  g.userData.openingId=o.id;
+  g.traverse(child=>{if(child.isMesh)child.userData.openingId=o.id;});
   parent.add(g);
 }
 
@@ -602,10 +613,20 @@ function build() {
   };
   m.glass.depthWrite = false;
   m.wood.map.needsUpdate = true; m.wood.map.repeat.set(L / 2, 1);
-  const floorMat = cfg.floor === 'wood' ? m.wood : cfg.floor === 'alu' ? m.floorAlu : m.floorVinyl;
+  ownedTextures.push(m.wood.map);
+  const floorMat=state.finishes.floor?
+    makeFinishMaterial(THREE,state.finishes.floor,m=>owned.push(m),t=>ownedTextures.push(t),Math.max(1,L/2),Math.max(1,W)):
+    cfg.floor==='wood'?m.wood:cfg.floor==='alu'?m.floorAlu:m.floorVinyl;
 
   // --- Estructura: piso, travesaños, vigas, postes y esquineros ---
   box(L - 2 * WALL - 0.02, 0.05, W - 2 * WALL - 0.02, floorMat, 0, FLOOR - 0.025, 0, root);
+  if(state.finishes.skirting){
+    const sk=mat({color:0xe4e8e8,roughness:.76,metalness:0});
+    for(const side of [-1,1]){
+     box(L-.17,.07,.013,sk,0,FLOOR+.035,side*(W/2-WALL-.025),root);
+     box(.013,.07,W-.15,sk,side*(L/2-WALL-.02),FLOOR+.035,0,root);
+    }
+  }
   for (let x = -L / 2 + 0.35; x < L / 2 - 0.2; x += 0.6) box(0.1, 0.1, W - 0.2, m.dark, x, 0.05, 0, root);
 
   const e = 0.003;
@@ -635,7 +656,12 @@ function build() {
     const half = f.long ? W / 2 : L / 2;
     const ops = state.openings.filter(o => o.face === key);
     const cuts = ops.map(o => ({ u0: o.u, u1: o.u + o.w, v0: FLOOR + o.v, v1: FLOOR + o.v + o.h }));
-    const wmat = paint.clone(); owned.push(wmat);
+    const finishCode=state.finishes.walls[key];
+    const wmat=finishCode?
+      makeFinishMaterial(THREE,finishCode,m=>owned.push(m),t=>ownedTextures.push(t),
+       Math.max(1,lw/1.2),Math.max(1,totalH/1.2)):
+      paint.clone();
+    if(!finishCode)owned.push(wmat);
     const group = wallPanels(lw, totalH, cuts, wmat, seam);
     group.rotation.y = Math.atan2(f.n[0], f.n[2]);
     group.position.set(f.n[0] * half, 0, f.n[2] * half);
@@ -651,7 +677,10 @@ function build() {
 
   // --- Techo (corrugación a lo ancho) ---
   {
-    const rmat = paint.clone(); owned.push(rmat);
+    const rmat=state.finishes.ceiling?
+      makeFinishMaterial(THREE,state.finishes.ceiling,m=>owned.push(m),t=>ownedTextures.push(t),
+      Math.max(1,L/1.2),Math.max(1,W/1.2)):paint.clone();
+    if(!state.finishes.ceiling)owned.push(rmat);
     const rl = L - 0.2, rw = W - 0.2;
     const roof = wallPanels(rl, rw, [], rmat);
     roof.rotation.x = -Math.PI / 2;
@@ -666,8 +695,23 @@ function build() {
     const sz = p.axis === 'x' ? p.thickness : p.length;
     box(sx, p.height, sz, m.part, p.cx, FLOOR + p.height / 2, p.cz, root);
   });
-
+  for(const obj of state.objects){
+   const item=CATALOG_BY_CODE[obj.code];if(!item?.size)continue;
+   const group=createObjectModel(THREE,item,m=>owned.push(m));
+   group.userData.objectId=obj.id;
+   group.position.set(obj.x,FLOOR+obj.y,obj.z);
+   group.rotation.y=obj.rot*Math.PI/180;
+   group.scale.set(obj.w/item.size[0],obj.h/item.size[1],obj.d/item.size[2]);
+   group.traverse(c=>{if(c.isMesh)c.userData.objectId=obj.id;});
+   root.add(group);objectGroups.push(group);
+   if(selectedEntity?.kind==='object'&&selectedEntity.id===obj.id){
+    root.updateMatrixWorld(true);
+    const helper=new THREE.BoxHelper(group,0xe9a329);
+    helper.userData.selectionHelper=true;root.add(helper);
+   }
+  }
   applyXray(true);
+  editor?.refresh();
 }
 
 /* ====================== Modo "ver interior" ====================== */
