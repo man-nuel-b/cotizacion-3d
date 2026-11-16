@@ -86,3 +86,21 @@ La interfaz de `index.html` contiene un desplegable **«4. Catálogo técnico ·
 La agrupación respeta los 60 conceptos del listado original; las secciones de encabezado no se contabilizan como elementos. Las unidades de medición son propuestas de clasificación y deben revisarse técnicamente antes de presupuestar; no se extrapolan costos ni proveedores de estos metadatos.
 
 **Próximas etapas (no realizadas en esta fase):** selección visual avanzada, representación 3D según familia y definición futura del modelo de asociación objeto–solución constructiva–APU, solo cuando se acuerde explícitamente.
+
+## Integridad de edición, ciclo de vida y respaldos locales
+
+Desde esta etapa el editor incluye **actualización de dimensiones de aberturas y tabiques seleccionados**. Los cambios usan acciones `opening/update` y `partition/update` del estado único; las validaciones y la proyección BOM/cotización se ejecutan **antes** de confirmar una modificación. Los campos temporalmente inválidos al escribir (por ejemplo altura vacía o longitud cero) no producen cambios ni partidas `NaN`.
+
+El controlador principal libera explícitamente recursos al salir de la página o al reiniciar el visor: elimina escuchas vinculadas mediante `AbortController`, desconecta `ResizeObserver`, cancela `requestAnimationFrame`, elimina objetos de Three.js y libera los controles de cámara/WebGL. `start()` es idempotente y se restaura en `pageshow` cuando corresponde; los avisos y la copia local se mantienen separados de errores de renderizado.
+
+### Recuperación local, sin nube
+- `core/local-backup.js` guarda **solo el estado del proyecto** en `localStorage` del mismo navegador después de cada acción válida. No guarda contraseñas ni conecta Supabase.
+- La recuperación es **manual** con el botón «Restaurar copia local», que solicita confirmación. Al iniciar, V2 no reemplaza automáticamente un proyecto con una copia antigua.
+- Los datos almacenados localmente pueden perderse al borrar la caché/datos del sitio, usar navegación privada o cambiar de navegador. También pueden fallar por cuota o bloqueos de privacidad; el error se informa, sin bloquear el proyecto.
+- El respaldo externo mediante archivo JSON continúa disponible y es recomendable para proyectos importantes. No se deben ingresar datos personales o confidenciales en el prototipo de vista previa.
+- `cloud-sync.js` sigue como protocolo inactivo sin Supabase. La lógica de APU **no se ha vinculado** a los objetos 3D.
+
+### Precisión monetaria y validación
+La moneda de la versión V2 es **CLP sin centavos**. Cada línea se redondea a pesos enteros y se revisan subtotales, IVA, totales y desbordamientos numéricos. Los ensayos incluyen cantidades fraccionarias de m² (incluyendo el caso `0.1 + 0.2`), errores de fórmula y valores nulos. Los precios siguen siendo **referenciales**, no APU de proveedores.
+
+Las pruebas `dimension-update.test.cjs`, `local-backup.test.cjs`, `pricing-precision.test.cjs` y las pruebas en Chromium cubren estos cambios. Las pruebas superadas no garantizan ausencia total de fallos en producción.
