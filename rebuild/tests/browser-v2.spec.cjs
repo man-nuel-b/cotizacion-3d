@@ -60,6 +60,19 @@ test('V2 browser: face click -> state -> 3D/BOM -> price, with validation rollba
   assert.equal(same.openings.length,1,'duplicate opening at same face must not be committed');
   assert.equal(same.revision,1,'invalid edits must preserve revision');
   assert.match(await page.locator('#message').innerText(),/superpuestas/);
+  // Resizing through the panel must commit one revision and reprice the BOM.
+  const priorRev=await page.evaluate(()=>window.BAT_V2.getRevision());
+  await page.locator('#opening-width').fill('1.3');
+  await page.locator('#update-opening').click();
+  const resized=await page.evaluate(()=>({state:window.BAT_V2.getState(),quote:window.BAT_V2.getQuote()}));
+  assert.equal(resized.state.openings[0].width,1.3);
+  assert.equal(resized.state.revision,priorRev+1);
+  assert.notEqual(resized.quote.total,result.quote.total);
+  assert.match(await page.locator('#backup-status').innerText(),/Copia local guardada/);
+  const priorResize=resized.state.revision;
+  await page.locator('#opening-width').fill('0');
+  await page.locator('#update-opening').click();
+  assert.equal((await page.evaluate(()=>window.BAT_V2.getRevision())),priorResize);
   await page.locator('#add-partition').click();
   assert.equal((await page.evaluate(()=>window.BAT_V2.getState())).partitions.length,1);
   await page.locator('#partition-x').fill('5');
@@ -101,6 +114,24 @@ test('V2 browser: face click -> state -> 3D/BOM -> price, with validation rollba
    state:window.BAT_V2.getState(),quote:window.BAT_V2.getQuote()
   }));
   assert.deepEqual(afterCatalog,beforeCatalog,'Browsing catalog cannot edit live model or costs');
+  // Restore is explicit: reloading the page shows a clean project first.
+  const backupState=await page.evaluate(()=>window.BAT_V2.getState());
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.waitForFunction(()=>Boolean(window.BAT_V2)&&Boolean(document.querySelector('#canvas canvas')));
+  assert.equal((await page.evaluate(()=>window.BAT_V2.getState())).revision,0);
+  assert.equal(await page.locator('#restore-local').isDisabled(),false);
+  page.once('dialog',dialog=>dialog.accept());
+  await page.locator('#restore-local').click();
+  assert.deepEqual(await page.evaluate(()=>window.BAT_V2.getState()),backupState);
+  // Explicit destruction and repeated reinit cannot duplicate renderer/listeners.
+  await page.evaluate(()=>{window.BAT_V2.destroy();window.BAT_V2.reinit();window.BAT_V2.reinit();});
+  await page.waitForFunction(()=>document.querySelectorAll('#canvas canvas').length===1);
+  const revisionBeforeEdit=await page.evaluate(()=>window.BAT_V2.getRevision());
+  await page.locator('#project-name').fill('Proyecto reabierto');
+  await page.locator('#project-name').dispatchEvent('change');
+  const afterEdit=await page.evaluate(()=>window.BAT_V2.getState());
+  assert.equal(afterEdit.project.name,'Proyecto reabierto');
+  assert.equal(afterEdit.revision,revisionBeforeEdit+1,'only one handler after reinitialization');
   assert.deepEqual(errors,[],errors.join('\n'));
  }catch(error){
   if(page)await page.screenshot({path:'/tmp/bat-v2-browser-diagnostic.png',fullPage:true}).catch(()=>{});
