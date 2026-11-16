@@ -63,3 +63,26 @@ La nueva versión reside exclusivamente en `rebuild/` dentro de la rama `rebuild
 - **Pruebas:** `rebuild/tests/edge-guards.test.cjs` y los tests de nube refuerzan límites, redondeos, overflow y condiciones de carrera. Se ejecutan en CI junto a la prueba en Chromium.
 
 La carpeta raíz se conserva para referencia funcional y compatibilidad. Su migración futura será por componentes, no mediante eliminación masiva o reemplazo del producto existente.
+
+## Catálogo técnico estructurado (etapa independiente)
+
+La lista de **60 elementos proporcionada por el usuario** está disponible en `core/catalog-elements.js`, organizada en **9 familias** (`core/catalog-families.js`). Las fichas incluyen identificador independiente `CAT-...`, nombre técnico, unidad, modo de representación previsto y dimensiones de referencia cuando aparecen en la fuente. La tabla `core/catalog-ui-map.js` describe la presentación sin ejecutar acciones sobre los objetos.
+
+| Familia | Cantidad |
+|---|---:|
+| Pisos y zócalos | 8 |
+| Estructuras de tabiques | 2 |
+| Aislaciones | 5 |
+| Revestimientos | 7 |
+| Estructura del contenedor | 8 |
+| Sistemas completos de tabiques, muros y cielos | 7 |
+| Sanitarios y kitchenette | 10 |
+| Eléctricos y climatización | 7 |
+| Puertas y ventanas | 6 |
+| **Total** | **60** |
+
+La interfaz de `index.html` contiene un desplegable **«4. Catálogo técnico · 60 elementos»** con filtro de familia, búsqueda por nombre y ficha consultable. La implementación es **solo lectura**: consultar o seleccionar una ficha **no añade geometría, no cambia materiales/BOM, no modifica presupuestos y no vincula los APU**. El catálogo de precios ilustrativos `core/catalog.js` continúa siendo un módulo diferente.
+
+La agrupación respeta los 60 conceptos del listado original; las secciones de encabezado no se contabilizan como elementos. Las unidades de medición son propuestas de clasificación y deben revisarse técnicamente antes de presupuestar; no se extrapolan costos ni proveedores de estos metadatos.
+
+**Próximas etapas (no realizadas en esta fase):** selección visual avanzada, representación 3D según familia y definición futura del modelo de asociación objeto–solución constructiva–APU, solo cuando se acuerde explícitamente.
