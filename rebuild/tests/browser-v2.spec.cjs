@@ -83,6 +83,24 @@ test('V2 browser: face click -> state -> 3D/BOM -> price, with validation rollba
   assert.ok(rotated.quote.total>beforeRotated);
   assert.equal(rotated.state.revision,rotated.revision);
   assert.equal(rotated.bom.lines.find(line=>line.code==='PARTITION').qty,14.4);
+  // Browse all 60 technical elements without mutating geometry or price.
+  await page.waitForFunction(()=>Boolean(window.BAT_V2_CATALOG));
+  const beforeCatalog=await page.evaluate(()=>({
+   state:window.BAT_V2.getState(),quote:window.BAT_V2.getQuote()
+  }));
+  assert.equal(await page.evaluate(()=>window.BAT_V2_CATALOG.count()),60);
+  assert.match(await page.locator('#catalog-count').innerText(),/60 de 60/);
+  await page.locator('#catalog-family').selectOption('sanitarios');
+  assert.match(await page.locator('#catalog-count').innerText(),/10 de 60/);
+  await page.locator('#catalog-search').fill('Kitchenette 1,8 m');
+  assert.match(await page.locator('#catalog-count').innerText(),/1 de 60/);
+  await page.locator('#catalog-results .catalog-entry').first().click();
+  assert.match(await page.locator('#catalog-detail').innerText(),/CAT-SAN-010/);
+  assert.match(await page.locator('#catalog-detail').innerText(),/sin.*APU/i);
+  const afterCatalog=await page.evaluate(()=>({
+   state:window.BAT_V2.getState(),quote:window.BAT_V2.getQuote()
+  }));
+  assert.deepEqual(afterCatalog,beforeCatalog,'Browsing catalog cannot edit live model or costs');
   assert.deepEqual(errors,[],errors.join('\n'));
  }catch(error){
   if(page)await page.screenshot({path:'/tmp/bat-v2-browser-diagnostic.png',fullPage:true}).catch(()=>{});
