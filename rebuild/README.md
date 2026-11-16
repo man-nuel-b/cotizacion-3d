@@ -104,3 +104,20 @@ El controlador principal libera explícitamente recursos al salir de la página 
 La moneda de la versión V2 es **CLP sin centavos**. Cada línea se redondea a pesos enteros y se revisan subtotales, IVA, totales y desbordamientos numéricos. Los ensayos incluyen cantidades fraccionarias de m² (incluyendo el caso `0.1 + 0.2`), errores de fórmula y valores nulos. Los precios siguen siendo **referenciales**, no APU de proveedores.
 
 Las pruebas `dimension-update.test.cjs`, `local-backup.test.cjs`, `pricing-precision.test.cjs` y las pruebas en Chromium cubren estos cambios. Las pruebas superadas no garantizan ausencia total de fallos en producción.
+
+
+## Sustitución del contenedor anterior por tres tipos (archivo del usuario)
+
+Se reemplazó el renderizador previo basado en **`contenedor-realista.html`** por un visor con tres perfiles definidos en el archivo nuevo **`contenedores-3-tipos(1).html`**. El archivo recibido está conservado sin cambios en `rebuild/visor-3-tipos.html` para revisar el diseño original; la versión integrada utiliza `rebuild/container-visual.js` y un registro compartido de perfiles en `core/container-types.js`.
+
+| Tipo | Dimensiones interiores de referencia | Rasgos gráficos |
+|---|---|---|
+| Marítimo | 12,03 × 2,35 × 2,39 m | Chapa corrugada, piso tipo madera, esquineros ISO y puertas de carga |
+| Reefer | 12,19 × 2,44 × 2,50 m | Panel liso blanco aislado, juntas verticales, piso aluminio y equipo exterior de frío |
+| Modular | 5,95 × 2,43 × 2,50 m | Panel sándwich de nervado fino, marco claro, piso vinílico y opción de barrotes en ventanas |
+
+Los paneles y las caras visuales de cada modelo se adaptaron al convenio de ejes **A/B (caras largas -Z/+Z) y C/D (caras cortas -X/+X)** del estado original de la V2. Es una traducción deliberada respecto del HTML de ejemplo, para no invertir los vanos ni las coordenadas de los proyectos existentes.
+
+Cambiar el tipo modifica **una única instantánea válida del proyecto**: aplica dimensiones y color del perfil y vacía las aberturas y tabiques para evitar colisiones geométricas. Si hay elementos, la interfaz solicita confirmación antes del cambio. El motor de presupuesto calcula la nueva superficie a partir de esas dimensiones; **el cambio de tipo no aplica precios diferenciados ni APU**. Los modelos del archivo de referencia contienen ejemplos de vanos que no se incorporan automáticamente a proyectos nuevos: el usuario puede colocarlos desde el editor con estado canónico y BOM real.
+
+En ventanas puede activarse el atributo booleano `bars`; solo modifica la representación del vidrio/estructura visual y **no añade una partida ni precio de rejas**. Los perfiles son estéticos y dimensionales, no sustituyen cálculos estructurales ni documentación técnica. Se mantiene la conexión a Supabase inactiva.
