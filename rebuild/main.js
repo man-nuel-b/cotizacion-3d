@@ -16,6 +16,14 @@ function backupStatus(text,warning=false){
  el.textContent=text;el.classList.toggle('error',warning);
 }
 function initLocalBackup(){
+ // raw.githack.com and similar proxy hosts are shared origins. Never store
+ // project snapshots there; users can still export JSON from the UI.
+ if(!BatLocalBackup.trustedOrigin(window.location.hostname,window.location.protocol)){
+  localBackup=null;$('restore-local').disabled=true;$('save-local').disabled=true;
+  backupStatus('Respaldo local desactivado en esta vista previa compartida. Exporta el proyecto en JSON.',true);
+  return;
+ }
+ $('save-local').disabled=false;
  try{
   localBackup=BatLocalBackup.create({storage:window.localStorage});
  }catch(error){
