@@ -18,12 +18,19 @@ function backupStatus(text,warning=false){
 function initLocalBackup(){
  try{
   localBackup=BatLocalBackup.create({storage:window.localStorage});
+ }catch(error){
+  localBackup=null;$('restore-local').disabled=true;
+  backupStatus('Almacenamiento local no disponible: '+error.message,true);
+  return;
+ }
+ try{
   const existing=localBackup.info();
   $('restore-local').disabled=!existing;
   backupStatus(existing?'Copia local disponible · revisión '+existing.revision:'Sin copia local aún');
  }catch(error){
-  localBackup=null;$('restore-local').disabled=true;
-  backupStatus('No se pudo consultar la copia local: '+error.message,true);
+  // A corrupt old backup must not disable future valid saves.
+  $('restore-local').disabled=true;
+  backupStatus('Copia antigua inválida. El próximo cambio válido guardará una copia nueva: '+error.message,true);
  }
 }
 function saveLocal(state){
