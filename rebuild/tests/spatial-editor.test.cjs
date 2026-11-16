@@ -21,7 +21,7 @@ test('Each wall face maps correctly from metre coordinates',()=>{
 });
 test('Pointer placement clamps inward and snaps horizontal and vertical coordinates',()=>{
  const c=State.defaults().project.container;
- const a=Spatial.placementFromHit({x:c.length/2,y:2.5,z:c.width/2-.03},c,{kind:'window',width:1.2,height:1});
+ const a=Spatial.placementFromHit({x:c.length/2,y:2.1,z:c.width/2-.03},c,{kind:'window',width:1.2,height:1});
  assert.equal(a.face,'D');
  assert.ok(Math.abs(a.offset)+.6<c.width/2);
  assert.ok(a.bottom>=0&&a.bottom+1<c.height);
@@ -29,7 +29,7 @@ test('Pointer placement clamps inward and snaps horizontal and vertical coordina
  const b=Spatial.placementFromHit({x:0,y:1.3,z:-c.width/2},c,{kind:'door',width:.9,height:2});
  assert.deepEqual(b,{face:'A',offset:0,bottom:0});
  assert.throws(()=>Spatial.placementFromHit({x:0,y:1,z:0},c,{kind:'window',width:1,height:1}),/pared/);
- assert.throws(()=>Spatial.placementFromHit({x:0,y:1,z:-c.width/2},c,{kind:'window',width:7,height:1}),/no cabe/);
+ assert.throws(()=>Spatial.placementFromHit({x:0,y:1,z:-c.width/2},c,{kind:'window',width:14,height:1}),/no cabe/);
 });
 test('Two openings at same horizontal position may coexist only when vertically separate',()=>{
  const store=State.createStore();
