@@ -203,7 +203,7 @@ function create({scene}={}){
    rootGroup.add(group);
    for(const o of ops)buildOpening(o,span,face,m,group,o.id===selectedOpeningId);
    if(key===CARGO_FACE&&ops.length===0)endDoors(span,totalH,m,group);
-   wallFaces.push({group,material,normal:new THREE.Vector3(...face.normal),half,roof:false,hidden:null});
+   wallFaces.push({key,group,material,normal:new THREE.Vector3(...face.normal),half,cutCount:cuts.length,roof:false,hidden:null});
   }
   // Reuse the source's transverse corrugation on the roof.
   const roofMat=mat({color,map:paintTexture,roughness:.64,metalness:.42,side:THREE.DoubleSide});
@@ -257,9 +257,25 @@ function create({scene}={}){
  function getStats(){
   let corrugatedPanels=0;
   rootGroup.traverse(obj=>{if(obj.userData.corrugatedPanel)corrugatedPanels++;});
+  // Verify physical corrugated-wall holes by casting inward through the
+  // centre of each opening against wall panels (not glass or structural frames).
+  rootGroup.updateMatrixWorld(true);
+  const cutoutChecks=(lastState?.openings||[]).map(opening=>{
+   const wall=wallFaces.find(w=>w.key===opening.face);
+   if(!wall)return false;
+   const normal=wall.normal,origin=normal.clone().multiplyScalar(wall.half+.5);
+   if(FACES[opening.face].long)origin.x=opening.offset;
+   else origin.z=opening.offset;
+   origin.y=FLOOR+(opening.bottom||0)+opening.height/2;
+   const panels=[];
+   wall.group.traverse(obj=>{if(obj.userData.corrugatedPanel)panels.push(obj);});
+   const ray=new THREE.Raycaster(origin,normal.clone().negate(),0,1);
+   return ray.intersectObjects(panels,false).length===0;
+  });
   return Object.freeze({
    source:'contenedor-realista.html',
-   corrugatedPanels,actualWallCuts:lastState?.openings?.length||0,
+   corrugatedPanels,actualWallCuts:wallFaces.reduce((n,w)=>n+(w.cutCount||0),0),
+   cutoutsClear:cutoutChecks.every(Boolean),cutoutChecks,
    openingSelectableMeshes:openings.length,
    container:lastState?{...lastState.project.container}:null,
    floorBaseHeight:FLOOR,cargoDoorFace:CARGO_FACE,
