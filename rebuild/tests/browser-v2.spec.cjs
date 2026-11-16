@@ -132,6 +132,15 @@ test('V2 browser: face click -> state -> 3D/BOM -> price, with validation rollba
   const afterEdit=await page.evaluate(()=>window.BAT_V2.getState());
   assert.equal(afterEdit.project.name,'Proyecto reabierto');
   assert.equal(afterEdit.revision,revisionBeforeEdit+1,'only one handler after reinitialization');
+  // Corrupted backups must not permanently disable subsequent local saves.
+  await page.evaluate(()=>localStorage.setItem('bat-cubikeitor-v2:project-backup:v1','{broken-json'));
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.waitForFunction(()=>Boolean(window.BAT_V2)&&Boolean(document.querySelector('#backup-status')));
+  assert.match(await page.locator('#backup-status').innerText(),/Copia antigua inválida/);
+  await page.locator('#project-name').fill('Copia recuperada');
+  await page.locator('#project-name').dispatchEvent('change');
+  assert.match(await page.locator('#backup-status').innerText(),/Copia local guardada/);
+  assert.equal(await page.locator('#restore-local').isDisabled(),false);
   assert.deepEqual(errors,[],errors.join('\n'));
  }catch(error){
   if(page)await page.screenshot({path:'/tmp/bat-v2-browser-diagnostic.png',fullPage:true}).catch(()=>{});
