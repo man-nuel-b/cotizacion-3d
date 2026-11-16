@@ -1,5 +1,705 @@
 <!doctype html>
 <html lang="es">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BAT-CUBIKEITOR V2</title></head>
-<body></body>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Visor 3D de contenedores</title>
+<style>
+  html,body{margin:0;height:100%;background:#dfe3e8;font-family:system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden}
+  #view{position:fixed;inset:0}
+  #panel{position:fixed;top:12px;left:12px;width:250px;box-sizing:border-box;max-height:calc(100% - 24px);overflow-x:hidden;overflow-y:auto;
+    background:rgba(255,255,255,.94);padding:12px;border-radius:10px;font-size:13px;color:#1d2530;
+    box-shadow:0 4px 18px rgba(0,0,0,.18);display:grid;gap:8px}
+  #panel h4{margin:6px 0 0;font-size:13px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  label{display:grid;gap:2px;font-size:11px;color:#55606e}
+  #panel>*,.row>*{min-width:0}
+  input,select,button{font:inherit;padding:6px;border:1px solid #c4cad2;border-radius:6px;background:#fff;color:#1d2530;box-sizing:border-box;width:100%}
+  input[type=checkbox]{width:auto}
+  button{cursor:pointer;background:#2b3a4a;color:#fff;border:0}
+  button.alt{background:#e8ecf0;color:#1d2530}
+  .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+  .seg button{background:#e8ecf0;color:#1d2530;padding:8px 4px;font-size:12px;line-height:1.2}
+  .seg button.on{background:#2b3a4a;color:#fff}
+  #desc{font-size:11.5px;color:#55606e;line-height:1.35}
+  #msg{font-size:12px;color:#b3261e;min-height:14px}
+  .chk{display:flex;gap:6px;align-items:center;font-size:12px;color:#1d2530}
+  .chk input{padding:0}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="view"></div>
+
+<div id="panel">
+  <b>Tipo de contenedor</b>
+  <div class="seg" id="seg">
+    <button data-t="maritimo" class="on">Marítimo</button>
+    <button data-t="reefer">Reefer</button>
+    <button data-t="modular">Modular</button>
+  </div>
+  <div id="desc"></div>
+
+  <h4>Dimensiones</h4>
+  <div class="row">
+    <label>Largo (m)<input id="dL" type="number" step="0.01"></label>
+    <label>Ancho (m)<input id="dW" type="number" step="0.01"></label>
+    <label>Alto int. (m)<input id="dH" type="number" step="0.01"></label>
+    <label>Color<input id="dC" type="color"></label>
+  </div>
+  <button id="bDims">Aplicar dimensiones</button>
+
+  <h4>Puertas y ventanas</h4>
+  <div class="row">
+    <label>Elemento<select id="oT"><option value="door">Puerta</option><option value="window">Ventana</option></select></label>
+    <label>Cara<select id="oF"><option>A</option><option>B</option><option>C</option><option>D</option></select></label>
+    <label>Ancho (m)<input id="oW" type="number" step="0.05" value="0.9"></label>
+    <label>Alto (m)<input id="oH" type="number" step="0.05" value="2"></label>
+    <label>Posición horiz. (m)<input id="oU" type="number" step="0.05" value="1"></label>
+    <label>Altura desde piso (m)<input id="oV" type="number" step="0.05" value="0"></label>
+  </div>
+  <label class="chk"><input id="oBars" type="checkbox"> Ventana con barrotes</label>
+  <button id="bAdd">Agregar abertura</button>
+  <button id="bClear" class="alt">Quitar todas las aberturas</button>
+  <div id="msg"></div>
+  <label class="chk"><input id="xray" type="checkbox"> Ver interior (paredes cercanas transparentes)</label>
+  <small style="color:#55606e">Arrastra para girar · rueda para acercar</small>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+/* ====================== Tipos de contenedor ====================== */
+/* P = periodo de la onda, R = profundidad de la onda, T = espesor de la chapa.
+   R = 0 -> pared lisa (reefer). flatInner = cara interior plana (paneles sándwich).
+   Dimensiones en metros (largo, ancho, alto interior). */
+const TYPES = {
+  maritimo: {
+    label: 'Contenedor marítimo',
+    desc: 'Acero corrugado, esquineros ISO y barras de cierre. Estándar 40 pies.',
+    dims: [12.03, 2.35, 2.39], color: '#7d8388',
+    P: 0.076, R: 0.036, T: 0.004, flatInner: false,
+    rough: 0.62, metal: 0.4, floor: 'wood', frameColor: null,
+    deco: { B: 'doors' },
+  },
+  reefer: {
+    label: 'Contenedor reefer',
+    desc: 'Refrigerado: paneles blancos aislados con juntas verticales y equipo de frío azul en la cara B.',
+    dims: [12.19, 2.44, 2.5], color: '#eef0ef',
+    P: 1, R: 0, T: 0.075, flatInner: true,
+    rough: 0.45, metal: 0.15, floor: 'alu', frameColor: null, seam: 0.55,
+    deco: { B: 'machine', D: 'doors' },
+  },
+  modular: {
+    label: 'Contenedor modular',
+    desc: 'Desmontable tipo oficina/bodega: panel sándwich con nervado fino y marco claro. Ventanas con barrotes.',
+    dims: [5.95, 2.43, 2.5], color: '#c3c8cb',
+    P: 0.06, R: 0.006, T: 0.044, flatInner: true,
+    rough: 0.55, metal: 0.2, floor: 'vinyl', frameColor: '#f2f4f5',
+    deco: {},
+  },
+};
+
+/* Cara -> normal exterior. Si tus caras A/B/C/D están en otro orden, cambia solo esta tabla. */
+const FACES = {
+  A: { n: [0, 0, 1],  long: true  },
+  B: { n: [1, 0, 0],  long: false },
+  C: { n: [0, 0, -1], long: true  },
+  D: { n: [-1, 0, 0], long: false },
+};
+const FLOOR = 0.14; // altura del piso interior respecto al suelo (m)
+
+// Parámetros activos de la chapa (los fija setProfile según el tipo)
+let P = 0.076, R = 0.036, T = 0.004, WALL = R + T, Q = P / 4, V = [0, 0, R, R], FLAT_INNER = false;
+function setProfile(c) {
+  P = c.P; R = c.R; T = c.T; WALL = R + T; Q = P / 4; V = [0, 0, R, R]; FLAT_INNER = c.flatInner;
+}
+
+/* ====================== Escena, luces, render ====================== */
+const view = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+view.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const BG = 0xdfe3e8;
+scene.background = new THREE.Color(BG);
+scene.fog = new THREE.Fog(BG, 45, 130);
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f96, 0.55));
+
+const sun = new THREE.DirectionalLight(0xfff1dd, 2.4);
+sun.position.set(9, 15, 11);
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+sun.shadow.bias = -0.0008;
+sun.shadow.normalBias = 0.07; // evita el "acné" de sombra sobre la chapa corrugada
+sun.shadow.radius = 3;
+scene.add(sun);
+
+// Ajusta el volumen de sombra al tamaño del contenedor (más resolución = menos artefactos)
+function fitShadow() {
+  const e = Math.hypot(state.L, state.W) / 2 + 2;
+  Object.assign(sun.shadow.camera, { left: -e, right: e, top: e, bottom: -e, near: 1, far: 60 });
+  sun.shadow.camera.updateProjectionMatrix();
+}
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(300, 300),
+  new THREE.MeshStandardMaterial({ color: 0xcfd3d8, roughness: 1, metalness: 0, envMapIntensity: 0.2 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 400);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI / 2 - 0.02;
+controls.minDistance = 2;
+controls.maxDistance = 70;
+
+function frameCamera() {
+  const d = Math.max(state.L, 6) * 1.15;
+  camera.position.set(d * 0.8, d * 0.38, d * 0.95);
+  controls.target.set(0, (state.H + FLOOR) / 2, 0);
+  controls.update();
+}
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+/* ====================== Texturas procedurales ====================== */
+function canvasTex(size, draw, srgb = true) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  draw(c.getContext('2d'), size);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// Pintura con ruido suave y chorreaduras verticales (se multiplica por el color del material)
+const paintTex = canvasTex(512, (g, s) => {
+  g.fillStyle = '#ececec'; g.fillRect(0, 0, s, s);
+  const img = g.getImageData(0, 0, s, s);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * 22;
+    img.data[i] += n; img.data[i + 1] += n; img.data[i + 2] += n;
+  }
+  g.putImageData(img, 0, 0);
+  for (let i = 0; i < 60; i++) {
+    const x = Math.random() * s, w = 1 + Math.random() * 3, h = 40 + Math.random() * 300;
+    const grd = g.createLinearGradient(0, 0, 0, h);
+    grd.addColorStop(0, 'rgba(110,80,55,0.16)'); grd.addColorStop(1, 'rgba(110,80,55,0)');
+    g.fillStyle = grd; g.fillRect(x, Math.random() * s, w, h);
+  }
+});
+
+const woodTex = canvasTex(512, (g, s) => {
+  const planks = 6, ph = s / planks;
+  for (let i = 0; i < planks; i++) {
+    g.fillStyle = `hsl(28,${38 + Math.random() * 10}%,${38 + Math.random() * 8}%)`;
+    g.fillRect(0, i * ph, s, ph);
+    for (let k = 0; k < 40; k++) {
+      g.strokeStyle = `rgba(60,35,15,${Math.random() * 0.25})`;
+      g.beginPath();
+      const y = i * ph + Math.random() * ph;
+      g.moveTo(0, y); g.lineTo(s, y + (Math.random() - 0.5) * 3); g.stroke();
+    }
+    g.fillStyle = 'rgba(30,18,8,.65)'; g.fillRect(0, i * ph, s, 2);
+  }
+});
+
+// Franjas diagonales negro/amarillo (marcas de esquina del reefer)
+const hazardTex = canvasTex(128, (g, s) => {
+  g.fillStyle = '#f2c500'; g.fillRect(0, 0, s, s);
+  g.fillStyle = '#18191b';
+  for (let i = -s; i < s * 2; i += 32) {
+    g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 16, 0); g.lineTo(i + 16 + s, s); g.lineTo(i + s, s); g.closePath(); g.fill();
+  }
+});
+
+/* ====================== Chapa (corrugada o lisa) ====================== */
+function dAt(x) {
+  const k = Math.floor(x / Q + 1e-12);
+  const t = (x - k * Q) / Q;
+  const a = V[((k % 4) + 4) % 4], b = V[(((k + 1) % 4) + 4) % 4];
+  return a + (b - a) * t;
+}
+function profile(x0, x1) {
+  if (R === 0) return [[x0, 0], [x1, 0]];
+  const pts = [[x0, dAt(x0)]];
+  for (let k = Math.floor(x0 / Q) + 1; k * Q < x1 - 1e-9; k++) {
+    const x = k * Q;
+    if (x > x0 + 1e-9) pts.push([x, V[((k % 4) + 4) % 4]]);
+  }
+  pts.push([x1, dAt(x1)]);
+  return pts;
+}
+
+// Panel entre x:[xa,xb] y y:[ya,yb]; el exterior queda hacia +z (la cara exterior está en z = 0)
+function panel(xa, xb, ya, yb, lw, mat) {
+  const pts = profile(xa, xb);
+  const s = new THREE.Shape();
+  s.moveTo(pts[0][0], pts[0][1] + T);
+  for (let i = 1; i < pts.length; i++) s.lineTo(pts[i][0], pts[i][1] + T);
+  for (let i = pts.length - 1; i >= 0; i--) s.lineTo(pts[i][0], FLAT_INNER ? 0 : pts[i][1]);
+  s.closePath();
+  const g = new THREE.ExtrudeGeometry(s, { depth: yb - ya, bevelEnabled: false, steps: 1 });
+  g.rotateX(Math.PI / 2);
+  g.translate(-lw / 2, yb, -WALL);
+  const m = new THREE.Mesh(g, mat);
+  m.castShadow = m.receiveShadow = true;
+  m.userData.isPanel = true;
+  return m;
+}
+
+// Pared de largo lw y alto h con huecos reales. cuts: [{u0,u1,v0,v1}] (u desde 0).
+// seam: {every, mat} agrega juntas verticales entre paneles (reefer).
+function wallPanels(lw, h, cuts, mat, seam = null) {
+  const group = new THREE.Group();
+  const raw = [0, lw];
+  cuts.forEach(c => raw.push(c.u0, c.u1));
+  const xs = raw.filter(x => x >= -1e-9 && x <= lw + 1e-9).sort((a, b) => a - b);
+  const ux = xs.filter((x, i) => i === 0 || x - xs[i - 1] > 1e-4);
+  for (let i = 0; i < ux.length - 1; i++) {
+    const xa = ux[i], xb = ux[i + 1];
+    if (xb - xa < 1e-3) continue;
+    const mid = (xa + xb) / 2;
+    const blocked = cuts.filter(c => c.u0 <= mid && c.u1 >= mid)
+      .map(c => [c.v0, c.v1]).sort((a, b) => a[0] - b[0]);
+    let y = 0; const free = [];
+    for (const [a, b] of blocked) {
+      if (a > y + 1e-4) free.push([y, Math.min(a, h)]);
+      y = Math.max(y, b);
+    }
+    if (y < h - 1e-4) free.push([y, h]);
+    for (const [ya, yb] of free) if (yb - ya > 1e-3) group.add(panel(xa, xb, ya, yb, lw, mat));
+  }
+  if (seam) {
+    for (let x = seam.every; x < lw - 0.2; x += seam.every) {
+      if (cuts.some(c => x > c.u0 - 0.02 && x < c.u1 + 0.02)) continue;
+      const s = new THREE.Mesh(new THREE.BoxGeometry(0.007, h - 0.3, 0.006), seam.mat);
+      s.position.set(x - lw / 2, h / 2, 0.0005);
+      s.userData.seam = true;
+      group.add(s);
+    }
+  }
+  return group;
+}
+
+/* ====================== Estado y construcción ====================== */
+const state = {
+  type: 'maritimo',
+  L: 12.03, W: 2.35, H: 2.39, color: '#7d8388',
+  openings: [], partitions: [], seeInside: false, nextId: 1,
+};
+const root = new THREE.Group();
+scene.add(root);
+let walls = [];     // {group, mat, n, half, hidden, roof}
+let owned = [];     // materiales a liberar al reconstruir
+
+function mat(opts) { const m = new THREE.MeshStandardMaterial(opts); owned.push(m); return m; }
+
+function clearRoot() {
+  while (root.children.length) {
+    const c = root.children.pop();
+    c.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+  }
+  owned.forEach(m => m.dispose());
+  owned = []; walls = [];
+}
+
+function box(w, h, d, material, x, y, z, parent, rounded = false) {
+  const g = rounded ? new RoundedBoxGeometry(w, h, d, 2, 0.012) : new THREE.BoxGeometry(w, h, d);
+  const m = new THREE.Mesh(g, material);
+  m.position.set(x, y, z);
+  m.castShadow = m.receiveShadow = true;
+  parent.add(m);
+  return m;
+}
+
+function validateOpening(o, excludeId = null) {
+  const f = FACES[o.face];
+  if (!f) return 'Cara inválida';
+  if (!(o.w > 0 && o.h > 0)) return 'Dimensiones inválidas';
+  const lw = f.long ? state.L : state.W;
+  if (o.u < -1e-9 || o.u + o.w > lw + 1e-9 || o.v < -1e-9 || o.v + o.h > state.H + 1e-9)
+    return 'Abertura fuera del contenedor';
+  for (const p of state.openings) {
+    if (p.id === excludeId || p.face !== o.face) continue;
+    const sep = o.u + o.w <= p.u || p.u + p.w <= o.u || o.v + o.h <= p.v || p.v + p.h <= o.v;
+    if (!sep) return 'Se superpone con otra abertura';
+  }
+  return null;
+}
+
+/* ---------- Puertas y ventanas ---------- */
+function buildOpening(o, lw, m, parent) {
+  const g = new THREE.Group();
+  const w = o.w, h = o.h, fb = 0.05, fd = Math.max(0.09, WALL + 0.03);
+  const frameMat = o.type === 'window' ? m.alu : m.frame;
+  g.position.set(o.u + w / 2 - lw / 2, FLOOR + o.v + h / 2, -WALL / 2 + (fd - WALL) / 2 - 0.0);
+
+  box(w + 2 * fb, fb, fd, frameMat, 0, h / 2 + fb / 2, 0, g);
+  if (o.v > 0.01) box(w + 2 * fb, fb, fd, frameMat, 0, -h / 2 - fb / 2, 0, g);
+  box(fb, h, fd, frameMat, -(w / 2 + fb / 2), 0, 0, g);
+  box(fb, h, fd, frameMat, (w / 2 + fb / 2), 0, 0, g);
+
+  const zFront = fd / 2; // cara exterior del marco
+  if (o.type === 'door') {
+    box(w - 0.02, h - 0.02, 0.035, m.door, 0, 0, -0.012, g);
+    box(w * 0.72, h * 0.8, 0.012, m.doorInset, 0, 0, 0.012, g);
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.14, 12), m.chrome);
+    handle.rotation.z = Math.PI / 2;
+    handle.position.set(w / 2 - 0.1, 0, 0.032);
+    handle.castShadow = true;
+    g.add(handle);
+    for (const fy of [-0.35, 0.35]) box(0.04, 0.1, 0.02, m.chrome, -w / 2 + 0.02, fy * h, 0.02, g);
+  } else {
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(w - 0.02, h - 0.02, 0.01), m.glass);
+    glass.position.z = -0.01;
+    g.add(glass);
+    if (w > 1) box(0.035, h, 0.05, m.alu, 0, 0, 0, g);
+    box(w + 0.1, 0.03, 0.14, m.alu, 0, -h / 2 - fb - 0.015, 0.03, g);
+    if (o.bars) {
+      const n = Math.max(2, Math.round(w / 0.12));
+      for (let i = 1; i < n; i++) box(0.016, h, 0.016, m.bars, -w / 2 + (w * i) / n, 0, zFront + 0.012, g);
+      box(w, 0.016, 0.016, m.bars, 0, h * 0.25, zFront + 0.012, g);
+      box(w, 0.016, 0.016, m.bars, 0, -h * 0.25, zFront + 0.012, g);
+    }
+  }
+  parent.add(g);
+}
+
+/* ---------- Cara de puertas (barras de cierre) ---------- */
+function buildDoorsEnd(lw, totalH, m, parent, rods) {
+  const half = lw / 2;
+  const rodH = totalH - 0.32;
+  for (const x of rods) {
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.0165, 0.0165, rodH, 14), m.chrome);
+    rod.position.set(x, totalH / 2, 0.034);
+    rod.castShadow = true;
+    parent.add(rod);
+    for (const f of [0.1, 0.36, 0.64, 0.9]) box(0.07, 0.05, 0.05, m.frame, x, totalH * f, 0.02, parent);
+    box(0.14, 0.035, 0.035, m.chrome, x + (x < 0 ? 0.08 : -0.08), 1.05, 0.062, parent);
+  }
+  box(0.014, rodH, 0.012, m.dark, 0, totalH / 2, 0.006, parent);               // junta entre hojas
+  box(0.18, 0.14, 0.004, m.yellow, -half + 0.3, totalH - 0.5, 0.004, parent);  // placa amarilla
+  box(0.05, rodH, 0.03, m.frame, -half + 0.06, totalH / 2, 0.012, parent);     // marco lateral
+  box(0.05, rodH, 0.03, m.frame, half - 0.06, totalH / 2, 0.012, parent);
+}
+
+/* ---------- Equipo de frío del reefer ---------- */
+function buildMachine(lw, totalH, m, parent) {
+  const mw = lw - 0.36, mh = 1.25, fb = 0.07;
+  const g = new THREE.Group();
+  g.position.set(0, FLOOR + 0.08 + mh / 2, 0);
+  parent.add(g);
+
+  box(mw, mh, 0.06, m.dark, 0, 0, 0.03, g);
+  box(mw, fb, 0.2, m.blue, 0, mh / 2 - fb / 2, 0.1, g);
+  box(mw, fb, 0.2, m.blue, 0, -mh / 2 + fb / 2, 0.1, g);
+  box(fb, mh, 0.2, m.blue, -mw / 2 + fb / 2, 0, 0.1, g);
+  box(fb, mh, 0.2, m.blue, mw / 2 - fb / 2, 0, 0.1, g);
+
+  // Ventilador
+  const fx = -mw / 2 + 0.62, fy = 0.1;
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.035, 12, 40), m.blue);
+  ring.position.set(fx, fy, 0.1); ring.castShadow = true; g.add(ring);
+  const disk = new THREE.Mesh(new THREE.CircleGeometry(0.34, 32), m.fanDark);
+  disk.position.set(fx, fy, 0.065); g.add(disk);
+  for (let i = 0; i < 7; i++) {
+    const piv = new THREE.Group();
+    piv.position.set(fx, fy, 0.09);
+    piv.rotation.z = (i * Math.PI * 2) / 7;
+    const bl = box(0.3, 0.09, 0.012, m.fanBlade, 0.19, 0, 0, piv);
+    bl.rotation.x = 0.5;
+    g.add(piv);
+  }
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.05, 20), m.chrome);
+  hub.rotation.x = Math.PI / 2; hub.position.set(fx, fy, 0.1); g.add(hub);
+  const grille = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.008, 8, 40), m.chrome);
+  grille.position.set(fx, fy, 0.17); g.add(grille);
+  box(0.7, 0.012, 0.012, m.chrome, fx, fy, 0.17, g);
+  box(0.012, 0.7, 0.012, m.chrome, fx, fy, 0.17, g);
+
+  // Panel de control
+  const cx = mw / 2 - 0.36;
+  box(0.42, 0.9, 0.05, m.light, cx, 0.05, 0.1, g);
+  box(0.3, 0.2, 0.012, m.dark, cx, 0.3, 0.13, g);
+  box(0.05, 0.03, 0.01, m.ledGreen, cx - 0.1, 0.1, 0.13, g);
+  box(0.05, 0.03, 0.01, m.yellow, cx, 0.1, 0.13, g);
+  box(0.05, 0.03, 0.01, m.ledGreen, cx + 0.1, 0.1, 0.13, g);
+  box(0.3, 0.05, 0.012, m.dark, cx, -0.15, 0.13, g);
+
+  // Ventilas y detalles superiores
+  const vent = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.03, 28), m.light);
+  vent.rotation.x = Math.PI / 2; vent.position.set(-0.6, totalH - 0.4, 0.015); vent.castShadow = true; parent.add(vent);
+  const vent2 = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.035, 24), m.dark);
+  vent2.rotation.x = Math.PI / 2; vent2.position.set(-0.6, totalH - 0.4, 0.02); parent.add(vent2);
+  box(0.22, 0.22, 0.025, m.light, 0.45, totalH - 0.4, 0.012, parent, true);
+  box(0.2, 0.2, 0.025, m.light, 0.8, totalH - 0.4, 0.012, parent, true);
+  box(0.12, 0.12, 0.004, m.yellow, 0.95, totalH - 0.85, 0.004, parent);
+  // Marcas negro/amarillo en las esquinas superiores
+  for (const s of [-1, 1]) box(0.3, 0.06, 0.01, m.hazard, s * (lw / 2 - 0.3), totalH - 0.08, 0.005, parent);
+}
+
+/* ---------- Construcción completa ---------- */
+function build() {
+  clearRoot();
+  const cfg = TYPES[state.type];
+  setProfile(cfg);
+  fitShadow();
+  const { L, W, H } = state;
+  const totalH = H + FLOOR;
+
+  const paint = mat({ color: state.color, map: paintTex, roughness: cfg.rough, metalness: cfg.metal, envMapIntensity: 0.75 });
+  const frame = cfg.frameColor
+    ? mat({ color: cfg.frameColor, roughness: 0.5, metalness: 0.15, envMapIntensity: 0.7 })
+    : mat({ color: new THREE.Color(state.color).multiplyScalar(0.72), map: paintTex, roughness: cfg.rough, metalness: cfg.metal + 0.05, envMapIntensity: 0.75 });
+  const m = {
+    frame,
+    dark: mat({ color: 0x25282c, roughness: 0.7, metalness: 0.3 }),
+    chrome: mat({ color: 0xd9dde1, roughness: 0.25, metalness: 1, envMapIntensity: 1 }),
+    yellow: mat({ color: 0xe8c11a, roughness: 0.5, metalness: 0 }),
+    door: mat({ color: cfg.frameColor ? 0xdfe3e5 : 0x59636b, roughness: 0.55, metalness: 0.4, envMapIntensity: 0.7 }),
+    doorInset: mat({ color: cfg.frameColor ? 0xcfd4d7 : 0x4c555c, roughness: 0.6, metalness: 0.4 }),
+    alu: mat({ color: 0xe6e9ec, roughness: 0.35, metalness: 0.8 }),
+    bars: mat({ color: cfg.frameColor ? 0x4b5258 : 0xdfe3e6, roughness: 0.4, metalness: 0.7 }),
+    glass: mat({ color: 0xbfd8e6, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.28, envMapIntensity: 1.4 }),
+    wood: mat({ color: 0xffffff, map: woodTex.clone(), roughness: 0.8, metalness: 0 }),
+    floorAlu: mat({ color: 0xaab0b5, roughness: 0.4, metalness: 0.8 }),
+    floorVinyl: mat({ color: 0xb9b5ab, roughness: 0.9, metalness: 0 }),
+    part: mat({ color: 0xe9e4da, roughness: 0.9, metalness: 0 }),
+    blue: mat({ color: 0x1f4fa8, roughness: 0.45, metalness: 0.3 }),
+    light: mat({ color: 0xe3e6e8, roughness: 0.5, metalness: 0.1 }),
+    fanDark: mat({ color: 0x0e1014, roughness: 0.8, metalness: 0.2 }),
+    fanBlade: mat({ color: 0x1b2f63, roughness: 0.5, metalness: 0.3 }),
+    ledGreen: mat({ color: 0x35c05a, roughness: 0.4, metalness: 0, emissive: 0x0f4d20 }),
+    hazard: mat({ color: 0xffffff, map: hazardTex, roughness: 0.6, metalness: 0 }),
+    seam: mat({ color: 0x8e9396, roughness: 0.6, metalness: 0.2 }),
+  };
+  m.glass.depthWrite = false;
+  m.wood.map.needsUpdate = true; m.wood.map.repeat.set(L / 2, 1);
+  const floorMat = cfg.floor === 'wood' ? m.wood : cfg.floor === 'alu' ? m.floorAlu : m.floorVinyl;
+
+  // --- Estructura: piso, travesaños, vigas, postes y esquineros ---
+  box(L - 2 * WALL - 0.02, 0.05, W - 2 * WALL - 0.02, floorMat, 0, FLOOR - 0.025, 0, root);
+  for (let x = -L / 2 + 0.35; x < L / 2 - 0.2; x += 0.6) box(0.1, 0.1, W - 0.2, m.dark, x, 0.05, 0, root);
+
+  const e = 0.003;
+  const castingMat = cfg.frameColor ? m.frame : m.dark;
+  for (const s of [-1, 1]) {
+    box(L, 0.14, 0.1, m.frame, 0, 0.07, s * (W / 2 - 0.05 + e), root);               // viga inferior larga
+    box(L, 0.09, 0.08, m.frame, 0, totalH - 0.045, s * (W / 2 - 0.04 + e), root);    // viga superior larga
+    box(0.1, 0.14, W - 0.3, m.frame, s * (L / 2 - 0.05 + e), 0.07, 0, root);          // viga inferior corta
+    box(0.1, 0.1, W - 0.3, m.frame, s * (L / 2 - 0.05 + e), totalH - 0.05, 0, root);  // cabezal superior
+    for (const t of [-1, 1]) {
+      box(0.12, totalH, 0.12, m.frame, s * (L / 2 - 0.06 + e), totalH / 2, t * (W / 2 - 0.06 + e), root, true);
+      for (const y of [0.065, totalH - 0.065]) {
+        box(0.178, 0.13, 0.178, castingMat, s * (L / 2 - 0.089 + 0.006), y, t * (W / 2 - 0.089 + 0.006), root, true);
+      }
+    }
+  }
+  if (state.type !== 'modular') {
+    // Huecos de horquilla en las vigas largas
+    for (const s of [-1, 1]) for (const x of [-1.9, 1.9]) box(0.36, 0.09, 0.11, m.dark, x, 0.07, s * (W / 2 - 0.05 + 0.006), root);
+  }
+
+  // --- Paredes con huecos reales ---
+  const seam = cfg.seam ? { every: cfg.seam, mat: m.seam } : null;
+  for (const key of Object.keys(FACES)) {
+    const f = FACES[key];
+    const lw = f.long ? L : W;
+    const half = f.long ? W / 2 : L / 2;
+    const ops = state.openings.filter(o => o.face === key);
+    const cuts = ops.map(o => ({ u0: o.u, u1: o.u + o.w, v0: FLOOR + o.v, v1: FLOOR + o.v + o.h }));
+    const wmat = paint.clone(); owned.push(wmat);
+    const group = wallPanels(lw, totalH, cuts, wmat, seam);
+    group.rotation.y = Math.atan2(f.n[0], f.n[2]);
+    group.position.set(f.n[0] * half, 0, f.n[2] * half);
+    root.add(group);
+    ops.forEach(o => buildOpening(o, lw, m, group));
+    if (ops.length === 0) {
+      const deco = cfg.deco[key];
+      if (deco === 'doors') buildDoorsEnd(lw, totalH, m, group, state.type === 'reefer' ? [-0.95, -0.5, 0.5, 0.95] : [-0.9, -0.2, 0.2, 0.9]);
+      if (deco === 'machine') buildMachine(lw, totalH, m, group);
+    }
+    walls.push({ group, mat: wmat, n: new THREE.Vector3(...f.n), half, hidden: false, roof: false });
+  }
+
+  // --- Techo (corrugación a lo ancho) ---
+  {
+    const rmat = paint.clone(); owned.push(rmat);
+    const rl = L - 0.2, rw = W - 0.2;
+    const roof = wallPanels(rl, rw, [], rmat);
+    roof.rotation.x = -Math.PI / 2;
+    roof.position.set(0, totalH - WALL + 0.0005, rw / 2);
+    root.add(roof);
+    walls.push({ group: roof, mat: rmat, n: new THREE.Vector3(0, 1, 0), half: 0, hidden: false, roof: true });
+  }
+
+  // --- Tabiques interiores ---
+  state.partitions.forEach(p => {
+    const sx = p.axis === 'x' ? p.length : p.thickness;
+    const sz = p.axis === 'x' ? p.thickness : p.length;
+    box(sx, p.height, sz, m.part, p.cx, FLOOR + p.height / 2, p.cz, root);
+  });
+
+  applyXray(true);
+}
+
+/* ====================== Modo "ver interior" ====================== */
+function setWallHidden(w, hide) {
+  if (w.hidden === hide) return;
+  w.hidden = hide;
+  w.mat.transparent = hide;
+  w.mat.opacity = hide ? 0.07 : 1;
+  w.mat.depthWrite = !hide;
+  w.mat.needsUpdate = true;
+  w.group.traverse(o => {
+    if (o.userData.isPanel) o.castShadow = !hide;
+    if (o.userData.seam) o.visible = !hide;
+  });
+}
+function applyXray(force = false) {
+  if (force) walls.forEach(w => { w.hidden = null; });
+  const cam = camera.position;
+  for (const w of walls) {
+    let hide = false;
+    if (state.seeInside) hide = w.roof ? true : cam.dot(w.n) > w.half - 0.01;
+    setWallHidden(w, hide);
+  }
+}
+
+/* ====================== API pública (para integrar en tu cotizador) ====================== */
+const SAMPLES = {
+  maritimo: [
+    { type: 'window', face: 'A', w: 1.2, h: 0.8, u: 4, v: 0.9 },
+    { type: 'door', face: 'C', w: 0.9, h: 2.0, u: 1.2, v: 0 },
+  ],
+  reefer: [],
+  modular: [
+    { type: 'door', face: 'A', w: 0.9, h: 2.05, u: 0.8, v: 0 },
+    { type: 'window', face: 'A', w: 1.2, h: 1.0, u: 2.4, v: 1.0, bars: true },
+    { type: 'window', face: 'C', w: 1.2, h: 1.0, u: 2.4, v: 1.0, bars: true },
+  ],
+};
+
+const api = {
+  types: Object.keys(TYPES),
+  setType(key, { samples = true } = {}) {
+    const c = TYPES[key];
+    if (!c) return { ok: false, error: 'Tipo inválido' };
+    state.type = key;
+    [state.L, state.W, state.H] = c.dims;
+    state.color = c.color;
+    state.openings = []; state.partitions = []; state.nextId = 1;
+    if (samples) for (const s of SAMPLES[key]) {
+      const o = { id: state.nextId, ...s };
+      if (!validateOpening(o)) { state.nextId++; state.openings.push(o); }
+    }
+    build(); frameCamera();
+    return { ok: true, dims: c.dims, color: c.color };
+  },
+  setDimensions(L, W, H) {
+    if (!(L > 0 && W > 0 && H > 0)) return { ok: false, error: 'Dimensiones inválidas' };
+    state.L = L; state.W = W; state.H = H;
+    const before = state.openings.length;
+    state.openings = state.openings.filter(o => !validateOpening(o, o.id));
+    build();
+    return { ok: true, removed: before !== state.openings.length };
+  },
+  addOpening({ type = 'door', face = 'A', w, h, u, v = 0, bars = false }) {
+    const o = { id: state.nextId, type, face, w, h, u, v, bars: !!bars };
+    const err = validateOpening(o);
+    if (err) return { ok: false, error: err };
+    state.nextId++; state.openings.push(o); build();
+    return { ok: true, id: o.id };
+  },
+  moveOpening(id, { face, u, v }) {
+    const o = state.openings.find(x => x.id === id);
+    if (!o) return { ok: false, error: 'No existe' };
+    const n = { ...o, face: face ?? o.face, u: u ?? o.u, v: v ?? o.v };
+    const err = validateOpening(n, id);
+    if (err) return { ok: false, error: err };
+    Object.assign(o, n); build();
+    return { ok: true };
+  },
+  removeOpening(id) { state.openings = state.openings.filter(o => o.id !== id); build(); },
+  clearOpenings() { state.openings = []; build(); },
+  addPartition({ length, height, thickness = 0.1, axis = 'x', cx = 0, cz = 0 }) {
+    state.partitions.push({ length, height, thickness, axis, cx, cz }); build();
+  },
+  setColor(hex) { state.color = hex; build(); },
+  setView(pos, target) { camera.position.set(...pos); if (target) controls.target.set(...target); controls.update(); },
+  setSeeInside(v) { state.seeInside = !!v; applyXray(true); },
+  getState() { return JSON.parse(JSON.stringify(state)); },
+  setState(s) { Object.assign(state, s); build(); },
+};
+window.Container3D = api;
+
+/* ====================== Panel de demostración ====================== */
+const $ = id => document.getElementById(id);
+const num = id => parseFloat(String($(id).value).replace(',', '.'));
+
+function syncPanel() {
+  $('dL').value = state.L; $('dW').value = state.W; $('dH').value = state.H; $('dC').value = state.color;
+  $('desc').textContent = TYPES[state.type].desc;
+  document.querySelectorAll('#seg button').forEach(b => b.classList.toggle('on', b.dataset.t === state.type));
+  $('oBars').checked = state.type === 'modular';
+  $('msg').textContent = '';
+}
+
+document.querySelectorAll('#seg button').forEach(b => {
+  b.onclick = () => { api.setType(b.dataset.t); syncPanel(); };
+});
+$('bDims').onclick = () => {
+  const r = api.setDimensions(num('dL'), num('dW'), num('dH'));
+  $('msg').textContent = r.ok ? (r.removed ? 'Se quitaron aberturas que ya no caben.' : '') : r.error;
+};
+$('dC').oninput = e => api.setColor(e.target.value);
+$('bAdd').onclick = () => {
+  const r = api.addOpening({
+    type: $('oT').value, face: $('oF').value, w: num('oW'), h: num('oH'),
+    u: num('oU'), v: num('oV'), bars: $('oT').value === 'window' && $('oBars').checked,
+  });
+  $('msg').textContent = r.ok ? '' : r.error;
+};
+$('bClear').onclick = () => { api.clearOpenings(); $('msg').textContent = ''; };
+$('xray').onchange = e => api.setSeeInside(e.target.checked);
+
+api.setType('maritimo');
+syncPanel();
+
+(function loop() {
+  requestAnimationFrame(loop);
+  controls.update();
+  if (state.seeInside) applyXray();
+  renderer.render(scene, camera);
+})();
+</script>
+</body>
 </html>
