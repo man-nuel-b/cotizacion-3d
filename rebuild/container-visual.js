@@ -1,7 +1,7 @@
-/* BAT-CUBIKEITOR V2 realistic container skin.
- * Adapted from the user-provided "contenedor-realista.html" (Three.js r160)
- * to the existing Three.js r128 V2, without introducing another project state.
- * Geometry is a VIEW only: it never writes dimensions, openings, BOM or APU.
+/* BAT-CUBIKEITOR V2 — 3-type visual renderer.
+ * Replaces the previous single-container skin, based on
+ * user's "contenedores-3-tipos(1).html".
+ * View-only: never writes to canonical state, geometry validation, BOM or APU.
  */
 (function(root,factory){
  const api=factory(root.THREE);
@@ -9,7 +9,9 @@
  root.BatContainerVisual=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(THREE){
 'use strict';
-const FLOOR=.14,R=.036,T=.004,P=.076,Q=P/4,WALL=R+T;
+const FLOOR=.14;
+const Types=typeof require==='function'?require('./core/container-types'):globalThis.BatContainerTypes;
+if(!Types?.byId)throw new Error('Tipos de contenedor no disponibles');
 const FACES=Object.freeze({
  // Keep BAT V2 face IDs, NOT those from the standalone HTML:
  A:{normal:[0,0,-1],long:true,angle:Math.PI,sign:-1},
@@ -17,23 +19,25 @@ const FACES=Object.freeze({
  C:{normal:[-1,0,0],long:false,angle:-Math.PI/2,sign:1},
  D:{normal:[ 1,0,0],long:false,angle:Math.PI/2,sign:-1}
 });
-const CARGO_FACE='D'; // +X end: standalone model's closing-bar face B.
-function dAt(x){
- const k=Math.floor(x/Q+1e-12),t=(x-k*Q)/Q,V=[0,0,R,R];
- return V[((k%4)+4)%4]+(V[(((k+1)%4)+4)%4]-V[((k%4)+4)%4])*t;
+function dAt(x,cfg){
+ const q=cfg.period/4,v=[0,0,cfg.ridge,cfg.ridge];
+ const k=Math.floor(x/q+1e-12),t=(x-k*q)/q;
+ return v[((k%4)+4)%4]+(v[(((k+1)%4)+4)%4]-v[((k%4)+4)%4])*t;
 }
-function profile(a,b){
- const pts=[[a,dAt(a)]];
- for(let k=Math.floor(a/Q)+1;k*Q<b-1e-9;k++){
-  const x=k*Q;if(x>a+1e-9)pts.push([x,[0,0,R,R][((k%4)+4)%4]]);
+function profile(a,b,cfg){
+ if(cfg.ridge===0)return [[a,0],[b,0]];
+ const q=cfg.period/4,v=[0,0,cfg.ridge,cfg.ridge];
+ const pts=[[a,dAt(a,cfg)]];
+ for(let k=Math.floor(a/q)+1;k*q<b-1e-9;k++){
+  const x=k*q;if(x>a+1e-9)pts.push([x,v[((k%4)+4)%4]]);
  }
- pts.push([b,dAt(b)]);return pts;
+ pts.push([b,dAt(b,cfg)]);return pts;
 }
 function create({scene}={}){
  if(!THREE)throw new Error('Three.js no está disponible');
  if(!scene)throw new Error('Se requiere una escena');
  const rootGroup=new THREE.Group();rootGroup.name='BAT-realistic-container';scene.add(rootGroup);
- let signature='',shellMesh=null,openings=[],wallFaces=[],geometries=[],materials=[],paintTexture=null,woodTexture=null;
+ let signature='',shellMesh=null,openings=[],wallFaces=[],geometries=[],materials=[],paintTexture=null,woodTexture=null,hazardTexture=null;
  let xray=false,lastState=null;
  const ownedGeometry=g=>{geometries.push(g);return g;};
  const ownedMaterial=m=>{materials.push(m);return m;};
@@ -57,6 +61,13 @@ function create({scene}={}){
     gradient.addColorStop(0,'rgba(70,55,45,0.12)');
     gradient.addColorStop(1,'rgba(70,55,45,0)');
     g.fillStyle=gradient;g.fillRect(x,0,1+Math.random()*2,s);
+   }
+  });
+  hazardTexture=texture((g,s)=>{
+   g.fillStyle='#f2c500';g.fillRect(0,0,s,s);
+   g.fillStyle='#18191b';
+   for(let i=-s;i<s*2;i+=32){
+    g.beginPath();g.moveTo(i,0);g.lineTo(i+16,0);g.lineTo(i+16+s,s);g.lineTo(i+s,s);g.closePath();g.fill();
    }
   });
   woodTexture=texture((g,s)=>{
@@ -85,20 +96,20 @@ function create({scene}={}){
   if(selectId){mesh.userData.openingId=selectId;openings.push(mesh);}
   parent.add(mesh);return mesh;
  }
- function corrugationPanel(xa,xb,ya,yb,span,material,parent){
+ function corrugationPanel(xa,xb,ya,yb,span,material,parent,cfg){
   if(xb-xa<.001||yb-ya<.001)return;
-  const pts=profile(xa,xb),shape=new THREE.Shape();
-  shape.moveTo(pts[0][0],pts[0][1]+T);
-  for(let i=1;i<pts.length;i++)shape.lineTo(pts[i][0],pts[i][1]+T);
-  for(let i=pts.length-1;i>=0;i--)shape.lineTo(pts[i][0],pts[i][1]);
+  const pts=profile(xa,xb,cfg),shape=new THREE.Shape();
+  shape.moveTo(pts[0][0],pts[0][1]+cfg.sheet);
+  for(let i=1;i<pts.length;i++)shape.lineTo(pts[i][0],pts[i][1]+cfg.sheet);
+  for(let i=pts.length-1;i>=0;i--)shape.lineTo(pts[i][0],cfg.flatInner?0:pts[i][1]);
   shape.closePath();
   const geometry=ownedGeometry(new THREE.ExtrudeGeometry(shape,{depth:yb-ya,bevelEnabled:false,steps:1}));
   geometry.rotateX(Math.PI/2);
-  geometry.translate(-span/2,yb,-WALL);
+  geometry.translate(-span/2,yb,-(cfg.ridge+cfg.sheet));
   const panel=new THREE.Mesh(geometry,material);panel.castShadow=true;panel.receiveShadow=true;
   panel.userData.corrugatedPanel=true;parent.add(panel);
  }
- function corrugatedWall(span,height,cuts,material){
+ function corrugatedWall(span,height,cuts,material,cfg,seamMaterial=null){
   const group=new THREE.Group();
   const raw=[0,span];for(const c of cuts)raw.push(c.u0,c.u1);
   const edges=raw.filter(v=>v>=-1e-9&&v<=span+1e-9).sort((a,b)=>a-b)
@@ -109,18 +120,26 @@ function create({scene}={}){
     .map(c=>[c.v0,c.v1]).sort((a,b)=>a[0]-b[0]);
    let y=0;
    for(const [low,high] of blocked){
-    if(low>y+1e-4)corrugationPanel(xa,xb,y,Math.min(low,height),span,material,group);
+    if(low>y+1e-4)corrugationPanel(xa,xb,y,Math.min(low,height),span,material,group,cfg);
     y=Math.max(y,high);
    }
-   if(y<height-1e-4)corrugationPanel(xa,xb,y,height,span,material,group);
+   if(y<height-1e-4)corrugationPanel(xa,xb,y,height,span,material,group,cfg);
+  }
+  if(cfg.seam&&seamMaterial){
+   for(let x=cfg.seam;x<span-.2;x+=cfg.seam){
+    if(cuts.some(c=>x>c.u0-.02&&x<c.u1+.02))continue;
+    const seam=box(.007,Math.max(.01,height-.3),.006,seamMaterial,x-span/2,height/2,.0005,group);
+    seam.userData.seam=true;
+   }
   }
   return group;
  }
  function buildOpening(opening,span,face,m,parent,selected){
-  const w=opening.width,h=opening.height,fb=.05,fd=.09;
+  const w=opening.width,h=opening.height,fb=.05,fd=Math.max(.09,m.wallDepth+.03);
   const localX=face.sign*opening.offset;
-  const g=new THREE.Group();g.position.set(localX,FLOOR+(opening.bottom||0)+h/2,-WALL/2);
-  const id=opening.id,frame=selected?m.highlight:opening.kind==='window'?m.aluminium:m.darkPaint;
+  const g=new THREE.Group();
+  g.position.set(localX,FLOOR+(opening.bottom||0)+h/2,-m.wallDepth/2+(fd-m.wallDepth)/2);
+  const id=opening.id,frame=selected?m.highlight:opening.kind==='window'?m.aluminium:m.frame;
   box(w+2*fb,fb,fd,frame,0,h/2+fb/2,0,g,id);
   if((opening.bottom||0)>.01)box(w+2*fb,fb,fd,frame,0,-h/2-fb/2,0,g,id);
   box(fb,h,fd,frame,-w/2-fb/2,0,0,g,id);
@@ -136,6 +155,12 @@ function create({scene}={}){
    box(w-.02,h-.02,.01,m.glass,0,0,-.01,g,id);
    if(w>1)box(.035,h,.05,frame,0,0,0,g,id);
    box(w+.1,.03,.14,frame,0,-h/2-fb-.015,.03,g,id);
+   if(opening.bars){
+    const count=Math.max(2,Math.round(w/.12));
+    for(let k=1;k<count;k++)box(.016,h,.016,m.bars,-w/2+w*k/count,0,fd/2+.012,g,id);
+    box(w,.016,.016,m.bars,0,h*.25,fd/2+.012,g,id);
+    box(w,.016,.016,m.bars,0,-h*.25,fd/2+.012,g,id);
+   }
   }
   parent.add(g);
  }
