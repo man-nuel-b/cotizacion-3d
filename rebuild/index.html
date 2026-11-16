@@ -983,8 +983,14 @@ $('bAdd').onclick = () => {
 $('bClear').onclick = () => { api.clearOpenings(); $('msg').textContent = ''; };
 $('xray').onchange = e => api.setSeeInside(e.target.checked);
 
-api.setType('maritimo');
+api.setType('maritimo', { samples: false });
 syncPanel();
+try {
+  editor = installEditor({ THREE, renderer, camera, controls, root, api, state, FACES, FLOOR });
+} catch (error) {
+  console.error('[BAT V2] No se pudo iniciar el editor:', error);
+  document.getElementById('scene-hint').textContent = 'Error al iniciar el editor: ' + error.message;
+}
 
 (function loop() {
   requestAnimationFrame(loop);
