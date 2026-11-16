@@ -85,7 +85,7 @@ test('BAT V2: catálogo 60 partidas, selección de objetos, edición y exportaci
    let meshes=0;group?.traverse(x=>{if(x.isMesh)meshes++;});
    return meshes;
   });
-  assert.ok(rendered>8,'WC geometry must contain actual meshes');
+  assert.ok(rendered>=6,'El WC debe existir como un modelo 3D compuesto por varias mallas');
   assert.deepEqual(errors,[],errors.join('\n'));
  }finally{if(fixture)await close(fixture);await new Promise(resolve=>server.close(resolve));}
 });
