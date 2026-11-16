@@ -95,6 +95,8 @@ function chooseOpening(id){
   $('kind').value=opening.kind;$('face').value=opening.face;
   $('opening-width').value=opening.width;$('opening-height').value=opening.height;
   $('opening-offset').value=opening.offset;$('opening-bottom').value=opening.bottom??0;
+  $('opening-bars').checked=opening.bars===true;
+  $('opening-bars').disabled=opening.kind!=='window';
   message('Abertura seleccionada. Haz clic en otra pared para moverla.');
  }
  update(state);
@@ -129,7 +131,7 @@ function onViewerClick(event){
   const point={x:hit.point.x,y:hit.point.y-BatContainerVisual.FLOOR,z:hit.point.z};
   const placement=BatSpatial.placementFromHit(point,state.project.container,{kind,width,height});
   const action=existing?{type:'opening/move',id:existing.id,...placement}:
-   {type:'opening/add',kind,width,height,...placement};
+   {type:'opening/add',kind,width,height,...placement,bars:kind==='window'&&$('opening-bars').checked};
   const next=dispatch(action);
   if(!next)return;
   selectedOpeningId=existing?.id||next.openings[next.openings.length-1].id;
@@ -216,6 +218,10 @@ function update(state,action,prepared){
  for(const key of ['length','width','height'])$(key).value=c[key];
  $('transport').value=state.pricing.transport;
  $('container-color').value=c.color||'#7d8388';
+ const containerType=BatContainerTypes.get(c.type||BatContainerTypes.defaultId);
+ $('container-type-description').textContent=containerType?.description||'Tipo desconocido';
+ document.querySelectorAll('[data-container-type]').forEach(btn=>
+  btn.setAttribute('aria-pressed',String(btn.dataset.containerType===containerType?.id)));
  if(selectedOpeningId&&!state.openings.some(o=>o.id===selectedOpeningId))selectedOpeningId=null;
  if(selectedPartitionId&&!state.partitions.some(p=>p.id===selectedPartitionId))selectedPartitionId=null;
  const {bom,quote}=prepared||store.getProjection();
@@ -259,25 +265,57 @@ function update(state,action,prepared){
  $('viewer-hint').textContent=placementArmed?'Haz clic sobre una pared para colocar una abertura':
   selectedOpeningId?'Haz clic sobre una pared para mover la abertura seleccionada':
   'Arrastra para girar · rueda para acercar · selecciona una abertura para moverla';
+ if(action?.type==='container/type'&&camera){
+  const d=Math.max(c.length,6)*1.15;
+  camera.position.set(d*.8,d*.38,d*.95);
+ }
  geometry3D(state);
 }
 function bind(){
+ for(const button of document.querySelectorAll('[data-container-type]')){
+  listen(button,'click',()=>{
+   const key=button.dataset.containerType;
+   const state=store.getState();
+   if(state.project.container.type===key)return;
+   if((state.openings.length||state.partitions.length)&&
+      !window.confirm('Cambiar de tipo reiniciará las aberturas y tabiques actuales. ¿Deseas continuar?'))return;
+   const changed=dispatch({type:'container/type',containerType:key});
+   if(changed){
+    selectedOpeningId=null;selectedPartitionId=null;placementArmed=false;
+    $('opening-bars').checked=key==='modular';
+    update(changed);
+    message('Contenedor '+BatContainerTypes.get(key).label+' seleccionado. Modelo y cubicación sincronizados.');
+   }
+  });
+ }
  listen($('resize'),'click',()=>dispatch({type:'container/resize',length:$('length').value,width:$('width').value,height:$('height').value}));
  listen($('project-name'),'change',()=>dispatch({type:'project/rename',name:$('project-name').value}));
  listen($('container-color'),'change',()=>dispatch({type:'container/color',color:$('container-color').value}));
  listen($('see-inside'),'change',()=>geometry3D(store.getState()));
- listen($('kind'),'change',()=>{$('opening-bottom').value=$('kind').value==='door'?0:.9;});
+ listen($('kind'),'change',()=>{
+  const isWindow=$('kind').value==='window';
+  $('opening-bottom').value=isWindow?.9:0;
+  $('opening-bars').disabled=!isWindow;
+  if(!isWindow)$('opening-bars').checked=false;
+  else $('opening-bars').checked=store.getState().project.container.type==='modular';
+ });
  listen($('add-opening'),'click',()=>{
   const next=dispatch({type:'opening/add',kind:$('kind').value,face:$('face').value,
    width:$('opening-width').value,height:$('opening-height').value,
-   offset:$('opening-offset').value,bottom:$('opening-bottom').value});
+   offset:$('opening-offset').value,bottom:$('opening-bottom').value,bars:$('kind').value==='window'&&$('opening-bars').checked});
   if(next){selectedOpeningId=next.openings[next.openings.length-1].id;selectedPartitionId=null;placementArmed=false;update(next);}
+ });
+ listen($('clear-openings'),'click',()=>{
+  if(!store.getState().openings.length)return;
+  if(!window.confirm('¿Eliminar todas las aberturas de este contenedor?'))return;
+  const result=dispatch({type:'opening/clear'});
+  if(result){selectedOpeningId=null;placementArmed=false;update(result);}
  });
  listen($('update-opening'),'click',()=>{
   if(!selectedOpeningId)return;
   dispatch({type:'opening/update',id:selectedOpeningId,kind:$('kind').value,face:$('face').value,
    width:$('opening-width').value,height:$('opening-height').value,
-   offset:$('opening-offset').value,bottom:$('opening-bottom').value});
+   offset:$('opening-offset').value,bottom:$('opening-bottom').value,bars:$('kind').value==='window'&&$('opening-bars').checked});
  });
  listen($('arm-placement'),'click',()=>{
   placementArmed=!placementArmed;selectedOpeningId=null;selectedPartitionId=null;update(store.getState());
@@ -373,6 +411,7 @@ function start(){
   getQuote:()=>store.getProjection().quote,
   getBOM:()=>store.getProjection().bom,
   getRevision:()=>store.getProjection().revision,
+  getContainerTypes:()=>BatContainerTypes.all.map(x=>({id:x.id,label:x.label,dims:x.dims.slice()})),
   getVisualStats:()=>containerVisual?.getStats()||null,
   destroy,reinit:start
  });
