@@ -831,22 +831,17 @@ setFinish(code, face = 'A') {
       const seenIds = new Set();
       const uniqueId = (id, expectedPrefix = '') => {
         const key = String(id);
-        if (seenIds.has(key) || (expectedPrefix && !new RegExp('^' + expectedPrefix + '-[1-9]\\d*
+        if (seenIds.has(key)) throw Error('ID duplicado: ' + key);
+        if (expectedPrefix && !new RegExp('^' + expectedPrefix + '-[1-9]\\d*$').test(key))
+          throw Error('ID con formato inválido: ' + key);
+        seenIds.add(key);
+      };
+      const cleanOpenings = s.openings.map(o => {
         if (!o || typeof o !== 'object' || !Number.isSafeInteger(o.id) || o.id < 1)
-           throw Error('ID de abertura inválido');
+          throw Error('ID de abertura inválido');
         uniqueId(o.id);
         trackNumId(o.id);
-        return {
-           id: o.id,
-           type: String(o.type),
-           face: String(o.face),
-           w: Number(o.w),
-           h: Number(o.h),
-           u: Number(o.u),
-           v: Number(o.v),
-           bars: Boolean(o.bars),
-           catalogCode: o.catalogCode ? String(o.catalogCode) : null
-        };
+        return { id:o.id, type:String(o.type), face:String(o.face), w:Number(o.w), h:Number(o.h), u:Number(o.u), v:Number(o.v), bars:Boolean(o.bars), catalogCode:o.catalogCode ? String(o.catalogCode) : null };
       });
 
       const cleanObjects = (s.objects || []).map(o => {
@@ -856,6 +851,7 @@ setFinish(code, face = 'A') {
 
         if (!o || typeof o !== 'object' || typeof o.id !== 'string' || !o.id)
            throw Error('ID de objeto inválido');
+        uniqueId(o.id, 'obj');
         trackNumId(o.id);
         return {
            id: o.id,
@@ -937,168 +933,6 @@ setFinish(code, face = 'A') {
     } catch (error) {
       Object.assign(state, backup);
       selectedEntity = null;
-      // La importación fallida no debe dejar desincronizados el modelo y el visor.
-      try { build(); syncPanel(); } catch (restoreError) { console.error('[BAT-V2] Fallo al restaurar escena:', restoreError); }
-      return { ok: false, error: String(error.message || error) };
-    }
-   }
-};
-window.Container3D = api;
-
-/* ====================== Panel de demostración ====================== */
-const $ = id => document.getElementById(id);
-const num = id => parseFloat(String($(id).value).replace(',', '.'));
-function syncPanel() {
-
-
-
-
-  $('dL').value = state.L; $('dW').value = state.W; $('dH').value = state.H; $('dC').value = state.color;
-  $('desc').textContent = TYPES[state.type].desc;
-  document.querySelectorAll('#seg button').forEach(b => b.classList.toggle('on', b.dataset.t === state.type));
-  $('oBars').checked = state.type === 'modular';
-  $('xray').checked = state.seeInside;
-  $('msg').textContent = '';
-}
-document.querySelectorAll('#seg button').forEach(b => {
-   b.onclick = () => {
-      if (state.type === b.dataset.t) return;
-      const hasWork = state.objects.length || state.openings.length || state.partitions.length ||state.services.length || state.finishes.floor || state.finishes.ceiling ||state.finishes.skirting || Object.values(state.finishes.walls).some(Boolean);
-      if (hasWork && !window.confirm('Cambiar el tipo de contenedor eliminará los elementos y acabados del diseño actual.¿Continuar?')) return;
-      const result = api.setType(b.dataset.t, { samples: false });
-      if (result.ok) { syncPanel(); editor?.clearPending(); }
-      else $('msg').textContent = result.error;
-   };
-});
-$('bDims').onclick = () => {
-   const r = api.setDimensions(num('dL'), num('dW'), num('dH'));
-   $('msg').textContent = r.ok ? '' : r.error;
-};
-$('dC').oninput = e => api.setColor(e.target.value);
-$('bAdd').onclick = () => {
-   const r = api.addOpening({
-      type: $('oT').value, face: $('oF').value, w: num('oW'), h: num('oH'),
-      u: num('oU'), v: num('oV'), bars: $('oT').value === 'window' && $('oBars').checked,
-   });
-   $('msg').textContent = r.ok ? '' : r.error;
-};
-$('bClear').onclick = () => { api.clearOpenings(); $('msg').textContent = ''; };
-$('xray').onchange = e => api.setSeeInside(e.target.checked);
-
-api.setType('maritimo', { samples: false });
-syncPanel();
-try {
-  editor = installEditor({ THREE, renderer, camera, controls, root, api, state, FACES, FLOOR, syncPanel });
-} catch (error) {
-  console.error('[BAT V2] No se pudo iniciar el editor:', error);
-  document.getElementById('scene-hint').textContent = 'Error al iniciar el editor: ' + error.message;
-}
-(function loop() {
-  requestAnimationFrame(loop);
-  controls.update();
-  if (state.seeInside) applyXray();
-  renderer.render(scene, camera);
-})();
-).test(key)))
-          throw Error('ID duplicado o inválido: ' + key);
-        seenIds.add(key);
-      };
-      const cleanOpenings = s.openings.map(o => {
-        if (!o || typeof o !== 'object' || !Number.isSafeInteger(o.id) || o.id < 1)
-           throw Error('ID de abertura inválido');
-        trackNumId(o.id);
-        return {
-           id: o.id,
-           type: String(o.type),
-           face: String(o.face),
-           w: Number(o.w),
-           h: Number(o.h),
-           u: Number(o.u),
-           v: Number(o.v),
-           bars: Boolean(o.bars),
-           catalogCode: o.catalogCode ? String(o.catalogCode) : null
-        };
-      });
-
-      const cleanObjects = (s.objects || []).map(o => {
-
-
-
-
-        if (!o || typeof o !== 'object' || typeof o.id !== 'string' || !o.id)
-           throw Error('ID de objeto inválido');
-        trackNumId(o.id);
-        return {
-           id: o.id,
-           code: String(o.code),
-           x: Number(o.x),
-           y: Number(o.y),
-           z: Number(o.z),
-           w: Number(o.w),
-           h: Number(o.h),
-           d: Number(o.d),
-           rot: Number(o.rot)
-        };
-      });
-
-      const cleanServices = (s.services || []).map(srv => {
-        if (!srv || typeof srv !== 'object' || typeof srv.id !== 'string' || !srv.id)
-          throw Error('ID de servicio inválido');
-        trackNumId(srv.id);
-        return { id: srv.id, code: String(srv.code) };
-      });
-
-      const cleanPartitions = s.partitions.map(p => ({
-        length: Number(p.length),
-        height: Number(p.height),
-        thickness: Number(p.thickness),
-        axis: String(p.axis),
-        cx: Number(p.cx),
-        cz: Number(p.cz)
-      }));
-
-      Object.assign(state, {
-        type: s.type,
-        L: Number(s.L),
-        W: Number(s.W),
-        H: Number(s.H),
-        color: s.color,
-        openings: [],
-        partitions: cleanPartitions,
-        objects: cleanObjects,
-        services: cleanServices,
-        finishes: {
-           floor: finishes.floor || null,
-           ceiling: finishes.ceiling || null,
-           skirting: finishes.skirting || null,
-           walls: {
-             A: finishes.walls.A || null,
-             B: finishes.walls.B || null,
-             C: finishes.walls.C || null,
-             D: finishes.walls.D || null
-           }
-        },
-        seeInside: !!s.seeInside,
-        nextId: maxId + 1
-      });
-
-      for (const o of cleanOpenings) {
-        if (!['door', 'window'].includes(o.type) || !['A', 'B', 'C', 'D'].includes(o.face) || validateOpening(o))throw Error('Abertura fuera de rango o superpuesta');
-        state.openings.push(o);
-      }
-      for (const o of state.objects) if (objectError(o)) throw Error('Objeto inválido: ' + o.code);
-      for (const o of state.services) if (CATALOG_BY_CODE[o.code]?.mode !== 'service') throw Error('Servicio inválido');
-      for (const p of state.partitions) {
-        if (![p.length, p.height, p.thickness, p.cx, p.cz].every(Number.isFinite) || p.height > state.H || p.height <= 0)throw Error('Tabique inválido');
-      }
-
-      selectedEntity = null;
-      build();
-      frameCamera();
-      syncPanel();
-      return { ok: true };
-    } catch (error) {
-      Object.assign(state, backup);
       // La importación fallida no debe dejar desincronizados el modelo y el visor.
       try { build(); syncPanel(); } catch (restoreError) { console.error('[BAT-V2] Fallo al restaurar escena:', restoreError); }
       return { ok: false, error: String(error.message || error) };
