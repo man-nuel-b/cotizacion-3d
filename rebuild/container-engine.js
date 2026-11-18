@@ -564,7 +564,13 @@ root);
     state.partitions.forEach(p => {
       const sx = p.axis === 'x' ? p.length : p.thickness;
       const sz = p.axis === 'x' ? p.thickness : p.length;
-      box(sx, p.height, sz, m.part, p.cx, FLOOR + p.height / 2, p.cz, root);
+      const mesh = box(sx, p.height, sz, m.part, p.cx, FLOOR + p.height / 2, p.cz, root);
+      mesh.userData.partitionId = p.id;
+      if (selectedEntity?.kind === 'partition' && selectedEntity.id === p.id) {
+        const helper = new THREE.BoxHelper(mesh, 0xe9a329);
+        helper.userData.selectionHelper = true;
+        root.add(helper);
+      }
     });
 
     rebuildObjects();
@@ -616,6 +622,25 @@ function finitePositive(n) { return Number.isFinite(n) && n > 0; }
 function validDimensions(L, W, H) {
   return [L, W, H].every(finitePositive) && L >= 2 && L <= 25 && W >= 1 && W <= 5 && H >= 1.8 && H <= 5;
 }
+function checkObjectsOverlap(candidate, excludeId = candidate.id, refObjects = state.objects) {
+  const extents = o => {
+    const a = o.rot * Math.PI / 180;
+    return {
+      x: (Math.abs(Math.cos(a)) * o.w + Math.abs(Math.sin(a)) * o.d) / 2,
+      z: (Math.abs(Math.sin(a)) * o.w + Math.abs(Math.cos(a)) * o.d) / 2
+    };
+  };
+  const a = extents(candidate);
+  for (const other of refObjects) {
+    if (other.id === excludeId) continue;
+    const b = extents(other);
+    const sepX = Math.abs(candidate.x - other.x) < a.x + b.x + 0.02;
+    const sepZ = Math.abs(candidate.z - other.z) < a.z + b.z + 0.02;
+    const sepY = candidate.y < other.y + other.h && other.y < candidate.y + candidate.h;
+    if (sepX && sepZ && sepY) return 'El elemento se superpone físicamente con otro objeto';
+  }
+  return null;
+}
 function objectError(o, ref = state) {
   const entry = CATALOG_BY_CODE[o?.code];
   if (!entry || !['object', 'wall-object'].includes(entry.mode)) return 'Partida 3D no válida';
@@ -627,7 +652,7 @@ function objectError(o, ref = state) {
   if (Math.abs(o.x) + rx > ref.L / 2 - .055 || Math.abs(o.z) + rz > ref.W / 2 - .055)
     return 'El elemento no cabe dentro del contenedor; cambia su posición o dimensiones';
   if (o.y < 0 || o.y + o.h > ref.H + .0001) return 'El elemento supera la altura interior';
-  return null;
+  return checkObjectsOverlap(o, o.id, ref.objects || []);
 }
 function defaultElevation(item) {
   const v = item.visual;
@@ -785,14 +810,31 @@ setFinish(code, face = 'A') {
      if (![length, height, thickness, cx, cz].every(Number.isFinite) || length <= 0 || height <= 0 || thickness <= 0 ||height > state.H || !['x', 'z'].includes(axis)) return { ok: false, error: 'Tabique inválido' };
      const rx = axis === 'x' ? length / 2 : thickness / 2, rz = axis === 'z' ? length / 2 : thickness / 2;
      if (Math.abs(cx) + rx > state.L / 2 || Math.abs(cz) + rz > state.W / 2) return { ok: false, error: 'Tabique fuera delcontenedor' };
-     state.partitions.push({ length, height, thickness, axis, cx, cz }); return markChanged(false);
+     const id = 'partition-' + state.nextId++;
+     state.partitions.push({ id, length, height, thickness, axis, cx, cz });
+     selectedEntity = { kind: 'partition', id };
+     build(); return { ok: true, id };
+  },
+  rotatePartition(id) {
+     const p = state.partitions.find(p => p.id === id);
+     if (!p) return { ok: false, error: 'Tabique no encontrado' };
+     const axis = p.axis === 'x' ? 'z' : 'x';
+     const rx = axis === 'x' ? p.length / 2 : p.thickness / 2;
+     const rz = axis === 'z' ? p.length / 2 : p.thickness / 2;
+     if (Math.abs(p.cx) + rx > state.L / 2 - 0.055 ||
+         Math.abs(p.cz) + rz > state.W / 2 - 0.055)
+       return { ok: false, error: 'No es posible girar el tabique: invadiría el perfil del contenedor' };
+     p.axis = axis;
+     selectedEntity = { kind: 'partition', id };
+     return markChanged(false);
   },
   selectEntity(kind, id) {
      if (kind === 'object' && !state.objects.some(o => o.id === id)) return { ok: false, error: 'Objeto inexistente' };
      if (kind === 'opening' && !state.openings.some(o => o.id === id)) return { ok: false, error: 'Abertura inexistente' };
+     if (kind === 'partition' && !state.partitions.some(p => p.id === id)) return { ok: false, error: 'Tabique inexistente' };
      const prevKind = selectedEntity?.kind;
      selectedEntity = kind ? { kind, id } : null;
-     if (kind === 'opening' || prevKind === 'opening') build();
+     if (kind === 'opening' || prevKind === 'opening' || kind === 'partition' || prevKind === 'partition') build();
      else rebuildObjects();
      return { ok: true };
   },
@@ -823,7 +865,7 @@ setFinish(code, face = 'A') {
       // Sanitización estricta de entidades y cálculo seguro de nextId
       let maxId = Number.isSafeInteger(s.nextId) && s.nextId > 0 ? s.nextId - 1 : 0;
       const trackNumId = val => {
-         const n = typeof val === 'number' ? val : Number(String(val).replace(/^(obj|service)-/, ''));
+         const n = typeof val === 'number' ? val : Number(String(val).replace(/^(obj|service|partition)-/, ''));
          if (Number.isSafeInteger(n) && n > maxId) maxId = n;
       };
 
@@ -874,7 +916,8 @@ setFinish(code, face = 'A') {
         return { id: srv.id, code: String(srv.code) };
       });
 
-      const cleanPartitions = s.partitions.map(p => ({
+      const cleanPartitions = s.partitions.map((p, index) => ({
+        id: p.id ? String(p.id) : 'partition-' + (maxId + index + 1),
         length: Number(p.length),
         height: Number(p.height),
         thickness: Number(p.thickness),
@@ -883,6 +926,10 @@ setFinish(code, face = 'A') {
         cz: Number(p.cz)
       }));
 
+      for (const p of cleanPartitions) {
+        uniqueId(p.id, 'partition');
+        trackNumId(p.id);
+      }
       if (!Number.isSafeInteger(maxId + 1)) throw Error('Contador de objetos fuera de rango');
       Object.assign(state, {
         type: s.type,
