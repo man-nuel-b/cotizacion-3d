@@ -304,6 +304,8 @@ function box(w, h, d, material, x, y, z, parent, rounded = false) {
 function validateOpening(o, excludeId = null) {
   const f = FACES[o.face];
   if (!f) return 'Cara inválida';
+  if (o.reinforcementCode !== reinforcementCodeFor(o.type))
+    return 'Falta refuerzo P90/P91 o el código no corresponde al tipo de vano';
   if (![o.w, o.h, o.u, o.v].every(Number.isFinite) || !(o.w > 0 && o.h > 0)) return 'Dimensiones inválidas';
   const lw = f.long ? state.L : state.W;
   if (o.u < -1e-9 || o.u + o.w > lw + 1e-9 || o.v < -1e-9 || o.v + o.h > state.H + 1e-9)
@@ -838,26 +840,37 @@ setFinish(code, face = 'A') {
      editor?.refresh(); return { ok: true };
   },
   addPartition({ length, height, thickness = .1, axis = 'x', cx = 0, cz = 0 }) {
-     if (![length, height, thickness, cx, cz].every(Number.isFinite) || length <= 0 || height <= 0 || thickness <= 0 ||height > state.H || !['x', 'z'].includes(axis)) return { ok: false, error: 'Tabique inválido' };
-     const rx = axis === 'x' ? length / 2 : thickness / 2, rz = axis === 'z' ? length / 2 : thickness / 2;
-     if (Math.abs(cx) + rx > state.L / 2 || Math.abs(cz) + rz > state.W / 2) return { ok: false, error: 'Tabique fuera delcontenedor' };
-     const id = 'partition-' + state.nextId++;
-     state.partitions.push({ id, length, height, thickness, axis, cx, cz });
-     selectedEntity = { kind: 'partition', id };
-     build(); return { ok: true, id };
+    const candidate = { id: 'partition-' + state.nextId, length, height, thickness, axis, cx, cz };
+    const error = partitionError(candidate);
+    if (error) return { ok: false, error };
+    state.nextId++;
+    state.partitions.push(candidate);
+    selectedEntity = { kind: 'partition', id: candidate.id };
+    build();
+    return { ok: true, id: candidate.id };
+  },
+  updatePartition(id, delta = {}) {
+    const current = state.partitions.find(p => p.id === id);
+    if (!current) return { ok: false, error: 'Tabique no encontrado' };
+    const candidate = { ...current, ...delta, id: current.id };
+    const error = partitionError(candidate);
+    if (error) return { ok: false, error };
+    Object.assign(current, candidate);
+    selectedEntity = { kind: 'partition', id };
+    return markChanged(false);
   },
   rotatePartition(id) {
-     const p = state.partitions.find(p => p.id === id);
-     if (!p) return { ok: false, error: 'Tabique no encontrado' };
-     const axis = p.axis === 'x' ? 'z' : 'x';
-     const rx = axis === 'x' ? p.length / 2 : p.thickness / 2;
-     const rz = axis === 'z' ? p.length / 2 : p.thickness / 2;
-     if (Math.abs(p.cx) + rx > state.L / 2 - 0.055 ||
-         Math.abs(p.cz) + rz > state.W / 2 - 0.055)
-       return { ok: false, error: 'No es posible girar el tabique: invadiría el perfil del contenedor' };
-     p.axis = axis;
-     selectedEntity = { kind: 'partition', id };
-     return markChanged(false);
+    const current = state.partitions.find(p => p.id === id);
+    if (!current) return { ok: false, error: 'Tabique no encontrado' };
+    // Cambia solo el eje: longitud y espesor conservan su significado.
+    return this.updatePartition(id, { axis: current.axis === 'x' ? 'z' : 'x' });
+  },
+  removePartition(id) {
+    if (!state.partitions.some(p => p.id === id))
+      return { ok: false, error: 'Tabique no encontrado' };
+    state.partitions = state.partitions.filter(p => p.id !== id);
+    if (selectedEntity?.kind === 'partition' && selectedEntity.id === id) selectedEntity = null;
+    return markChanged(false);
   },
   selectEntity(kind, id) {
      if (kind === 'object' && !state.objects.some(o => o.id === id)) return { ok: false, error: 'Objeto inexistente' };
@@ -914,7 +927,16 @@ setFinish(code, face = 'A') {
           throw Error('ID de abertura inválido');
         uniqueId(o.id);
         trackNumId(o.id);
-        return { id:o.id, type:String(o.type), face:String(o.face), w:Number(o.w), h:Number(o.h), u:Number(o.u), v:Number(o.v), bars:Boolean(o.bars), catalogCode:o.catalogCode ? String(o.catalogCode) : null };
+        const type = String(o.type);
+        const expected = reinforcementCodeFor(type);
+        if (!expected || (o.reinforcementCode != null && o.reinforcementCode !== expected))
+          throw Error('Código de refuerzo del vano inválido');
+        // Proyectos anteriores sin esta propiedad se migran conservando IDs y dimensiones.
+        return withOpeningReinforcement({
+          id:o.id, type, face:String(o.face), w:Number(o.w), h:Number(o.h),
+          u:Number(o.u), v:Number(o.v), bars:Boolean(o.bars),
+          catalogCode:o.catalogCode ? String(o.catalogCode) : null
+        });
       });
 
       const cleanObjects = (s.objects || []).map(o => {
@@ -994,13 +1016,8 @@ setFinish(code, face = 'A') {
       for (const o of state.objects) if (objectError(o)) throw Error('Objeto inválido: ' + o.code);
       for (const o of state.services) if (CATALOG_BY_CODE[o.code]?.mode !== 'service') throw Error('Servicio inválido');
       for (const p of state.partitions) {
-        if (![p.length, p.height, p.thickness, p.cx, p.cz].every(Number.isFinite) ||
-            !['x', 'z'].includes(p.axis) || p.length <= 0 || p.height <= 0 ||
-            p.thickness <= 0 || p.height > state.H) throw Error('Tabique inválido');
-        const rx = p.axis === 'x' ? p.length / 2 : p.thickness / 2;
-        const rz = p.axis === 'z' ? p.length / 2 : p.thickness / 2;
-        if (Math.abs(p.cx) + rx > state.L / 2 || Math.abs(p.cz) + rz > state.W / 2)
-          throw Error('Tabique fuera del contenedor');
+        const error = partitionError(p);
+        if (error) throw Error('Tabique inválido: ' + error);
       }
 
       selectedEntity = null;
