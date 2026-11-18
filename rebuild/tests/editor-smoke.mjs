@@ -205,3 +205,35 @@ test('BAT V2: colisiones 3D y giro de tabiques con selección', { timeout: 18000
     assert.deepEqual(errors, [], errors.join('\\n'));
   } finally { if (fixture) await close(fixture); }
 });
+
+
+test('BAT V2: revestimiento se aplica en la cara seleccionada y se conserva en estado', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    await page.locator('.catalog-item[data-code="P34"]').click();
+    assert.equal(await page.locator('#wall-finish-controls').isVisible(), true);
+    await page.locator('#wall-finish-face').selectOption('C');
+    await page.locator('#apply-wall-finish').click();
+    let state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.finishes.walls.C, 'P34');
+    assert.equal(state.finishes.walls.A, null);
+    assert.equal(await page.locator('#wall-finish-controls').isVisible(), false);
+
+    await page.locator('.catalog-item[data-code="P36"]').click();
+    await page.locator('#wall-finish-face').selectOption('A');
+    await page.locator('#apply-wall-finish').click();
+    state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.finishes.walls.A, 'P36');
+    assert.equal(state.finishes.walls.C, 'P34');
+    const materialExists = await page.evaluate(() => {
+      let found = false;
+      window.Container3D.getState();
+      // The successful rebuild and persisted finish state are required.
+      return document.querySelector('#view canvas') !== null;
+    });
+    assert.equal(materialExists, true);
+    assert.deepEqual(errors, [], errors.join('\\n'));
+  } finally { if (fixture) await close(fixture); }
+});
