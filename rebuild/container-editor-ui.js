@@ -163,16 +163,18 @@ return;
       return;
     }
     if (item.mode === 'object' || item.mode === 'wall-object') {
-      const point = floorHit(ray); if (!point) { hint('Haz clic en el piso o dentro del contenedor.', true); return; }
-      const [w, h, d] = item.size;
-      if ($('strict-face-lock').checked && (Math.abs(point.x) > state.L / 2 - 0.055 || Math.abs(point.z) > state.W / 2 - 0.055)) {
-        hint('Colocación rechazada: selecciona una superficie interior válida.', true); return;
+      const wallMounted = ['wall-lining', 'wet-lining'].includes(item.visual);
+      const hit = wallHit(ray);
+      const point = wallMounted ? hit?.point : floorHit(ray);
+      if (!point) {
+        hint(wallMounted ? 'Haz clic en una pared para instalar el trasdosado.' : 'Haz clic en el piso o dentro del contenedor.', true);
+        return;
       }
+      const [w, h, d] = item.size;
       let rot = 0, x = point.x, z = point.z;
       const wallThickness = api.getWallThickness ? api.getWallThickness() : 0.06;
       const wallFixtures = ['extractor', 'water-heater', 'outlet', 'power', 'panel', 'grounding', 'aircon', 'bath-accessories'];
-      if (wallFixtures.includes(item.visual)) {
-        const hit = wallHit(ray);
+      if (wallMounted || wallFixtures.includes(item.visual)) {
         if (hit) {
           const side = hit.face;
           rot = side === 'B' ? 90 : side === 'C' ? 180 : side === 'D' ? -90 : 0;
@@ -191,8 +193,15 @@ return;
       const rz = (Math.abs(Math.sin(rad)) * w + Math.abs(Math.cos(rad)) * d) / 2;
       const xMin = -state.L / 2 + rx + .06, xMax = state.L / 2 - rx - .06;
       const zMin = -state.W / 2 + rz + .06, zMax = state.W / 2 - rz - .06;
-      if ($('strict-face-lock').checked && (x < xMin || x > xMax || z < zMin || z > zMax)) {
-        hint('Colocación rechazada: el objeto invadiría el perfil del contenedor.', true); return;
+      if (xMin > xMax || zMin > zMax) {
+        hint('Colocación rechazada: el elemento no cabe en el contenedor.', true); return;
+      }
+      // Al instalar sobre una pared, el punto del raycast está en la superficie exterior.
+      // El centro debe ajustarse a la cara interior usando la dimensión completa del objeto.
+      // Los límites del motor siguen siendo la validación final.
+      if ($('strict-face-lock').checked && !wallMounted && !hit &&
+          (x < xMin || x > xMax || z < zMin || z > zMax)) {
+        hint('Colocación rechazada: selecciona una superficie interior válida.', true); return;
       }
       x = clamp(x, xMin, xMax);
       z = clamp(z, zMin, zMax);
