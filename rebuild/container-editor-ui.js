@@ -253,7 +253,7 @@ return;
     $('prop-apply').hidden = false;
     $('prop-duplicate').hidden = partition;
     $('prop-delete').hidden = false;
-    for (const k of ['prop-w', 'prop-h']) $('prop-' + k).closest('label').hidden = false;
+    for (const k of ['prop-w', 'prop-h']) $(k).closest('label').hidden = false;
 
     if (partition) {
       const values = { x: obj.cx, z: obj.cz, w: obj.length, h: obj.height, d: obj.thickness };
