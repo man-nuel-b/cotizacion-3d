@@ -199,7 +199,7 @@ return;
       // Al instalar sobre una pared, el punto del raycast está en la superficie exterior.
       // El centro debe ajustarse a la cara interior usando la dimensión completa del objeto.
       // Los límites del motor siguen siendo la validación final.
-      if ($('strict-face-lock').checked && !wallMounted && !hit &&
+      if ($('strict-face-lock').checked && !wallMounted && !wallFixtures.includes(item.visual) &&
           (x < xMin || x > xMax || z < zMin || z > zMax)) {
         hint('Colocación rechazada: selecciona una superficie interior válida.', true); return;
       }
