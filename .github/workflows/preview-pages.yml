@@ -6,6 +6,7 @@ on:
       - 'index.html'
       - '*.js'
       - '*.css'
+      - 'rebuild/**'
       - '.github/workflows/preview-pages.yml'
   workflow_dispatch:
 permissions:
