@@ -172,3 +172,36 @@ test('BAT V2: el checkbox activa y desactiva barrotes en la ventana seleccionada
     assert.deepEqual(errors, [], errors.join('\\n'));
   } finally { if (fixture) await close(fixture); }
 });
+
+
+test('BAT V2: colisiones 3D y giro de tabiques con selección', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    const first = await page.evaluate(() => window.Container3D.addObject('P60', -1.5, 0));
+    assert.equal(first.ok, true);
+    const rejected = await page.evaluate(() => window.Container3D.addObject('P60', -1.5, 0));
+    assert.equal(rejected.ok, false);
+    assert.match(rejected.error, /superpone/);
+    const second = await page.evaluate(() => window.Container3D.addObject('P60', 1.5, 0));
+    assert.equal(second.ok, true);
+    const moved = await page.evaluate(id => window.Container3D.updateObject(id, { x: -1.5, z: 0 }), second.id);
+    assert.equal(moved.ok, false);
+    const state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.objects.find(o => o.id === second.id).x, 1.5);
+
+    const created = await page.evaluate(() => window.Container3D.addPartition({
+      length: 1.2, height: 2, thickness: 0.1, axis: 'x', cx: 0, cz: 0
+    }));
+    assert.equal(created.ok, true);
+    assert.equal(await page.locator('#btn-rotate-partition').isVisible(), true);
+    await page.locator('#btn-rotate-partition').click();
+    let partitions = (await page.evaluate(() => window.Container3D.getState())).partitions;
+    assert.equal(partitions[0].axis, 'z');
+    await page.locator('#btn-rotate-partition').click();
+    partitions = (await page.evaluate(() => window.Container3D.getState())).partitions;
+    assert.equal(partitions[0].axis, 'x');
+    assert.deepEqual(errors, [], errors.join('\\n'));
+  } finally { if (fixture) await close(fixture); }
+});
