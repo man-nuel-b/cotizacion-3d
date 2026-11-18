@@ -137,3 +137,38 @@ test('BAT V2: three model types, safe dimensions, save & import', { timeout: 180
     assert.deepEqual(errors, [], errors.join('\n'));
   } finally { if (fixture) await close(fixture); }
 });
+
+
+test('BAT V2: el checkbox activa y desactiva barrotes en la ventana seleccionada', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    await page.locator('[data-t="modular"]').click();
+    const created = await page.evaluate(() => window.Container3D.addOpening({
+      type: 'window', face: 'A', w: 1.2, h: 1, u: 2, v: 1, bars: false
+    }));
+    assert.equal(created.ok, true);
+    assert.equal(await page.locator('#oBars').isChecked(), false);
+    await page.locator('#oBars').check();
+    let state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.openings[0].bars, true);
+    await page.locator('#oBars').uncheck();
+    state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.openings[0].bars, false);
+
+    // Al seleccionar otra ventana, el control debe reflejar su configuración.
+    const second = await page.evaluate(() => window.Container3D.addOpening({
+      type: 'window', face: 'C', w: 1.2, h: 1, u: 2, v: 1, bars: true
+    }));
+    assert.equal(second.ok, true);
+    assert.equal(await page.locator('#oBars').isChecked(), true);
+    await page.evaluate(id => window.Container3D.selectEntity('opening', id), created.id);
+    assert.equal(await page.locator('#oBars').isChecked(), false);
+    await page.locator('#oBars').check();
+    state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.openings.find(o => o.id === created.id).bars, true);
+    assert.equal(state.openings.find(o => o.id === second.id).bars, true);
+    assert.deepEqual(errors, [], errors.join('\\n'));
+  } finally { if (fixture) await close(fixture); }
+});
