@@ -47,18 +47,29 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       }
   }
 
+  function isWallApplication(item) {
+    return item?.mode === 'wall-finish' ||
+      (item?.mode === 'wall-object' && ['wall-lining', 'wet-lining'].includes(item.visual));
+  }
+
   function arm(code) {
     const item = CATALOG_BY_CODE[code]; if (!item) return;
     if (item.mode === 'service') {
       const result = api.addService(code); if (!result.ok) { hint(result.error, true); return; }
-      pendingCode = null; hint(code + ' · Servicio técnico incorporado al listado, sin objeto físico.'); renderCatalog();
+      pendingCode = null; $('wall-finish-controls').hidden = true;
+      hint(code + ' · Servicio técnico incorporado al listado, sin objeto físico.'); renderCatalog();
 return;
     }
     pendingCode = code; renderCatalog();
-    $('wall-finish-controls').hidden = item.mode !== 'wall-finish';
+    $('wall-finish-controls').hidden = !isWallApplication(item);
+    $('apply-wall-finish').textContent = item.mode === 'wall-finish'
+      ? 'Aplicar revestimiento a esta cara' : 'Instalar trasdosado en esta cara';
+    $('wall-control-explain').textContent = item.mode === 'wall-finish'
+      ? 'La terminación cubre la superficie del muro seleccionado.'
+      : 'P14/P17 se instalará como un panel 3D de 1,60 m en la cara indicada.';
     const msg = item.mode === 'floor' || item.mode === 'ceiling' || item.mode === 'skirting' ?
       'Haz clic en el contenedor para aplicar la terminación' :
-      item.mode === 'wall-finish' || item.mode === 'opening' ?
+      isWallApplication(item) || item.mode === 'opening' ?
       'Haz clic en una de las paredes del contenedor para elegir la cara' :
       'Haz clic dentro del contenedor para ubicar el objeto 3D';
     hint(item.code + ' — ' + msg);
@@ -290,14 +301,16 @@ $('catalog-family').addEventListener('change', renderCatalog);
 $('cancel-placement').addEventListener('click', clearPending);
 $('apply-wall-finish').addEventListener('click', () => {
   const item = CATALOG_BY_CODE[pendingCode];
-  if (item?.mode !== 'wall-finish') {
-    hint('Selecciona primero un revestimiento del catálogo.', true); return;
+  if (!isWallApplication(item)) {
+    hint('Selecciona primero un revestimiento o trasdosado de muro del catálogo.', true); return;
   }
+  // La cara viene directamente del selector HTML; NO usar coordenadas del mouse.
   const face = $('wall-finish-face').value;
-  const result = api.setFinish(item.code, face);
+  const result = api.setWallLining(face, item.code);
   if (!result.ok) { hint(result.error, true); return; }
   clearPending();
-  hint(item.code + ' aplicado correctamente en la cara ' + face + '.');
+  hint(item.code + (item.mode === 'wall-finish' ? ' aplicado' : ' instalado') +
+    ' correctamente en la cara ' + face + '.');
 });
 
 // El checkbox configura ventanas nuevas y también la ventana existente seleccionada.
