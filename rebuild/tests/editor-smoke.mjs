@@ -237,3 +237,34 @@ test('BAT V2: revestimiento se aplica en la cara seleccionada y se conserva en e
     assert.deepEqual(errors, [], errors.join('\\n'));
   } finally { if (fixture) await close(fixture); }
 });
+
+
+test('BAT V2: selector HTML aplica revestimientos y trasdosados sin raycast', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    await page.locator('.catalog-item[data-code="P34"]').click();
+    await page.locator('#wall-finish-face').selectOption('B');
+    await page.locator('#apply-wall-finish').click();
+
+    let state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.finishes.walls.B, 'P34', 'La cara B debe recibir el revestimiento');
+    assert.equal(state.finishes.walls.A, null);
+
+    await page.locator('.catalog-item[data-code="P17"]').click();
+    assert.equal(await page.locator('#wall-finish-controls').isVisible(), true);
+    assert.match(await page.locator('#apply-wall-finish').innerText(), /trasdosado/i);
+    await page.locator('#wall-finish-face').selectOption('C');
+    await page.locator('#apply-wall-finish').click();
+    state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.objects.filter(o => o.code === 'P17').length, 1);
+    assert.equal(state.finishes.walls.C, null, 'P17 no debe registrarse como una pintura de muro');
+    assert.ok(state.objects.some(o => o.code === 'P17' && o.z < 0), 'P17 debe adosarse a la cara C');
+
+    const invalid = await page.evaluate(() => window.Container3D.setWallLining('X', 'P34'));
+    assert.equal(invalid.ok, false);
+    assert.match(invalid.error, /Cara/);
+    assert.deepEqual(errors, [], errors.join('\\n'));
+  } finally { if (fixture) await close(fixture); }
+});
