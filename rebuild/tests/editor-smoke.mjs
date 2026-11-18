@@ -268,3 +268,71 @@ test('BAT V2: selector HTML aplica revestimientos y trasdosados sin raycast', { 
     assert.deepEqual(errors, [], errors.join('\\n'));
   } finally { if (fixture) await close(fixture); }
 });
+
+
+test('BAT V2: P90/P91 obligatorios, áreas netas y migración de JSON anterior', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    const windowAdded = await page.evaluate(() => window.Container3D.addOpening({
+      type: 'window', face: 'A', w: 1.2, h: 0.8, u: 3, v: 1.1, bars: false
+    }));
+    const doorAdded = await page.evaluate(() => window.Container3D.addOpening({
+      type: 'door', face: 'C', w: 0.9, h: 2, u: 2, v: 0, bars: false
+    }));
+    assert.equal(windowAdded.ok, true);
+    assert.equal(doorAdded.ok, true);
+    let state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.openings.find(o => o.type === 'window').reinforcementCode, 'P90');
+    assert.equal(state.openings.find(o => o.type === 'door').reinforcementCode, 'P91');
+
+    const takeoff = await page.evaluate(() => window.Container3D.getConstructionTakeoff());
+    assert.ok(Math.abs(takeoff.walls.A.openingsAreaM2 - 0.96) < 1e-8);
+    assert.ok(Math.abs(takeoff.walls.A.netAreaM2 - (state.L * state.H - 0.96)) < 1e-8);
+    assert.equal(takeoff.reinforcement.P90.openings, 1);
+    assert.equal(takeoff.reinforcement.P91.openings, 1);
+
+    // Anteriores exportaciones no traían reinforcementCode y deben migrar.
+    const legacy = structuredClone(state);
+    legacy.openings.forEach(o => delete o.reinforcementCode);
+    assert.equal((await page.evaluate(s => window.Container3D.setState(s), legacy)).ok, true);
+    state = await page.evaluate(() => window.Container3D.getState());
+    assert.ok(state.openings.every(o => ['P90', 'P91'].includes(o.reinforcementCode)));
+
+    const wrong = structuredClone(state);
+    wrong.openings[0].reinforcementCode = 'P91';
+    assert.equal((await page.evaluate(s => window.Container3D.setState(s), wrong)).ok, false);
+    assert.deepEqual(await page.evaluate(() => window.Container3D.getState()), state);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
+
+test('BAT V2: tabique no atraviesa mobiliario y P12 gira con control del editor', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    const wall = await page.evaluate(() => window.Container3D.addPartition({
+      length: 1.6, height: 2.2, thickness: 0.1, axis: 'x', cx: 0, cz: 0
+    }));
+    assert.equal(wall.ok, true);
+    const collision = await page.evaluate(() => window.Container3D.addObject('P60', 0, 0));
+    assert.equal(collision.ok, false);
+    assert.match(collision.error, /tabique/);
+    const moved = await page.evaluate(id => window.Container3D.updatePartition(id, { cx: 3 }), wall.id);
+    assert.equal(moved.ok, false, 'El tabique no puede ingresar al perfil');
+    const rotated = await page.evaluate(id => window.Container3D.rotatePartition(id), wall.id);
+    assert.equal(rotated.ok, true);
+    assert.equal((await page.evaluate(() => window.Container3D.getState())).partitions[0].axis, 'z');
+    assert.equal((await page.evaluate(id => window.Container3D.removePartition(id), wall.id)).ok, true);
+
+    const model = await page.evaluate(() => window.Container3D.addObject('P12', 0, 0));
+    assert.equal(model.ok, true);
+    assert.equal(await page.locator('#btn-rotate-partition').isVisible(), true);
+    await page.locator('#btn-rotate-partition').click();
+    const state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.objects.find(o => o.id === model.id).rot, 90);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
