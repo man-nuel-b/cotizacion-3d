@@ -78,7 +78,7 @@ test('Cubicación neta resta todos los vanos sin duplicar el refuerzo', () => {
   assert.equal(q.walls.B.liningAreaM2, 0);
   assert.equal(q.reinforcement.P90.openings, 2);
   assert.equal(q.reinforcement.P91.openings, 1);
-  assert.equal(q.reinforcement.P90.estimatedLinearM, 7.6);
+  assert.ok(Math.abs(q.reinforcement.P90.estimatedLinearM - 7.6) < 1e-9);
   assert.equal(q.reinforcement.P91.estimatedLinearM, 5.8);
   assert.equal(q.status, 'preliminary');
 });
