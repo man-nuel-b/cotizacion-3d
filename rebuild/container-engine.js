@@ -5,6 +5,11 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CATALOG, CATALOG_BY_CODE } from './container-catalog.js';
 import { createObjectModel, makeFinishMaterial } from './container-object-models.js';
 import { installEditor } from './container-editor-ui.js';
+import {
+  interiorClearance, validateObjectInsideContainer, validatePartitionInsideContainer,
+  checkObjectCollisions, checkPartitionCollisions, reinforcementCodeFor,
+  withOpeningReinforcement, computeWallTakeoff
+} from './construction-integrity.js';
 
 /* ====================== Tipos de contenedor ====================== */
 const TYPES = {
@@ -626,37 +631,20 @@ function finitePositive(n) { return Number.isFinite(n) && n > 0; }
 function validDimensions(L, W, H) {
   return [L, W, H].every(finitePositive) && L >= 2 && L <= 25 && W >= 1 && W <= 5 && H >= 1.8 && H <= 5;
 }
-function checkObjectsOverlap(candidate, excludeId = candidate.id, refObjects = state.objects) {
-  const extents = o => {
-    const a = o.rot * Math.PI / 180;
-    return {
-      x: (Math.abs(Math.cos(a)) * o.w + Math.abs(Math.sin(a)) * o.d) / 2,
-      z: (Math.abs(Math.sin(a)) * o.w + Math.abs(Math.cos(a)) * o.d) / 2
-    };
-  };
-  const a = extents(candidate);
-  for (const other of refObjects) {
-    if (other.id === excludeId) continue;
-    const b = extents(other);
-    const sepX = Math.abs(candidate.x - other.x) < a.x + b.x + 0.02;
-    const sepZ = Math.abs(candidate.z - other.z) < a.z + b.z + 0.02;
-    const sepY = candidate.y < other.y + other.h && other.y < candidate.y + candidate.h;
-    if (sepX && sepZ && sepY) return 'El elemento se superpone físicamente con otro objeto';
-  }
-  return null;
+function profileThicknessFor(ref = state) {
+  const cfg = TYPES[ref.type || state.type];
+  return cfg.R + cfg.T;
 }
 function objectError(o, ref = state) {
   const entry = CATALOG_BY_CODE[o?.code];
   if (!entry || !['object', 'wall-object'].includes(entry.mode)) return 'Partida 3D no válida';
-  if (![o.x, o.y, o.z, o.w, o.h, o.d, o.rot].every(Number.isFinite)) return 'Coordenadas no numéricas';
-  if (!(o.w > .02 && o.h > .02 && o.d > .008) || o.w > 25 || o.h > 5 || o.d > 5) return 'Dimensiones inválidas';
-  const angle = o.rot * Math.PI / 180;
-  const rx = (Math.abs(Math.cos(angle)) * o.w + Math.abs(Math.sin(angle)) * o.d) / 2;
-  const rz = (Math.abs(Math.sin(angle)) * o.w + Math.abs(Math.cos(angle)) * o.d) / 2;
-  if (Math.abs(o.x) + rx > ref.L / 2 - .055 || Math.abs(o.z) + rz > ref.W / 2 - .055)
-    return 'El elemento no cabe dentro del contenedor; cambia su posición o dimensiones';
-  if (o.y < 0 || o.y + o.h > ref.H + .0001) return 'El elemento supera la altura interior';
-  return checkObjectsOverlap(o, o.id, ref.objects || []);
+  if (o.w > 25 || o.h > 5 || o.d > 5) return 'Dimensiones inválidas';
+  return validateObjectInsideContainer(o, ref, profileThicknessFor(ref)) ||
+    checkObjectCollisions(o, ref.objects || state.objects, ref.partitions || state.partitions);
+}
+function partitionError(p, ref = state) {
+  return validatePartitionInsideContainer(p, ref, profileThicknessFor(ref)) ||
+    checkPartitionCollisions(p, ref.partitions || state.partitions, ref.objects || state.objects);
 }
 function defaultElevation(item) {
   const v = item.visual;
@@ -677,6 +665,10 @@ const api = {
   types: Object.keys(TYPES),
   catalog: CATALOG.map(({ code, name, family, mode }) => ({ code, name, family, mode })),
   getWallThickness() { return profileCfg.WALL; },
+  getInteriorClearance() { return interiorClearance(profileThicknessFor()); },
+  // Áreas netas por cara, descuento de vanos y largos teóricos de refuerzo.
+  // No constituye BOM valorizado ni dimensionamiento estructural normativo.
+  getConstructionTakeoff() { return computeWallTakeoff(state); },
   setType(key, { samples = false } = {}) {
      const c = TYPES[key]; if (!c) return { ok: false, error: 'Tipo de contenedor inválido' };
      state.type = key; [state.L, state.W, state.H] = c.dims;
@@ -685,7 +677,7 @@ const api = {
      state.finishes = { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null } };
      state.nextId = 1; selectedEntity = null;
      if (samples) for (const x of SAMPLES[key]) {
-       const sample = { id: state.nextId, ...x };
+       const sample = withOpeningReinforcement({ id: state.nextId, bars: false, ...x });
        if (!validateOpening(sample)) { state.nextId++; state.openings.push(sample); }
      }
      build(); frameCamera(); return { ok: true, dims: c.dims, color: c.color };
@@ -697,14 +689,9 @@ const api = {
        const f = FACES[o.face], span = f?.long ? L : W;
        return !f || o.u < 0 || o.u + o.w > span + 1e-8 || o.v < 0 || o.v + o.h > H + 1e-8;
      })) return { ok: false, error: 'Algunas aberturas quedarían fuera; debes moverlas antes' };
-     if (state.objects.some(o => objectError(o, next))) return { ok: false, error: 'Algunos objetos no caben en las nuevasdimensiones' };
-     if (state.partitions.some(p => {
-       const rx = p.axis === 'x' ? p.length / 2 : p.thickness / 2;
-       const rz = p.axis === 'z' ? p.length / 2 : p.thickness / 2;
-       return ![p.length, p.height, p.thickness, p.cx, p.cz].every(Number.isFinite) ||
-         p.height > H || p.height <= 0 || Math.abs(p.cx) + rx > L / 2 || Math.abs(p.cz) + rz > W / 2;
-     })) return { ok: false, error: 'Los tabiques actuales no caben en las nuevas dimensiones' };
-
+     if (state.objects.some(o => objectError(o, { ...next, objects: state.objects, partitions: state.partitions }))) return { ok: false, error: 'Algunos objetos no caben en las nuevasdimensiones' };
+     if (state.partitions.some(p => partitionError(p, { ...next, objects: state.objects, partitions: state.partitions })))
+       return { ok: false, error: 'Los tabiques actuales no caben en las nuevas dimensiones' };
 
 
 
@@ -715,15 +702,20 @@ addOpening({ type = 'door', face = 'A', w, h, u, v = 0, bars = false, catalogCod
    if (!['door', 'window'].includes(type) || typeof bars !== 'boolean' || (bars && type !== 'window'))return { ok: false, error: 'Tipo o barrotes inválidos' };
    if (catalogCode && CATALOG_BY_CODE[catalogCode]?.mode !== 'opening')
      return { ok: false, error: 'Código de abertura inválido' };
-   const o = { id: state.nextId, type, face, w, h, u, v, bars, catalogCode };
+   const o = withOpeningReinforcement({ id: state.nextId, type, face, w, h, u, v, bars, catalogCode });
    const err = validateOpening(o); if (err) return { ok: false, error: err };
    state.nextId++; state.openings.push(o); selectedEntity = { kind: 'opening', id: o.id };
    build(); return { ok: true, id: o.id };
 },
 updateOpening(id, delta = {}) {
    const old = state.openings.find(o => o.id === id); if (!old) return { ok: false, error: 'Abertura no encontrada' };
-   const o = { ...old, ...delta, id: old.id };
-   if (!['door', 'window'].includes(o.type) || typeof o.bars !== 'boolean' || (o.type === 'door' && o.bars))return { ok: false, error: 'Tipo o barrotes inválidos' };
+   const kind = delta.type ?? old.type;
+   if (delta.reinforcementCode && delta.reinforcementCode !== reinforcementCodeFor(kind))
+     return { ok: false, error: 'Código de refuerzo incompatible con el vano' };
+   if (!reinforcementCodeFor(kind)) return { ok: false, error: 'Tipo de vano inválido' };
+   const o = withOpeningReinforcement({ ...old, ...delta, id: old.id });
+   if (typeof o.bars !== 'boolean' || (o.type === 'door' && o.bars))
+     return { ok: false, error: 'Tipo o barrotes inválidos' };
    const err = validateOpening(o, id); if (err) return { ok: false, error: err };
    Object.assign(old, o); selectedEntity = { kind: 'opening', id };
    return markChanged(false);
