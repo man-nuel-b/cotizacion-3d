@@ -785,6 +785,41 @@ removeObject(id) {
    if (selectedEntity?.kind === 'object' && selectedEntity.id === id) selectedEntity = null;
    return markChanged(true);
 },
+setWallLining(face, code) {
+   // El selector del panel no usa raycast: recibe directamente la cara elegida.
+   if (!FACES[face]) return { ok: false, error: 'Cara de muro inválida (A, B, C o D)' };
+   const item = CATALOG_BY_CODE[code];
+   if (!item) return { ok: false, error: 'Partida del catálogo inexistente' };
+   if (item.mode === 'wall-finish') return this.setFinish(code, face);
+
+   // P14/P17 son elementos físicos, no pinturas ni texturas de muro.
+   if (item.mode !== 'wall-object' || !['wall-lining', 'wet-lining'].includes(item.visual))
+     return { ok: false, error: 'La partida seleccionada no es un revestimiento ni un trasdosado de muro' };
+
+   const [width, height, depth] = item.size;
+   const span = FACES[face].long ? state.L : state.W;
+   const edge = 0.055;
+   if (height > state.H || width > span - 2 * edge)
+     return { ok: false, error: 'El trasdosado no cabe en la cara seleccionada' };
+
+   const inset = profileCfg.WALL + edge + depth / 2;
+   const rot = { A: 180, B: -90, C: 0, D: 90 }[face];
+   const maxOffset = span / 2 - width / 2 - edge;
+   // Se prueban posiciones cercanas al centro para no superponer objetos existentes.
+   const offsets = [0];
+   for (let i = 1; i * 0.2 <= maxOffset + 1e-7; i++) {
+     offsets.push(i * 0.2, -i * 0.2);
+   }
+   for (const offset of offsets) {
+     const x = face === 'B' ? state.L / 2 - inset :
+       face === 'D' ? -state.L / 2 + inset : offset;
+     const z = face === 'A' ? state.W / 2 - inset :
+       face === 'C' ? -state.W / 2 + inset : offset;
+     const result = this.addObject(code, x, z, 0, rot);
+     if (result.ok) return { ...result, face, code };
+   }
+   return { ok: false, error: 'No hay espacio libre para instalar el trasdosado en esa cara' };
+},
 setFinish(code, face = 'A') {
    const entry = CATALOG_BY_CODE[code]; if (!entry) return { ok: false, error: 'Código inexistente' };
    if (entry.mode === 'floor') state.finishes.floor = code;
