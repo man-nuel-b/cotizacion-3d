@@ -208,13 +208,9 @@ return;
       if (xMin > xMax || zMin > zMax) {
         hint('Colocación rechazada: el elemento no cabe en el contenedor.', true); return;
       }
-      // Al instalar sobre una pared, el punto del raycast está en la superficie exterior.
-      // El centro debe ajustarse a la cara interior usando la dimensión completa del objeto.
-      // Los límites del motor siguen siendo la validación final.
-      if ($('strict-face-lock').checked && !wallMounted && !wallFixtures.includes(item.visual) &&
-          (x < xMin || x > xMax || z < zMin || z > zMax)) {
-        hint('Colocación rechazada: selecciona una superficie interior válida.', true); return;
-      }
+      // Un clic en la piel del muro se proyecta al espacio interior permitido.
+      // Nunca se inserta geometría fuera de la máscara: el motor vuelve a validar
+      // el volumen completo y su colisión antes de modificar el estado.
       x = clamp(x, xMin, xMax);
       z = clamp(z, zMin, zMax);
       const result = api.addObject(code, x, z, undefined, rot);
