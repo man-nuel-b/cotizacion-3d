@@ -109,6 +109,7 @@ return;
     const hits = ray.intersectObjects(root.children, true);
     for (const hit of hits) {
       const node = hit.object;
+      if (node.userData.partitionId) return { kind: 'partition', id: node.userData.partitionId };
       if (node.userData.objectId) return { kind: 'object', id: node.userData.objectId };
       if (node.userData.openingId !== undefined) return { kind: 'opening', id: node.userData.openingId };
     }
@@ -140,6 +141,9 @@ return;
         clearPending(); hint(code + ' aplicado en la cara ' + face + '.'); return;
       }
       const [w, h] = item.size, span = FACES[face].long ? state.L : state.W;
+      if ($('strict-face-lock').checked && (point.y < FLOOR || point.y > FLOOR + state.H || sideU(face, point) < 0 || sideU(face, point) > span)) {
+        hint('Colocación rechazada: selecciona una cara válida del contenedor.', true); return;
+      }
       const u = clamp(sideU(face, point) - w / 2, 0, Math.max(0, span - w));
       const type = ['cut-door', 'door-wood', 'door-mdf', 'door-steel'].includes(item.visual) ? 'door' : 'window';
       const v = type === 'door' ? 0 : clamp(point.y - FLOOR - h / 2, 0, Math.max(0, state.H - h));
@@ -154,6 +158,9 @@ return;
     if (item.mode === 'object' || item.mode === 'wall-object') {
       const point = floorHit(ray); if (!point) { hint('Haz clic en el piso o dentro del contenedor.', true); return; }
       const [w, h, d] = item.size;
+      if ($('strict-face-lock').checked && (Math.abs(point.x) > state.L / 2 - 0.055 || Math.abs(point.z) > state.W / 2 - 0.055)) {
+        hint('Colocación rechazada: selecciona una superficie interior válida.', true); return;
+      }
       let rot = 0, x = point.x, z = point.z;
       const wallThickness = api.getWallThickness ? api.getWallThickness() : 0.06;
       const wallFixtures = ['extractor', 'water-heater', 'outlet', 'power', 'panel', 'grounding', 'aircon', 'bath-accessories'];
@@ -198,12 +205,25 @@ return;
     $('properties-empty').hidden = !!selection; form.hidden = !selection;
     if (!selection) { setLabel('properties-title', 'Propiedades del elemento'); return; }
     const opening = selection.kind === 'opening';
+    const partition = selection.kind === 'partition';
     const obj = opening ? state.openings.find(x => x.id === selection.id) :
+      partition ? state.partitions.find(x => x.id === selection.id) :
       state.objects.find(x => x.id === selection.id);
     if (!obj) { form.hidden = true; return; }
     const item = CATALOG_BY_CODE[opening ? obj.catalogCode : obj.code];
-    setLabel('properties-title', opening ? 'Modificar abertura' : 'Modificar objeto 3D');
-    $('prop-name').value = (item?.code || '—') + ' · ' + (item?.name || (opening ? obj.type : 'Objeto'));
+    setLabel('properties-title', partition ? 'Tabique interior' : opening ? 'Modificar abertura' : 'Modificar objeto 3D');
+    $('prop-name').value = partition ? 'Tabique interior · Eje ' + obj.axis.toUpperCase() :
+      (item?.code || '—') + ' · ' + (item?.name || (opening ? obj.type : 'Objeto'));
+    $('btn-rotate-partition').hidden = !partition;
+    $('prop-apply').hidden = partition;
+    $('prop-duplicate').hidden = partition;
+    $('prop-delete').hidden = partition;
+    if (partition) {
+      for (const k of ['px-label', 'py-label', 'pz-label', 'prot-label', 'pd-label', 'pface-label']) visible(k, false);
+      for (const k of ['prop-w', 'prop-h']) $('prop-' + k).closest('label').hidden = true;
+      return;
+    }
+    for (const k of ['prop-w', 'prop-h']) $('prop-' + k).closest('label').hidden = false;
     const values = opening ?
       { x: obj.u, z: 0, y: obj.v, rot: 0, w: obj.w, h: obj.h, d: 0 } :
 
@@ -224,6 +244,7 @@ function refreshPlaced() {
   const list = $('placed-list'); list.replaceChildren();
   const active = api.getSelected();
   const entries = [
+     ...state.partitions.map(x => ({ kind: 'partition', id: x.id, code: 'TABIQUE' })),
      ...state.objects.map(x => ({ kind: 'object', id: x.id, code: x.code })),
      ...state.openings.map(x => ({ kind: 'opening', id: x.id, code: x.catalogCode || 'VANO' })),
      ...state.services.map(x => ({ kind: 'service', id: x.id, code: x.code }))
@@ -231,7 +252,7 @@ function refreshPlaced() {
   for (const record of entries) {
      const btn = document.createElement('button'); btn.type = 'button';
      btn.className = 'placed-entry' + (active?.id === record.id && active?.kind === record.kind ? ' selected' : '');
-     const label = CATALOG_BY_CODE[record.code]?.name || 'Abertura manual';
+     const label = record.kind === 'partition' ? 'Tabique interior (giro 90°)' : CATALOG_BY_CODE[record.code]?.name || 'Abertura manual';
      btn.textContent = record.code + ' · ' + label;
      btn.addEventListener('click', () => {
        if (record.kind === 'service') { if (window.confirm('¿Quitar este servicio del proyecto?')) api.removeService(record.id); }
@@ -260,6 +281,13 @@ $('oBars').addEventListener('change', event => {
     return;
   }
   hint(event.target.checked ? 'Barrotes agregados a la ventana seleccionada.' : 'Barrotes retirados de la ventana seleccionada.');
+});
+
+$('btn-rotate-partition').addEventListener('click', () => {
+  const selected = api.getSelected();
+  if (selected?.kind !== 'partition') return;
+  const result = api.rotatePartition(selected.id);
+  hint(result.ok ? 'Tabique girado 90°.' : result.error, !result.ok);
 });
 
 $('prop-apply').addEventListener('click', () => {
@@ -387,7 +415,7 @@ $('import-project-file').addEventListener('change', async event => {
         !['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(document.activeElement?.tagName)) {
         const selection = api.getSelected(); if (selection) {
           if (selection.kind === 'object') api.removeObject(selection.id);
-          else api.removeOpening(selection.id);
+          else if (selection.kind === 'opening') api.removeOpening(selection.id);
         }
       }
     });
