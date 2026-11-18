@@ -34,7 +34,7 @@ test('La rotación 90° intercambia AABB sin alterar longitud ni espesor', () =>
   const alongZ = partitionAABB(partition('p', 'z'));
   assert.equal(alongX.rx, alongZ.rz);
   assert.equal(alongX.rz, alongZ.rx);
-  assert.equal(objectAABB(object('o', 0, 0, 0, 90)).rx, 0.2);
+  assert.ok(Math.abs(objectAABB(object('o', 0, 0, 0, 90)).rx - 0.2) < 1e-9);
 });
 
 test('Solapamiento se valida en X, Z y Y y entre tipos distintos', () => {
