@@ -1,0 +1,448 @@
+import { CATALOG, CATALOG_BY_CODE, FAMILIES, findCatalog } from './container-catalog.js';
+
+export function installEditor({ THREE, renderer, camera, controls, root, api, state, FACES, FLOOR, syncPanel }) {
+  const $ = id => document.getElementById(id);
+  const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
+  let pendingCode = null, drag = null, pointerOrigin = null;
+  const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
+  const number = id => Number(String($(id).value).replace(',', '.'));
+
+  function hint(message, error = false) {
+    const node = $('scene-hint'); node.textContent = message;
+    node.style.background = error ? 'rgba(140,41,38,.95)' : 'rgba(18,35,54,.91)';
+  }
+  function familyName(id) { return FAMILIES.find(f => f.id === id)?.name || id; }
+  function modeLabel(item) {
+    return ({
+      object: 'Modelo 3D', 'wall-object': 'Ensamble 3D', opening: 'Abertura real',
+      floor: 'Aplicar al piso', 'wall-finish': 'Aplicar a pared',
+      ceiling: 'Aplicar al cielo', skirting: 'Zócalo perimetral', service: 'Gestión sin geometría'
+    })[item.mode] || item.mode;
+  }
+
+  for (const family of FAMILIES) {
+    const option = document.createElement('option');
+    option.value = family.id; option.textContent = family.name;
+    $('catalog-family').appendChild(option);
+  }
+
+  function renderCatalog() {
+    const items = findCatalog($('catalog-search').value, $('catalog-family').value);
+
+
+
+
+      const list = $('catalog-list'); list.replaceChildren();
+      $('catalog-count').textContent = items.length + ' de ' + CATALOG.length + ' partidas';
+      for (const item of items) {
+        const btn = document.createElement('button');
+        btn.type = 'button'; btn.className = 'catalog-item' + (pendingCode === item.code ? ' active' : '');
+        btn.dataset.code = item.code;
+        const code = document.createElement('span'); code.className = 'code'; code.textContent = item.code;
+        const copy = document.createElement('span'); copy.className = 'item-copy';
+        copy.textContent = item.name;
+        const meta = document.createElement('small'); meta.textContent = familyName(item.family) + ' · ' + modeLabel(item);
+        copy.appendChild(meta); btn.append(code, copy);
+        btn.addEventListener('click', () => arm(item.code)); list.appendChild(btn);
+      }
+  }
+
+  function arm(code) {
+    const item = CATALOG_BY_CODE[code]; if (!item) return;
+    if (item.mode === 'service') {
+      const result = api.addService(code); if (!result.ok) { hint(result.error, true); return; }
+      pendingCode = null; hint(code + ' · Servicio técnico incorporado al listado, sin objeto físico.'); renderCatalog();
+return;
+    }
+    pendingCode = code; renderCatalog();
+    $('wall-finish-controls').hidden = item.mode !== 'wall-finish';
+    const msg = item.mode === 'floor' || item.mode === 'ceiling' || item.mode === 'skirting' ?
+      'Haz clic en el contenedor para aplicar la terminación' :
+      item.mode === 'wall-finish' || item.mode === 'opening' ?
+      'Haz clic en una de las paredes del contenedor para elegir la cara' :
+      'Haz clic dentro del contenedor para ubicar el objeto 3D';
+    hint(item.code + ' — ' + msg);
+    if (['object', 'wall-object', 'floor', 'ceiling', 'skirting'].includes(item.mode)) {
+      if (!state.seeInside) { api.setSeeInside(true); $('xray').checked = true; }
+    }
+  }
+
+  function clearPending() {
+    pendingCode = null; renderCatalog(); $('wall-finish-controls').hidden = true;
+    hint('Selecciona una partida del catálogo o un objeto del modelo para modificarlo.');
+  }
+
+  function rayFor(event) {
+    const bounds = renderer.domElement.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return null;
+    mouse.set(((event.clientX - bounds.left) / bounds.width) * 2 - 1,
+      -((event.clientY - bounds.top) / bounds.height) * 2 + 1);
+    raycaster.setFromCamera(mouse, camera); return raycaster;
+  }
+
+  function wallHit(ray) {
+    // Intersección contra la geometría real, no el contenedor matemático.
+    // La identidad de la cara se conserva en cada panel durante la construcción.
+    const panels = [];
+    root.traverse(node => {
+      if (node.isMesh && node.userData.isPanel &&
+          !node.userData.isRoof && FACES[node.userData.wallFace]) {
+        panels.push(node);
+      }
+    });
+    root.updateMatrixWorld(true);
+    const hits = ray.intersectObjects(panels, false);
+    if (!hits.length) return null;
+    const hit = hits[0];
+    return { face: hit.object.userData.wallFace, point: hit.point, dist: hit.distance };
+  }
+
+  function floorHit(ray) {
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -FLOOR - .008);
+    const pt = ray.ray.intersectPlane(plane, new THREE.Vector3());
+    if (pt && Math.abs(pt.x) <= state.L / 2 + .2 && Math.abs(pt.z) <= state.W / 2 + .2) return pt;
+    const hit = wallHit(ray);
+    return hit?.point || null;
+  }
+
+  function sideU(face, p) {
+    if (face === 'A') return p.x + state.L / 2;
+    if (face === 'C') return state.L / 2 - p.x;
+    if (face === 'B') return state.W / 2 - p.z;
+    return p.z + state.W / 2;
+  }
+
+  function objectRayPick(ray) {
+    const hits = ray.intersectObjects(root.children, true);
+    for (const hit of hits) {
+      const node = hit.object;
+      if (node.userData.partitionId) return { kind: 'partition', id: node.userData.partitionId };
+      if (node.userData.objectId) return { kind: 'object', id: node.userData.objectId };
+      if (node.userData.openingId !== undefined) return { kind: 'opening', id: node.userData.openingId };
+    }
+    return null;
+  }
+
+  function placement(code, ray) {
+    const item = CATALOG_BY_CODE[code]; if (!item) return;
+    if (item.mode === 'floor' || item.mode === 'ceiling' || item.mode === 'skirting') {
+
+
+
+
+        const point = floorHit(ray);
+        if (!point) { hint('Haz clic sobre la superficie del contenedor.', true); return; }
+        const result = api.setFinish(code);
+        if (!result.ok) { hint(result.error, true); return; }
+        clearPending();
+        hint(code + ' aplicado a ' + (item.mode === 'ceiling' ? 'cielo' : item.mode === 'skirting' ? 'perímetro' : 'piso') +'.');
+      return;
+    }
+    if (item.mode === 'wall-finish' || item.mode === 'opening') {
+      const hit = wallHit(ray);
+      if (!hit) { hint('Gira el contenedor y haz clic directamente sobre una pared.', true); return; }
+      const { face, point } = hit;
+      if (item.mode === 'wall-finish') {
+        const result = api.setFinish(code, face);
+        if (!result.ok) { hint(result.error, true); return; }
+        clearPending(); hint(code + ' aplicado en la cara ' + face + '.'); return;
+      }
+      const [w, h] = item.size, span = FACES[face].long ? state.L : state.W;
+      if ($('strict-face-lock').checked && (point.y < FLOOR || point.y > FLOOR + state.H || sideU(face, point) < 0 || sideU(face, point) > span)) {
+        hint('Colocación rechazada: selecciona una cara válida del contenedor.', true); return;
+      }
+      const u = clamp(sideU(face, point) - w / 2, 0, Math.max(0, span - w));
+      const type = ['cut-door', 'door-wood', 'door-mdf', 'door-steel'].includes(item.visual) ? 'door' : 'window';
+      const v = type === 'door' ? 0 : clamp(point.y - FLOOR - h / 2, 0, Math.max(0, state.H - h));
+      const result = api.addOpening({
+        type, face, w, h, u, v,
+        bars: type === 'window' && $('oBars').checked, catalogCode: code
+      });
+      if (!result.ok) { hint(code + ': ' + result.error, true); return; }
+      clearPending(); hint(code + ' colocado en la cara ' + face + '. Puedes editar sus medidas a la derecha.');
+      return;
+    }
+    if (item.mode === 'object' || item.mode === 'wall-object') {
+      const point = floorHit(ray); if (!point) { hint('Haz clic en el piso o dentro del contenedor.', true); return; }
+      const [w, h, d] = item.size;
+      if ($('strict-face-lock').checked && (Math.abs(point.x) > state.L / 2 - 0.055 || Math.abs(point.z) > state.W / 2 - 0.055)) {
+        hint('Colocación rechazada: selecciona una superficie interior válida.', true); return;
+      }
+      let rot = 0, x = point.x, z = point.z;
+      const wallThickness = api.getWallThickness ? api.getWallThickness() : 0.06;
+      const wallFixtures = ['extractor', 'water-heater', 'outlet', 'power', 'panel', 'grounding', 'aircon', 'bath-accessories'];
+      if (wallFixtures.includes(item.visual)) {
+        const hit = wallHit(ray);
+        if (hit) {
+          const side = hit.face;
+          rot = side === 'B' ? 90 : side === 'C' ? 180 : side === 'D' ? -90 : 0;
+          const radTmp = rot * Math.PI / 180;
+          const rxTmp = (Math.abs(Math.cos(radTmp)) * w + Math.abs(Math.sin(radTmp)) * d) / 2;
+          const rzTmp = (Math.abs(Math.sin(radTmp)) * w + Math.abs(Math.cos(radTmp)) * d) / 2;
+          const margin = wallThickness + 0.005;
+          if (side === 'A') z = state.W / 2 - margin - rzTmp;
+          if (side === 'C') z = -state.W / 2 + margin + rzTmp;
+          if (side === 'B') x = state.L / 2 - margin - rxTmp;
+          if (side === 'D') x = -state.L / 2 + margin + rxTmp;
+        }
+      }
+      const rad = rot * Math.PI / 180;
+      const rx = (Math.abs(Math.cos(rad)) * w + Math.abs(Math.sin(rad)) * d) / 2;
+      const rz = (Math.abs(Math.sin(rad)) * w + Math.abs(Math.cos(rad)) * d) / 2;
+      const xMin = -state.L / 2 + rx + .06, xMax = state.L / 2 - rx - .06;
+      const zMin = -state.W / 2 + rz + .06, zMax = state.W / 2 - rz - .06;
+      if ($('strict-face-lock').checked && (x < xMin || x > xMax || z < zMin || z > zMax)) {
+        hint('Colocación rechazada: el objeto invadiría el perfil del contenedor.', true); return;
+      }
+      x = clamp(x, xMin, xMax);
+      z = clamp(z, zMin, zMax);
+      const result = api.addObject(code, x, z, undefined, rot);
+      if (!result.ok) { hint(code + ': ' + result.error, true); return; }
+      clearPending(); hint(code + ' agregado. Haz clic sobre él para moverlo o editarlo.');
+      return;
+    }
+  }
+
+  function setLabel(id, label) { const node = $(id); if (node) node.textContent = label; }
+  function setInputLabel(id, label) {
+    const node = $(id); if (!node) return;
+    const labelNode = Array.from(node.childNodes).find(n => n.nodeType === 3);
+    if (labelNode) labelNode.textContent = label;
+    else node.insertBefore(document.createTextNode(label), node.firstChild);
+  }
+  function visible(id, show) { $(id).hidden = !show; }
+
+  function refreshProperties() {
+    const selection = api.getSelected(), form = $('props-form');
+    $('properties-empty').hidden = !!selection; form.hidden = !selection;
+    if (!selection) { setLabel('properties-title', 'Propiedades del elemento'); return; }
+    const opening = selection.kind === 'opening';
+    const partition = selection.kind === 'partition';
+    const obj = opening ? state.openings.find(x => x.id === selection.id) :
+      partition ? state.partitions.find(x => x.id === selection.id) :
+      state.objects.find(x => x.id === selection.id);
+    if (!obj) { form.hidden = true; return; }
+    const item = CATALOG_BY_CODE[opening ? obj.catalogCode : obj.code];
+    setLabel('properties-title', partition ? 'Tabique interior' : opening ? 'Modificar abertura' : 'Modificar objeto 3D');
+    $('prop-name').value = partition ? 'Tabique interior · Eje ' + obj.axis.toUpperCase() :
+      (item?.code || '—') + ' · ' + (item?.name || (opening ? obj.type : 'Objeto'));
+    $('btn-rotate-partition').hidden = !partition;
+    $('prop-apply').hidden = partition;
+    $('prop-duplicate').hidden = partition;
+    $('prop-delete').hidden = partition;
+    if (partition) {
+      for (const k of ['px-label', 'py-label', 'pz-label', 'prot-label', 'pd-label', 'pface-label']) visible(k, false);
+      for (const k of ['prop-w', 'prop-h']) $('prop-' + k).closest('label').hidden = true;
+      return;
+    }
+    for (const k of ['prop-w', 'prop-h']) $('prop-' + k).closest('label').hidden = false;
+    const values = opening ?
+      { x: obj.u, z: 0, y: obj.v, rot: 0, w: obj.w, h: obj.h, d: 0 } :
+
+
+
+
+      { x: obj.x, z: obj.z, y: obj.y, rot: obj.rot, w: obj.w, h: obj.h, d: obj.d };
+    for (const [k, value] of Object.entries(values)) $('prop-' + k).value = value;
+    setInputLabel('px-label', opening ? 'Distancia horizontal en cara (m)' : 'X (m)');
+    setInputLabel('py-label', 'Altura desde piso (m)');
+    visible('pz-label', !opening); visible('prot-label', !opening);
+    visible('pd-label', !opening); visible('pface-label', opening);
+    $('prop-face').value = opening ? obj.face : 'A';
+    if (opening && obj.type === 'window') $('oBars').checked = obj.bars === true;
+}
+
+function refreshPlaced() {
+  const list = $('placed-list'); list.replaceChildren();
+  const active = api.getSelected();
+  const entries = [
+     ...state.partitions.map(x => ({ kind: 'partition', id: x.id, code: 'TABIQUE' })),
+     ...state.objects.map(x => ({ kind: 'object', id: x.id, code: x.code })),
+     ...state.openings.map(x => ({ kind: 'opening', id: x.id, code: x.catalogCode || 'VANO' })),
+     ...state.services.map(x => ({ kind: 'service', id: x.id, code: x.code }))
+  ];
+  for (const record of entries) {
+     const btn = document.createElement('button'); btn.type = 'button';
+     btn.className = 'placed-entry' + (active?.id === record.id && active?.kind === record.kind ? ' selected' : '');
+     const label = record.kind === 'partition' ? 'Tabique interior (giro 90°)' : CATALOG_BY_CODE[record.code]?.name || 'Abertura manual';
+     btn.textContent = record.code + ' · ' + label;
+     btn.addEventListener('click', () => {
+       if (record.kind === 'service') { if (window.confirm('¿Quitar este servicio del proyecto?')) api.removeService(record.id); }
+       else api.selectEntity(record.kind, record.id);
+     });
+     if (record.kind === 'service') btn.title = 'Quitar servicio (requiere confirmación)';
+     list.appendChild(btn);
+  }
+}
+function refresh() { refreshProperties(); refreshPlaced(); }
+
+$('catalog-search').addEventListener('input', renderCatalog);
+$('catalog-family').addEventListener('change', renderCatalog);
+$('cancel-placement').addEventListener('click', clearPending);
+$('apply-wall-finish').addEventListener('click', () => {
+  const item = CATALOG_BY_CODE[pendingCode];
+  if (item?.mode !== 'wall-finish') {
+    hint('Selecciona primero un revestimiento del catálogo.', true); return;
+  }
+  const face = $('wall-finish-face').value;
+  const result = api.setFinish(item.code, face);
+  if (!result.ok) { hint(result.error, true); return; }
+  clearPending();
+  hint(item.code + ' aplicado correctamente en la cara ' + face + '.');
+});
+
+// El checkbox configura ventanas nuevas y también la ventana existente seleccionada.
+$('oBars').addEventListener('change', event => {
+  const selected = api.getSelected();
+  if (selected?.kind !== 'opening') return;
+  const opening = state.openings.find(o => o.id === selected.id);
+  if (!opening || opening.type !== 'window') return;
+  const result = api.updateOpening(opening.id, { bars: event.target.checked });
+  if (!result.ok) {
+    event.target.checked = opening.bars === true;
+    hint('No se pudieron actualizar los barrotes: ' + result.error, true);
+    return;
+  }
+  hint(event.target.checked ? 'Barrotes agregados a la ventana seleccionada.' : 'Barrotes retirados de la ventana seleccionada.');
+});
+
+$('btn-rotate-partition').addEventListener('click', () => {
+  const selected = api.getSelected();
+  if (selected?.kind !== 'partition') return;
+  const result = api.rotatePartition(selected.id);
+  hint(result.ok ? 'Tabique girado 90°.' : result.error, !result.ok);
+});
+
+$('prop-apply').addEventListener('click', () => {
+  const selection = api.getSelected(); if (!selection) return;
+  const isOpening = selection.kind === 'opening';
+  const w = number('prop-w'), h = number('prop-h');
+  const params = isOpening ?
+    { u: number('prop-x'), v: number('prop-y'), w, h, face: $('prop-face').value } :
+    { x: number('prop-x'), z: number('prop-z'), y: number('prop-y'), rot: number('prop-rot'), w, h, d: number('prop-d') };
+  const result = isOpening ? api.updateOpening(selection.id, params) : api.updateObject(selection.id, params);
+  if (!result.ok) { hint(result.error, true); return; }
+  hint('Cambios aplicados al elemento seleccionado.');
+});
+
+$('prop-delete').addEventListener('click', () => {
+  const selection = api.getSelected(); if (!selection) return;
+  if (selection.kind === 'opening') api.removeOpening(selection.id);
+  else api.removeObject(selection.id);
+  hint('Elemento eliminado del proyecto.');
+});
+
+$('prop-duplicate').addEventListener('click', () => {
+  const selection = api.getSelected(); if (!selection) return;
+  const result = selection.kind === 'opening' ? api.duplicateOpening(selection.id) : api.duplicateObject(selection.id);
+  hint(result.ok ? 'Elemento duplicado.' : 'No se pudo duplicar: ' + result.error, !result.ok);
+});
+
+$('save-project').addEventListener('click', () => {
+  const project = { schema: 'BAT-CUBIKEITOR-V2', version: 1, exportedAt: new Date().toISOString(), state: api.getState() };
+  const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = 'bat-cubikeitor-v2.json'; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  hint('Proyecto exportado como JSON. Guarda este archivo como respaldo.');
+});
+
+$('import-project').addEventListener('click', () => $('import-project-file').click());
+$('import-project-file').addEventListener('change', async event => {
+  const file = event.target.files?.[0]; event.target.value = ''; if (!file) return;
+  if (file.size > 2_000_000) { hint('Archivo demasiado grande.', true); return; }
+  try {
+    const data = JSON.parse(await file.text());
+    if (data.schema !== 'BAT-CUBIKEITOR-V2' || data.version !== 1) throw Error('Formato de proyecto incompatible');
+    if (!confirm('¿Reemplazar el diseño actual con el archivo seleccionado?')) return;
+    const result = api.setState(data.state);
+    if (!result.ok) throw Error(result.error);
+    clearPending();
+    if (syncPanel) syncPanel();
+    hint('Proyecto importado correctamente.');
+  } catch (err) { hint('No se pudo importar: ' + err.message, true); }
+});
+
+
+
+
+
+    const canvas = renderer.domElement;
+    canvas.addEventListener('pointerdown', event => {
+      pointerOrigin = { x: event.clientX, y: event.clientY };
+      if (pendingCode) return;
+      const ray = rayFor(event); if (!ray) return;
+      const hit = objectRayPick(ray); if (!hit) return;
+      api.selectEntity(hit.kind, hit.id);
+      if (hit.kind === 'object') {
+        const o = state.objects.find(x => x.id === hit.id);
+        if (!o) return;
+        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(FLOOR + o.y));
+        const at = ray.ray.intersectPlane(plane, new THREE.Vector3());
+        if (at) {
+          drag = {
+             id: o.id, x: o.x, z: o.z, startX: at.x, startZ: at.z, origClientX: event.clientX,
+             origClientY: event.clientY, changed: false
+          };
+          controls.enabled = false;
+        }
+      }
+    });
+
+    canvas.addEventListener('pointermove', event => {
+      if (!drag || !pointerOrigin) return;
+      if (Math.hypot(event.clientX - drag.origClientX, event.clientY - drag.origClientY) > 4)
+        drag.changed = true;
+      if (!drag.changed) return;
+      const o = state.objects.find(x => x.id === drag.id), ray = rayFor(event); if (!o || !ray) return;
+      const at = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -(FLOOR + o.y)), new THREE.Vector3());
+      if (!at) return;
+      const rot = o.rot * Math.PI / 180;
+      const rx = (Math.abs(Math.cos(rot)) * o.w + Math.abs(Math.sin(rot)) * o.d) / 2;
+      const rz = (Math.abs(Math.sin(rot)) * o.w + Math.abs(Math.cos(rot)) * o.d) / 2;
+      const x = clamp(drag.x + at.x - drag.startX, -state.L / 2 + rx + .06, state.L / 2 - rx - .06);
+      const z = clamp(drag.z + at.z - drag.startZ, -state.W / 2 + rz + .06, state.W / 2 - rz - .06);
+      drag.preview = { x, z };
+      const group = api.getEntityMeshes().find(n => n.userData.objectId === drag.id);
+      if (group) group.position.set(x, FLOOR + o.y, z);
+    });
+
+    function endDrag() {
+      controls.enabled = true;
+      const prior = drag; drag = null;
+      if (prior?.changed && prior.preview) {
+        const result = api.updateObject(prior.id, prior.preview);
+        if (!result.ok) { api.selectEntity('object', prior.id); hint(result.error, true); }
+        else hint('Objeto desplazado dentro del contenedor.');
+        pointerOrigin = null; return true;
+      }
+      return false;
+    }
+
+    canvas.addEventListener('pointerup', event => {
+      if (endDrag()) return;
+      if (!pointerOrigin) return;
+      const moved = Math.hypot(event.clientX - pointerOrigin.x, event.clientY - pointerOrigin.y) > 7;
+      pointerOrigin = null;
+      if (moved || !pendingCode) return;
+      const ray = rayFor(event); if (ray) placement(pendingCode, ray);
+    });
+    canvas.addEventListener('pointercancel', () => {
+      if (drag) api.selectEntity('object', drag.id);
+      drag = null; controls.enabled = true; pointerOrigin = null;
+    });
+
+    window.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && pendingCode) { clearPending(); return; }
+      if (event.key === 'Delete' &&
+        !['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(document.activeElement?.tagName)) {
+        const selection = api.getSelected(); if (selection) {
+          if (selection.kind === 'object') api.removeObject(selection.id);
+          else if (selection.kind === 'opening') api.removeOpening(selection.id);
+        }
+      }
+    });
+
+    renderCatalog(); refresh();
+    return Object.freeze({ refresh, clearPending, getPending: () => pendingCode });
+}
