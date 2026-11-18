@@ -6,10 +6,16 @@ on:
     paths:
       - 'rebuild/**'
       - '.github/workflows/v2-editor-ci.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'rebuild/**'
+      - '.github/workflows/v2-editor-ci.yml'
   workflow_dispatch:
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
@@ -18,8 +24,9 @@ jobs:
           node-version: '22'
       - name: Validate project files and module syntax
         run: |
-          for file in rebuild/index.html rebuild/container-engine.js rebuild/container-catalog.js rebuild/container-object-models.js rebuild/container-editor-ui.js; do test -s "$file"; done
-          for file in rebuild/container-engine.js rebuild/container-catalog.js rebuild/container-object-models.js rebuild/container-editor-ui.js; do node --experimental-default-type=module --check "$file"; done
+          for file in rebuild/index.html rebuild/container-engine.js rebuild/container-catalog.js rebuild/container-object-models.js rebuild/container-editor-ui.js rebuild/construction-integrity.js; do test -s "$file"; done
+          for file in rebuild/container-engine.js rebuild/container-catalog.js rebuild/container-object-models.js rebuild/container-editor-ui.js rebuild/construction-integrity.js; do node --experimental-default-type=module --check "$file"; done
+          node --experimental-default-type=module --test rebuild/tests/construction-integrity.mjs
           node --experimental-default-type=module --input-type=module -e "
             import {CATALOG,CATALOG_BY_CODE,FAMILIES} from './rebuild/container-catalog.js';
             import assert from 'node:assert/strict';
