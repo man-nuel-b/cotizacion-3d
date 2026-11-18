@@ -534,7 +534,10 @@ root);
         Math.max(1, lw / 1.2), Math.max(1, totalH / 1.2)) :
       paint.clone();
     if (!finishCode) owned.push(wmat);
+    // Raycast por ambas caras: los paneles deben poder seleccionarse desde dentro y fuera.
+    wmat.side = THREE.DoubleSide;
     const group = wallPanels(lw, totalH, cuts, wmat, seam);
+    group.traverse(node => { if (node.isMesh && node.userData.isPanel) node.userData.wallFace = key; });
     group.rotation.y = Math.atan2(f.n[0], f.n[2]);
     group.position.set(f.n[0] * half, 0, f.n[2] * half);
     root.add(group);
@@ -545,7 +548,7 @@ root);
 -0.2, 0.2, 0.9]);
       if (deco === 'machine') buildMachine(lw, totalH, m, group);
     }
-    walls.push({ group, mat: wmat, n: new THREE.Vector3(...f.n), half, hidden: false, roof: false });
+    walls.push({ group, mat: wmat, n: new THREE.Vector3(...f.n), half, hidden: false, roof: false, face: key });
   }
 
     {
@@ -555,6 +558,7 @@ root);
         if (!state.finishes.ceiling) owned.push(rmat);
         const rl = L - 0.2, rw = W - 0.2;
         const roof = wallPanels(rl, rw, [], rmat);
+        roof.traverse(node => { if (node.isMesh && node.userData.isPanel) node.userData.isRoof = true; });
         roof.rotation.x = -Math.PI / 2;
         roof.position.set(0, totalH - WALL + 0.0005, rw / 2);
         root.add(roof);
