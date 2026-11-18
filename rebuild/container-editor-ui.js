@@ -55,6 +55,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
 return;
     }
     pendingCode = code; renderCatalog();
+    $('wall-finish-controls').hidden = item.mode !== 'wall-finish';
     const msg = item.mode === 'floor' || item.mode === 'ceiling' || item.mode === 'skirting' ?
       'Haz clic en el contenedor para aplicar la terminación' :
       item.mode === 'wall-finish' || item.mode === 'opening' ?
@@ -67,7 +68,8 @@ return;
   }
 
   function clearPending() {
-    pendingCode = null; renderCatalog(); hint('Selecciona una partida del catálogo o un objeto del modelo para modificarlo.');
+    pendingCode = null; renderCatalog(); $('wall-finish-controls').hidden = true;
+    hint('Selecciona una partida del catálogo o un objeto del modelo para modificarlo.');
   }
 
   function rayFor(event) {
@@ -79,15 +81,20 @@ return;
   }
 
   function wallHit(ray) {
-    const box = new THREE.Box3(new THREE.Vector3(-state.L / 2, FLOOR, -state.W / 2),
-       new THREE.Vector3(state.L / 2, FLOOR + state.H, state.W / 2));
-    const pt = ray.ray.intersectBox(box, new THREE.Vector3()); if (!pt) return null;
-    const distance = {
-       A: Math.abs(pt.z - state.W / 2), C: Math.abs(pt.z + state.W / 2),
-       B: Math.abs(pt.x - state.L / 2), D: Math.abs(pt.x + state.L / 2)
-    };
-    const face = Object.entries(distance).sort((a, b) => a[1] - b[1])[0][0];
-    return { face, point: pt };
+    // Intersección contra la geometría real, no el contenedor matemático.
+    // La identidad de la cara se conserva en cada panel durante la construcción.
+    const panels = [];
+    root.traverse(node => {
+      if (node.isMesh && node.userData.isPanel &&
+          !node.userData.isRoof && FACES[node.userData.wallFace]) {
+        panels.push(node);
+      }
+    });
+    root.updateMatrixWorld(true);
+    const hits = ray.intersectObjects(panels, false);
+    if (!hits.length) return null;
+    const hit = hits[0];
+    return { face: hit.object.userData.wallFace, point: hit.point, dist: hit.distance };
   }
 
   function floorHit(ray) {
@@ -272,6 +279,17 @@ function refresh() { refreshProperties(); refreshPlaced(); }
 $('catalog-search').addEventListener('input', renderCatalog);
 $('catalog-family').addEventListener('change', renderCatalog);
 $('cancel-placement').addEventListener('click', clearPending);
+$('apply-wall-finish').addEventListener('click', () => {
+  const item = CATALOG_BY_CODE[pendingCode];
+  if (item?.mode !== 'wall-finish') {
+    hint('Selecciona primero un revestimiento del catálogo.', true); return;
+  }
+  const face = $('wall-finish-face').value;
+  const result = api.setFinish(item.code, face);
+  if (!result.ok) { hint(result.error, true); return; }
+  clearPending();
+  hint(item.code + ' aplicado correctamente en la cara ' + face + '.');
+});
 
 // El checkbox configura ventanas nuevas y también la ventana existente seleccionada.
 $('oBars').addEventListener('change', event => {
