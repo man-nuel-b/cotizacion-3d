@@ -217,6 +217,7 @@ return;
     visible('pz-label', !opening); visible('prot-label', !opening);
     visible('pd-label', !opening); visible('pface-label', opening);
     $('prop-face').value = opening ? obj.face : 'A';
+    if (opening && obj.type === 'window') $('oBars').checked = obj.bars === true;
 }
 
 function refreshPlaced() {
@@ -245,6 +246,21 @@ function refresh() { refreshProperties(); refreshPlaced(); }
 $('catalog-search').addEventListener('input', renderCatalog);
 $('catalog-family').addEventListener('change', renderCatalog);
 $('cancel-placement').addEventListener('click', clearPending);
+
+// El checkbox configura ventanas nuevas y también la ventana existente seleccionada.
+$('oBars').addEventListener('change', event => {
+  const selected = api.getSelected();
+  if (selected?.kind !== 'opening') return;
+  const opening = state.openings.find(o => o.id === selected.id);
+  if (!opening || opening.type !== 'window') return;
+  const result = api.updateOpening(opening.id, { bars: event.target.checked });
+  if (!result.ok) {
+    event.target.checked = opening.bars === true;
+    hint('No se pudieron actualizar los barrotes: ' + result.error, true);
+    return;
+  }
+  hint(event.target.checked ? 'Barrotes agregados a la ventana seleccionada.' : 'Barrotes retirados de la ventana seleccionada.');
+});
 
 $('prop-apply').addEventListener('click', () => {
   const selection = api.getSelected(); if (!selection) return;
