@@ -121,6 +121,7 @@
         <label id="pface-label" hidden>Cara<select id="prop-face"><option>A</option><option>B</option><option>C</option><option>D</option></select></label>
        </div>
        <button id="prop-apply" type="button">Aplicar modificaciones</button>
+       <button id="btn-rotate-partition" type="button" class="alt" hidden>Girar tabique (90°)</button>
        <div class="property-buttons">
         <button id="prop-duplicate" type="button" class="alt">Duplicar</button>
         <button id="prop-delete" type="button" class="alt">Eliminar</button>
@@ -152,6 +153,7 @@
     <label>Color<input id="dC" type="color"></label>
   </div>
   <button id="bDims">Aplicar dimensiones</button>
+  <label class="chk"><input id="strict-face-lock" type="checkbox" checked> Restringir objetos a caras interiores y perfiles válidos</label>
   <h4>Puertas y ventanas</h4>
   <div class="row">
     <label>Elemento<select id="oT"><option value="door">Puerta</option><option value="window">Ventana</option></select></label>
