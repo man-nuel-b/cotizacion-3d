@@ -182,8 +182,13 @@ return;
       const rad = rot * Math.PI / 180;
       const rx = (Math.abs(Math.cos(rad)) * w + Math.abs(Math.sin(rad)) * d) / 2;
       const rz = (Math.abs(Math.sin(rad)) * w + Math.abs(Math.cos(rad)) * d) / 2;
-      x = clamp(x, -state.L / 2 + rx + .06, state.L / 2 - rx - .06);
-      z = clamp(z, -state.W / 2 + rz + .06, state.W / 2 - rz - .06);
+      const xMin = -state.L / 2 + rx + .06, xMax = state.L / 2 - rx - .06;
+      const zMin = -state.W / 2 + rz + .06, zMax = state.W / 2 - rz - .06;
+      if ($('strict-face-lock').checked && (x < xMin || x > xMax || z < zMin || z > zMax)) {
+        hint('Colocación rechazada: el objeto invadiría el perfil del contenedor.', true); return;
+      }
+      x = clamp(x, xMin, xMax);
+      z = clamp(z, zMin, zMax);
       const result = api.addObject(code, x, z, undefined, rot);
       if (!result.ok) { hint(code + ': ' + result.error, true); return; }
       clearPending(); hint(code + ' agregado. Haz clic sobre él para moverlo o editarlo.');
