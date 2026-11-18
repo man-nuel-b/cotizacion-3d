@@ -145,7 +145,7 @@ return;
       const v = type === 'door' ? 0 : clamp(point.y - FLOOR - h / 2, 0, Math.max(0, state.H - h));
       const result = api.addOpening({
         type, face, w, h, u, v,
-        bars: type === 'window' && state.type === 'modular', catalogCode: code
+        bars: type === 'window' && $('oBars').checked, catalogCode: code
       });
       if (!result.ok) { hint(code + ': ' + result.error, true); return; }
       clearPending(); hint(code + ' colocado en la cara ' + face + '. Puedes editar sus medidas a la derecha.');
