@@ -202,8 +202,9 @@ return;
       const rad = rot * Math.PI / 180;
       const rx = (Math.abs(Math.cos(rad)) * w + Math.abs(Math.sin(rad)) * d) / 2;
       const rz = (Math.abs(Math.sin(rad)) * w + Math.abs(Math.cos(rad)) * d) / 2;
-      const xMin = -state.L / 2 + rx + .06, xMax = state.L / 2 - rx - .06;
-      const zMin = -state.W / 2 + rz + .06, zMax = state.W / 2 - rz - .06;
+      const clearance = api.getInteriorClearance();
+      const xMin = -state.L / 2 + rx + clearance, xMax = state.L / 2 - rx - clearance;
+      const zMin = -state.W / 2 + rz + clearance, zMax = state.W / 2 - rz - clearance;
       if (xMin > xMax || zMin > zMax) {
         hint('Colocación rechazada: el elemento no cabe en el contenedor.', true); return;
       }
@@ -246,26 +247,35 @@ return;
     setLabel('properties-title', partition ? 'Tabique interior' : opening ? 'Modificar abertura' : 'Modificar objeto 3D');
     $('prop-name').value = partition ? 'Tabique interior · Eje ' + obj.axis.toUpperCase() :
       (item?.code || '—') + ' · ' + (item?.name || (opening ? obj.type : 'Objeto'));
-    $('btn-rotate-partition').hidden = !partition;
-    $('prop-apply').hidden = partition;
+    const wallObject = !opening && !partition &&
+      ['metal-studs', 'wood-studs', 'partition', 'wet-partition', 'closure'].includes(item?.visual);
+    $('btn-rotate-partition').hidden = !(partition || wallObject);
+    $('prop-apply').hidden = false;
     $('prop-duplicate').hidden = partition;
-    $('prop-delete').hidden = partition;
+    $('prop-delete').hidden = false;
+    for (const k of ['prop-w', 'prop-h']) $('prop-' + k).closest('label').hidden = false;
+
     if (partition) {
-      for (const k of ['px-label', 'py-label', 'pz-label', 'prot-label', 'pd-label', 'pface-label']) visible(k, false);
-      for (const k of ['prop-w', 'prop-h']) $('prop-' + k).closest('label').hidden = true;
+      const values = { x: obj.cx, z: obj.cz, w: obj.length, h: obj.height, d: obj.thickness };
+      for (const [k, value] of Object.entries(values)) $('prop-' + k).value = value;
+      setInputLabel('px-label', 'Centro X (m)');
+      setInputLabel('pz-label', 'Centro Z (m)');
+      setInputLabel('pw-label', 'Longitud del tabique (m)');
+      setInputLabel('pd-label', 'Espesor del tabique (m)');
+      visible('px-label', true); visible('pz-label', true);
+      visible('py-label', false); visible('prot-label', false);
+      visible('pd-label', true); visible('pface-label', false);
       return;
     }
-    for (const k of ['prop-w', 'prop-h']) $('prop-' + k).closest('label').hidden = false;
+    setInputLabel('pw-label', 'Ancho (m)');
+    setInputLabel('pd-label', 'Fondo (m)');
     const values = opening ?
       { x: obj.u, z: 0, y: obj.v, rot: 0, w: obj.w, h: obj.h, d: 0 } :
-
-
-
-
       { x: obj.x, z: obj.z, y: obj.y, rot: obj.rot, w: obj.w, h: obj.h, d: obj.d };
     for (const [k, value] of Object.entries(values)) $('prop-' + k).value = value;
     setInputLabel('px-label', opening ? 'Distancia horizontal en cara (m)' : 'X (m)');
     setInputLabel('py-label', 'Altura desde piso (m)');
+    visible('px-label', true); visible('py-label', true);
     visible('pz-label', !opening); visible('prot-label', !opening);
     visible('pd-label', !opening); visible('pface-label', opening);
     $('prop-face').value = opening ? obj.face : 'A';
@@ -330,8 +340,15 @@ $('oBars').addEventListener('change', event => {
 
 $('btn-rotate-partition').addEventListener('click', () => {
   const selected = api.getSelected();
-  if (selected?.kind !== 'partition') return;
-  const result = api.rotatePartition(selected.id);
+  if (!selected) return;
+  let result;
+  if (selected.kind === 'partition') result = api.rotatePartition(selected.id);
+  else if (selected.kind === 'object') {
+    const wall = state.objects.find(o => o.id === selected.id);
+    const item = wall && CATALOG_BY_CODE[wall.code];
+    if (!['metal-studs', 'wood-studs', 'partition', 'wet-partition', 'closure'].includes(item?.visual)) return;
+    result = api.updateObject(selected.id, { rot: ((wall.rot + 90) % 360 + 360) % 360 });
+  } else return;
   hint(result.ok ? 'Tabique girado 90°.' : result.error, !result.ok);
 });
 
@@ -339,10 +356,14 @@ $('prop-apply').addEventListener('click', () => {
   const selection = api.getSelected(); if (!selection) return;
   const isOpening = selection.kind === 'opening';
   const w = number('prop-w'), h = number('prop-h');
+  const isPartition = selection.kind === 'partition';
   const params = isOpening ?
     { u: number('prop-x'), v: number('prop-y'), w, h, face: $('prop-face').value } :
+    isPartition ?
+    { cx: number('prop-x'), cz: number('prop-z'), length: w, height: h, thickness: number('prop-d') } :
     { x: number('prop-x'), z: number('prop-z'), y: number('prop-y'), rot: number('prop-rot'), w, h, d: number('prop-d') };
-  const result = isOpening ? api.updateOpening(selection.id, params) : api.updateObject(selection.id, params);
+  const result = isOpening ? api.updateOpening(selection.id, params) :
+    isPartition ? api.updatePartition(selection.id, params) : api.updateObject(selection.id, params);
   if (!result.ok) { hint(result.error, true); return; }
   hint('Cambios aplicados al elemento seleccionado.');
 });
@@ -350,6 +371,7 @@ $('prop-apply').addEventListener('click', () => {
 $('prop-delete').addEventListener('click', () => {
   const selection = api.getSelected(); if (!selection) return;
   if (selection.kind === 'opening') api.removeOpening(selection.id);
+  else if (selection.kind === 'partition') api.removePartition(selection.id);
   else api.removeObject(selection.id);
   hint('Elemento eliminado del proyecto.');
 });
@@ -422,8 +444,9 @@ $('import-project-file').addEventListener('change', async event => {
       const rot = o.rot * Math.PI / 180;
       const rx = (Math.abs(Math.cos(rot)) * o.w + Math.abs(Math.sin(rot)) * o.d) / 2;
       const rz = (Math.abs(Math.sin(rot)) * o.w + Math.abs(Math.cos(rot)) * o.d) / 2;
-      const x = clamp(drag.x + at.x - drag.startX, -state.L / 2 + rx + .06, state.L / 2 - rx - .06);
-      const z = clamp(drag.z + at.z - drag.startZ, -state.W / 2 + rz + .06, state.W / 2 - rz - .06);
+      const margin = api.getInteriorClearance();
+      const x = clamp(drag.x + at.x - drag.startX, -state.L / 2 + rx + margin, state.L / 2 - rx - margin);
+      const z = clamp(drag.z + at.z - drag.startZ, -state.W / 2 + rz + margin, state.W / 2 - rz - margin);
       drag.preview = { x, z };
       const group = api.getEntityMeshes().find(n => n.userData.objectId === drag.id);
       if (group) group.position.set(x, FLOOR + o.y, z);
