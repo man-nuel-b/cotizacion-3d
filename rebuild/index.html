@@ -135,6 +135,10 @@ html,body{overflow:auto;height:auto;min-height:100%}
         <input id="partition-fit" type="checkbox"> Longitud automática entre muros (autoSpan)
       </label>
       <small class="tiny" id="partition-fit-help" hidden>Longitud interior útil completa del eje X o Z; mantiene el espesor y la coordenada transversal. Si colisiona, se rechaza el cambio.</small>
+      <label class="chk" id="partition-magnet-label" hidden>
+        <input id="partition-magnet" type="checkbox" checked> Imán: ajustar extremos a paredes y tabiques (18 cm)
+      </label>
+      <small class="tiny" id="partition-drag-help" hidden>Arrastra el tabique con el mouse; los contactos en T/L se verifican antes de guardar. Con autoSpan activado solo se desplaza en el eje transversal.</small>
       <div id="partition-finishes-box" hidden>
         <h4>Capas del tabique seleccionado</h4>
         <div class="row">

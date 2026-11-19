@@ -125,7 +125,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     for (const hit of hits) {
       const node = hit.object;
       if (node.userData.interiorDoorId) return { kind: 'interiorDoor', id: node.userData.interiorDoorId };
-      if (node.userData.partitionId) return { kind: 'partition', id: node.userData.partitionId };
+      if (node.userData.partitionId) return { kind: 'partition', id: node.userData.partitionId, hitY: hit.point.y };
       if (node.userData.objectId) return { kind: 'object', id: node.userData.objectId };
       if (node.userData.openingId !== undefined) return { kind: 'opening', id: node.userData.openingId };
     }
@@ -319,6 +319,8 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       : 'Un tabique del catálogo es un objeto 3D independiente. Si no cabe al girar, puedes girarlo y centrarlo expresamente.';
     $('partition-fit-label').hidden = !partition;
     $('partition-fit-help').hidden = !partition;
+    $('partition-magnet-label').hidden = !partition;
+    $('partition-drag-help').hidden = !partition;
     $('partition-fit').checked = partition && obj.autoSpan === true;
     if (partition) {
       $('part-face-a').value = obj.faceALining || '';
@@ -624,34 +626,77 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   });
 
   const canvas = renderer.domElement;
+  const planeAt = (ray, y) => ray.ray.intersectPlane(
+    new THREE.Plane(new THREE.Vector3(0, 1, 0), -y), new THREE.Vector3());
+
+  function restoreDrag() {
+    if (drag?.kind === 'partition') {
+      const group = root.children.find(n => n.userData.partitionGroupId === drag.id);
+      if (group) group.position.set(drag.x, FLOOR, drag.z);
+    }
+    controls.enabled = true;
+    if (drag?.pointerId !== undefined && canvas.hasPointerCapture?.(drag.pointerId)) {
+      canvas.releasePointerCapture(drag.pointerId);
+    }
+    drag = null; pointerOrigin = null;
+  }
+
   canvas.addEventListener('pointerdown', event => {
+    if (event.button !== 0 || !event.isPrimary) return;
     pointerOrigin = { x: event.clientX, y: event.clientY };
     if (pendingCode) return;
     const ray = rayFor(event); if (!ray) return;
     const hit = objectRayPick(ray); if (!hit) return;
     api.selectEntity(hit.kind, hit.id);
-    if (hit.kind === 'object') {
+    if (hit.kind === 'partition') {
+      const p = state.partitions.find(x => x.id === hit.id);
+      // Anclar el plano de arrastre a la altura real del clic evita que un
+      // movimiento pequeño del mouse provoque saltos de varios metros.
+      const planeY = Number.isFinite(hit.hitY) ? hit.hitY : FLOOR + (p?.height || 2) / 2;
+      const at = planeAt(ray, planeY);
+      if (!p || !at) return;
+      drag = { kind: 'partition', id: p.id, x: p.cx, z: p.cz, planeY,
+        startX: at.x, startZ: at.z, origClientX: event.clientX,
+        origClientY: event.clientY, pointerId: event.pointerId, changed: false };
+    } else if (hit.kind === 'object') {
       const o = state.objects.find(x => x.id === hit.id);
-      if (!o) return;
-      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(FLOOR + o.y));
-      const at = ray.ray.intersectPlane(plane, new THREE.Vector3());
-      if (at) {
-        drag = {
-          id: o.id, x: o.x, z: o.z, startX: at.x, startZ: at.z, origClientX: event.clientX,
-          origClientY: event.clientY, changed: false
-        };
-        controls.enabled = false;
-      }
+      const at = o && planeAt(ray, FLOOR + o.y);
+      if (!o || !at) return;
+      drag = { kind: 'object', id: o.id, x: o.x, z: o.z,
+        startX: at.x, startZ: at.z, origClientX: event.clientX,
+        origClientY: event.clientY, pointerId: event.pointerId, changed: false };
+    }
+    if (drag) {
+      controls.enabled = false;
+      canvas.setPointerCapture?.(event.pointerId);
     }
   });
 
   canvas.addEventListener('pointermove', event => {
-    if (!drag || !pointerOrigin) return;
+    if (!drag || !pointerOrigin || event.pointerId !== drag.pointerId) return;
     if (Math.hypot(event.clientX - drag.origClientX, event.clientY - drag.origClientY) > 4) drag.changed = true;
     if (!drag.changed) return;
-    const o = state.objects.find(x => x.id === drag.id), ray = rayFor(event); if (!o || !ray) return;
-    const at = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -(FLOOR + o.y)), new THREE.Vector3());
-    if (!at) return;
+    const ray = rayFor(event); if (!ray) return;
+    if (drag.kind === 'partition') {
+      const at = planeAt(ray, drag.planeY); if (!at) return;
+      const preview = api.previewPartitionMove(drag.id, {
+        cx: drag.x + at.x - drag.startX,
+        cz: drag.z + at.z - drag.startZ,
+        snap: $('partition-magnet').checked
+      });
+      drag.preview = preview.ok ? preview : null;
+      drag.invalid = preview.ok ? null : preview.error;
+      const group = root.children.find(n => n.userData.partitionGroupId === drag.id);
+      if (group) {
+        group.position.set(preview.ok ? preview.candidate.cx : drag.x,
+          FLOOR, preview.ok ? preview.candidate.cz : drag.z);
+      }
+      if (preview.ok && preview.snappedTo) hint('Imán: ' + preview.snappedTo + '. Suelta para confirmar.');
+      else if (!preview.ok) hint('Posición no válida: ' + preview.error, true);
+      return;
+    }
+    const o = state.objects.find(x => x.id === drag.id); if (!o) return;
+    const at = planeAt(ray, FLOOR + o.y); if (!at) return;
     const rot = o.rot * Math.PI / 180;
     const rx = (Math.abs(Math.cos(rot)) * o.w + Math.abs(Math.sin(rot)) * o.d) / 2;
     const rz = (Math.abs(Math.sin(rot)) * o.w + Math.abs(Math.cos(rot)) * o.d) / 2;
@@ -663,19 +708,37 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     if (group) group.position.set(x, FLOOR + o.y, z);
   });
 
-  function endDrag() {
-    controls.enabled = true;
-    const prior = drag; drag = null;
-    if (prior?.changed && prior.preview) {
-      const result = api.updateObject(prior.id, prior.preview);
-      if (!result.ok) { api.selectEntity('object', prior.id); hint(result.error, true); }
-      else hint('Objeto desplazado dentro del contenedor.');
-      pointerOrigin = null; return true;
+  function endDrag(cancel = false) {
+    if (!drag) { controls.enabled = true; return false; }
+    const prior = drag;
+    restoreDrag();
+    if (prior.changed) {
+      if (cancel) { api.selectEntity(prior.kind, prior.id); hint('Desplazamiento cancelado.'); return true; }
+      if (prior.kind === 'partition') {
+        if (!prior.preview) {
+          api.selectEntity('partition', prior.id);
+          hint(prior.invalid || 'No se encontró una posición libre válida.', true);
+        } else {
+          const c = prior.preview.candidate;
+          const result = api.movePartition(prior.id, {
+            cx: c.cx, cz: c.cz, snap: $('partition-magnet').checked
+          });
+          if (!result.ok) { api.selectEntity('partition', prior.id); hint(result.error, true); }
+          else hint(result.snappedTo ? 'Tabique unido: ' + result.snappedTo + '.' :
+            'Tabique desplazado. La posición y las cantidades están actualizadas.');
+        }
+      } else if (prior.preview) {
+        const result = api.updateObject(prior.id, prior.preview);
+        if (!result.ok) { api.selectEntity('object', prior.id); hint(result.error, true); }
+        else hint('Objeto desplazado dentro del contenedor.');
+      }
+      return true;
     }
     return false;
   }
 
   canvas.addEventListener('pointerup', event => {
+    if (drag && event.pointerId !== drag.pointerId) return;
     if (endDrag()) return;
     if (!pointerOrigin) return;
     const moved = Math.hypot(event.clientX - pointerOrigin.x, event.clientY - pointerOrigin.y) > 7;
@@ -684,12 +747,10 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     const ray = rayFor(event); if (ray) placement(pendingCode, ray);
   });
 
-  canvas.addEventListener('pointercancel', () => {
-    if (drag) api.selectEntity('object', drag.id);
-    drag = null; controls.enabled = true; pointerOrigin = null;
-  });
+  canvas.addEventListener('pointercancel', () => { endDrag(true); pointerOrigin = null; });
 
   window.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && drag) { endDrag(true); return; }
     if (event.key === 'Escape' && pendingCode) { clearPending(); return; }
     if (event.key === 'Delete' &&
       !['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(document.activeElement?.tagName)) {

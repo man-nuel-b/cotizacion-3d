@@ -12,7 +12,7 @@ import {
   withOpeningReinforcement, computeWallTakeoff, validateOpeningCornerClearance,
   validateSharedWallRegion, validateOpeningAgainstSharedWalls,
   validateInteriorDoor, validatePartitionSpecification, PARTITION_LINING_THICKNESS_M,
-  classifyPartitionJunction, computePartitionJunctions, checkJunctionAgainstDoors
+  classifyPartitionJunction, computePartitionJunctions, checkJunctionAgainstDoors, resolveMagneticPartitionMove
 } from './construction-integrity.js';
 
 /* ============ Tipos de contenedor ============ */
@@ -594,6 +594,7 @@ function build() {
     const doors = state.interiorDoors.filter(d => d.partitionId === p.id).sort((a, b) => a.u - b.u);
     const pGroup = new THREE.Group();
     pGroup.position.set(p.cx, FLOOR, p.cz);
+    pGroup.userData.partitionGroupId = p.id; // Permite previsualizar arrastre sin reconstruir WebGL.
     if (p.axis === 'z') pGroup.rotation.y = Math.PI / 2;
     root.add(pGroup);
 
@@ -906,6 +907,15 @@ const api = {
   getRenderStats() {
     return { geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures };
   },
+  // Proyección utilizada por superposiciones 2D y pruebas del arrastre real.
+  getScreenPoint(x, y, z) {
+    if (![x, y, z].every(Number.isFinite)) return null;
+    const projected = new THREE.Vector3(x, y, z).project(camera);
+    const rect = renderer.domElement.getBoundingClientRect();
+    return { x: rect.left + (projected.x + 1) * rect.width / 2,
+      y: rect.top + (1 - projected.y) * rect.height / 2,
+      visible: projected.z >= -1 && projected.z <= 1 };
+  },
 
   setType(key, { samples = false } = {}) {
     const c = TYPES[key]; if (!c) return { ok: false, error: 'Tipo de contenedor inválido' };
@@ -1165,6 +1175,27 @@ const api = {
     const result = this.addPartition(branch);
     if (!result.ok) return result;
     return { ...result, junctionType: type, hostId };
+  },
+
+  // Mismo solucionador para la vista previa y el desplazamiento definitivo.
+  // No se edita el estado hasta verificar colisiones, puertas y perfil interior.
+  previewPartitionMove(id, { cx, cz, snap = true } = {}) {
+    const current = state.partitions.find(p => p.id === id);
+    if (!current) return { ok: false, error: 'Tabique no encontrado' };
+    return resolveMagneticPartitionMove(current, { cx, cz }, state, profileThicknessFor(), {
+      snap, partitions: state.partitions, objects: state.objects, interiorDoors: state.interiorDoors
+    });
+  },
+
+  movePartition(id, { cx, cz, snap = true } = {}) {
+    const preview = this.previewPartitionMove(id, { cx, cz, snap });
+    if (!preview.ok) return preview;
+    const current = state.partitions.find(p => p.id === id);
+    if (!current) return { ok: false, error: 'Tabique no encontrado' };
+    Object.assign(current, preview.candidate);
+    selectedEntity = { kind: 'partition', id };
+    const done = markChanged(false);
+    return { ...done, cx: current.cx, cz: current.cz, snappedTo: preview.snappedTo };
   },
 
   updatePartition(id, delta = {}) {

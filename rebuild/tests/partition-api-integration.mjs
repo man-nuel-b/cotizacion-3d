@@ -9,7 +9,7 @@ import {
   validatePartitionInsideContainer, checkPartitionCollisions,
   validateInteriorDoor, validatePartitionSpecification, computeWallTakeoff,
   validateSharedWallRegion, classifyPartitionJunction, computePartitionJunctions,
-  checkJunctionAgainstDoors
+  checkJunctionAgainstDoors, resolveMagneticPartitionMove
 } from '../construction-integrity.js';
 import { CATALOG, CATALOG_BY_CODE } from '../container-catalog.js';
 
@@ -64,7 +64,7 @@ function fixture() {
     CATALOG, CATALOG_BY_CODE, interiorClearance, resolvePartitionGeometry,
     resolveRotatedPartition, validateInteriorDoor, validatePartitionSpecification,
     computeWallTakeoff, validateSharedWallRegion, classifyPartitionJunction,
-    computePartitionJunctions, checkJunctionAgainstDoors,
+    computePartitionJunctions, checkJunctionAgainstDoors, resolveMagneticPartitionMove,
     SAMPLES: { maritimo: [], reefer: [], modular: [] },
     console
   };
@@ -312,4 +312,41 @@ test('API real: la rama T se detiene ante el siguiente tabique paralelo, sin atr
   assert.equal(rejected.ok, false, 'Rechaza proyecto importado con intersección ilegal');
   assert.equal(api.getConstructionTakeoff().partitionTJunctionsCount, 2,
     'Mantiene intacto el proyecto anterior si importación es inválida');
+});
+
+
+test('API real: vista previa y arrastre con imán actualizan coordenada y cubicación sin cambiar medida', () => {
+  const { api, state } = fixture();
+  const r = api.addPartition({ axis: 'x', length: 1, height: 2.3, thickness: .1 });
+  good(r);
+  const before = api.getConstructionTakeoff().totalPartitionOneFaceAreaM2;
+  const preview = api.previewPartitionMove(r.id, { cx: 2.4, cz: 0, snap: true });
+  good(preview);
+  assert.ok(Math.abs(preview.candidate.cx - 2.42) < 1e-8);
+  assert.equal(state.partitions[0].cx, 0, 'No se modifica el estado durante la vista previa');
+  good(api.movePartition(r.id, { cx: 2.4, cz: 0, snap: true }));
+  assert.ok(Math.abs(state.partitions[0].cx - 2.42) < 1e-8);
+  assert.equal(state.partitions[0].length, 1);
+  assert.equal(api.getConstructionTakeoff().totalPartitionOneFaceAreaM2, before);
+  good(api.movePartition(r.id, { cx: 2, cz: .1, snap: false }));
+  assert.equal(state.partitions[0].cx, 2);
+});
+
+test('API real: autoSpan permanece fijado al eje longitudinal al arrastrar', () => {
+  const { api, state } = fixture();
+  const r = api.addPartition({ axis: 'z', height: 2.3, thickness: .1, autoSpan: true });
+  good(r);
+  good(api.movePartition(r.id, { cx: 1.1, cz: .5, snap: true }));
+  assert.equal(state.partitions[0].cz, 0);
+  assert.equal(state.partitions[0].cx, 1.1);
+});
+
+test('API real: mover un tabique sobre otro se rechaza sin alterar estado', () => {
+  const { api, state } = fixture();
+  const a = api.addPartition({ axis: 'z', height: 2.3, thickness: .1, autoSpan: true, cx: -1 });
+  const b = api.addPartition({ axis: 'z', height: 2.3, thickness: .1, autoSpan: true, cx: 1 });
+  good(a); good(b);
+  const invalid = api.movePartition(b.id, { cx: -1, cz: 0, snap: true });
+  assert.equal(invalid.ok, false);
+  assert.equal(state.partitions.find(p => p.id === b.id).cx, 1);
 });
