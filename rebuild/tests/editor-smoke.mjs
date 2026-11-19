@@ -464,10 +464,58 @@ test('UI: crear tres tabiques consecutivos los reparte en bahías libres sin sup
     const state = await page.evaluate(() => window.Container3D.getState());
     assert.equal(state.partitions.length, 3);
     assert.equal(state.partitions[0].cx, 0);
-    assert.ok(Math.abs(state.partitions[1].cx - state.partitions[0].cx) >= .65);
-    assert.ok(Math.abs(state.partitions[2].cx - state.partitions[1].cx) >= .65);
+    assert.ok(Math.abs(state.partitions[1].cx - state.partitions[0].cx) >= 0.65);
+    assert.ok(Math.abs(state.partitions[2].cx - state.partitions[1].cx) >= 0.65);
     assert.equal(state.partitions.every(p => p.axis === 'z' && p.autoSpan === true), true);
     assert.match(await page.locator('#scene-hint').innerText(), /espacio libre/i);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
+
+test('BAT V4.5: botones T/L crean ramas ortogonales y actualizan cubicación', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    await page.locator('#add-parametric-partition').click();
+    await page.waitForFunction(() => window.Container3D.getState().partitions.length === 1);
+    assert.equal(await page.locator('#partition-junction-box').isVisible(), true);
+    await page.locator('#part-junction-side').selectOption('1');
+    await page.locator('#btn-junction-t').click();
+    let result = await page.evaluate(() => ({
+      state: window.Container3D.getState(), takeoff: window.Container3D.getConstructionTakeoff()
+    }));
+    assert.equal(result.state.partitions.length, 2);
+    assert.equal(result.takeoff.partitionTJunctionsCount, 1);
+    assert.equal(result.state.partitions[1].axis, 'x');
+    assert.match(await page.locator('#scene-hint').innerText(), /Unión T creada/);
+
+    // Seleccionar anfitrión otra vez, pues la API selecciona la nueva rama.
+    const hostId = result.state.partitions[0].id;
+    await page.evaluate(id => window.Container3D.selectEntity('partition', id), hostId);
+    await page.locator('#part-junction-side').selectOption('-1');
+    await page.locator('#btn-junction-t').click();
+    result = await page.evaluate(() => ({
+      state: window.Container3D.getState(), takeoff: window.Container3D.getConstructionTakeoff()
+    }));
+    assert.equal(result.state.partitions.length, 3);
+    assert.equal(result.takeoff.partitionTJunctionsCount, 2);
+
+    // Una L requiere una división parcial, no el modo autoSpan.
+    const l = await page.evaluate(() => {
+      window.Container3D.setType('modular');
+      return window.Container3D.addPartition({ axis: 'z', length: 1.5,
+        height: 2.3, thickness: .1, cx: -.8, cz: -.2, autoSpan: false });
+    });
+    assert.equal(l.ok, true, l.error);
+    await page.locator('#part-junction-side').selectOption('1');
+    await page.locator('#part-junction-end').selectOption('1');
+    await page.locator('#btn-junction-l').click();
+    result = await page.evaluate(() => ({
+      state: window.Container3D.getState(), takeoff: window.Container3D.getConstructionTakeoff()
+    }));
+    assert.equal(result.takeoff.partitionLJunctionsCount, 1);
+    assert.equal(result.state.partitions.length, 2);
     assert.deepEqual(errors, [], errors.join('\n'));
   } finally { if (fixture) await close(fixture); }
 });

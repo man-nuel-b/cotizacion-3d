@@ -241,6 +241,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       ['Placas en tabiques (caras seleccionadas):', `${t.totalPartitionLiningAreaM2.toFixed(2)} m²`],
       ['Aislación de tabiques:', `${t.totalPartitionInsulationAreaM2.toFixed(2)} m²`],
       ['Puertas interiores:', `${t.interiorDoorsCount} un`],
+      ['Uniones de tabiques en T / L:', `${t.partitionTJunctionsCount} / ${t.partitionLJunctionsCount} un`],
       ['Descuento por vanos:', `-${t.totalOpeningsAreaM2.toFixed(2)} m²`],
       ['Descuento muros compartidos:', `-${t.sharedDeductionM2.toFixed(2)} m²`],
       ['Piso / Cielo:', `${t.floorAreaM2.toFixed(2)} m²`],
@@ -291,6 +292,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     $('properties-empty').hidden = !!selection; form.hidden = !selection;
     const partition = selection?.kind === 'partition';
     $('partition-finishes-box').hidden = !partition;
+    $('partition-junction-box').hidden = !partition;
     if (!selection) { setLabel('properties-title', 'Propiedades del elemento'); return; }
 
     const opening = selection.kind === 'opening';
@@ -324,6 +326,12 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       $('part-insulation').checked = obj.hasInsulation === true;
       $('part-insulation-code').value = obj.insulationCode || 'P20';
       $('part-insulation-code').disabled = !obj.hasInsulation;
+      const newAxis = obj.axis === 'z' ? 'X' : 'Z';
+      $('part-junction-side').options[0].textContent = 'Lado positivo (+' + newAxis + ')';
+      $('part-junction-side').options[1].textContent = 'Lado negativo (−' + newAxis + ')';
+      $('junction-help').textContent = obj.autoSpan ?
+        'T: crea una rama perpendicular sin atravesar el tabique. Para crear una L, desactiva autoSpan y acorta primero este tabique.' :
+        'T: rama perpendicular al centro. L: rama perpendicular en el extremo indicado. Ambas llegan a otro muro o al perímetro sin invadirlo.';
     }
     $('prop-apply').hidden = false;
     $('prop-duplicate').hidden = partition || interiorDoor;
@@ -458,6 +466,26 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       hint('Tabique creado entre paramentos. Selecciónalo para moverlo o añadir una puerta.');
     }
   });
+
+  for (const type of ['T', 'L']) {
+    $('btn-junction-' + type.toLowerCase()).addEventListener('click', () => {
+      const selected = api.getSelected();
+      if (selected?.kind !== 'partition') {
+        hint('Selecciona primero el tabique anfitrión.', true);
+        return;
+      }
+      const result = api.addPartitionJunction({
+        hostId: selected.id, type,
+        side: Number($('part-junction-side').value),
+        endpoint: Number($('part-junction-end').value)
+      });
+      if (!result.ok) {
+        hint('No se pudo crear la unión ' + type + ': ' + result.error, true);
+      } else {
+        hint('Unión ' + type + ' creada. La nueva rama queda seleccionada y puedes editar sus acabados o añadir una puerta.');
+      }
+    });
+  }
 
   $('partition-fit').addEventListener('change', event => {
     const selected = api.getSelected();

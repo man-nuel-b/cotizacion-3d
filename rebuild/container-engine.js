@@ -11,7 +11,8 @@ import {
   resolvePartitionGeometry, resolveRotatedPartition, checkObjectCollisions, checkPartitionCollisions, reinforcementCodeFor,
   withOpeningReinforcement, computeWallTakeoff, validateOpeningCornerClearance,
   validateSharedWallRegion, validateOpeningAgainstSharedWalls,
-  validateInteriorDoor, validatePartitionSpecification, PARTITION_LINING_THICKNESS_M
+  validateInteriorDoor, validatePartitionSpecification, PARTITION_LINING_THICKNESS_M,
+  classifyPartitionJunction, computePartitionJunctions, checkJunctionAgainstDoors
 } from './construction-integrity.js';
 
 /* ============ Tipos de contenedor ============ */
@@ -751,7 +752,8 @@ function objectError(o, ref = state) {
 
 function partitionError(p, ref = state) {
   return validatePartitionInsideContainer(p, ref, profileThicknessFor(ref)) ||
-    checkPartitionCollisions(p, ref.partitions || state.partitions, ref.objects || state.objects);
+    checkPartitionCollisions(p, ref.partitions || state.partitions,
+      ref.objects || state.objects, ref.interiorDoors || state.interiorDoors);
 }
 function fittedPartition(p, ref = state) {
   return resolvePartitionGeometry(p, ref, profileThicknessFor(ref));
@@ -799,6 +801,59 @@ function freePartitionCenters(p, ref = state) {
     cx: alongX ? center : p.cx,
     cz: alongX ? p.cz : center
   }));
+}
+
+/**
+ * Rama ortogonal de un tabique seleccionado. El extremo queda exactamente
+ * a ras de la cara anfitriona, y se detiene ante el siguiente paramento real
+ * si existe; no cruza tabiques, muebles ni puertas.
+ */
+function junctionBranchProposal(host, type, side, endpoint = 1, ref = state) {
+  if (!host || !['x', 'z'].includes(host.axis)) throw Error('Tabique anfitrión inválido');
+  if (!['T', 'L'].includes(type) || ![1, -1].includes(side) || ![1, -1].includes(endpoint)) {
+    throw Error('Selecciona tipo de unión y dirección válidos');
+  }
+  if (type === 'L' && host.autoSpan) {
+    throw Error('Para formar una L, desactiva autoSpan y acorta el tabique anfitrión desde Propiedades');
+  }
+  const newAxis = host.axis === 'x' ? 'z' : 'x';
+  const along = host.axis === 'z' ? host.cz : host.cx;
+  const cross = host.axis === 'z' ? host.cx : host.cz;
+  const branchThickness = host.thickness;
+  const attachAlong = type === 'T' ? along :
+    along + endpoint * (host.length / 2 - branchThickness / 2);
+  const start = cross + side * host.thickness / 2;
+  const margin = interiorClearance(profileThicknessFor(ref));
+  const span = newAxis === 'x' ? ref.L : ref.W;
+  let farFace = side * (span / 2 - margin);
+  // El segundo extremo se une al paramento más cercano y no lo atraviesa.
+  for (const other of ref.partitions || []) {
+    if (other.id === host.id || other.axis !== host.axis) continue;
+    const otherAlong = other.axis === 'z' ? other.cz : other.cx;
+    const otherCross = other.axis === 'z' ? other.cx : other.cz;
+    if (Math.abs(attachAlong - otherAlong) > (other.length + branchThickness) / 2 - 1e-8) continue;
+    const contact = otherCross - side * other.thickness / 2;
+    const distance = side * (contact - start);
+    if (distance > 0.45 && distance < side * (farFace - start) - 1e-8) farFace = contact;
+  }
+  const length = side * (farFace - start);
+  if (length < 0.45) throw Error('No hay recorrido libre suficiente para la rama de tabique');
+  const center = (start + farFace) / 2;
+  const branch = {
+    axis: newAxis, length, height: host.height, thickness: branchThickness,
+    cx: newAxis === 'x' ? center : attachAlong,
+    cz: newAxis === 'z' ? center : attachAlong,
+    autoSpan: false,
+    faceALining: host.faceALining || null,
+    faceBLining: host.faceBLining || null,
+    hasInsulation: host.hasInsulation === true,
+    insulationCode: host.hasInsulation ? (host.insulationCode || 'P20') : null
+  };
+  const junction = classifyPartitionJunction(host, { ...branch, id: 'candidate-branch' });
+  if (!junction || junction.hostId !== host.id || junction.type !== type) {
+    throw Error('No es posible resolver una unión geométrica ' + type + ' en ese tabique');
+  }
+  return branch;
 }
 
 function partitionSpecificationError(p) {
@@ -1101,6 +1156,17 @@ const api = {
       axis: candidate.axis, autoPlaced: automaticallyPositioned };
   },
 
+  addPartitionJunction({ hostId, type = 'T', side = 1, endpoint = 1 } = {}) {
+    const host = state.partitions.find(p => p.id === hostId);
+    if (!host) return { ok: false, error: 'Selecciona primero un tabique anfitrión' };
+    let branch;
+    try { branch = junctionBranchProposal(host, type, side, endpoint); }
+    catch (error) { return { ok: false, error: String(error.message || error) }; }
+    const result = this.addPartition(branch);
+    if (!result.ok) return result;
+    return { ...result, junctionType: type, hostId };
+  },
+
   updatePartition(id, delta = {}) {
     const current = state.partitions.find(p => p.id === id);
     if (!current) return { ok: false, error: 'Tabique no encontrado' };
@@ -1160,6 +1226,10 @@ const api = {
       w: width, h: Number(h), catalogCode };
     const err = validateInteriorDoor(candidate, p, state.interiorDoors);
     if (err) return { ok: false, error: err };
+    const junctionError = computePartitionJunctions(state.partitions, []).map(j =>
+      checkJunctionAgainstDoors(j, [...state.interiorDoors.filter(d => d.id !== candidate.id), candidate]))
+      .find(Boolean);
+    if (junctionError) return { ok: false, error: junctionError };
     state.nextId++;
     state.interiorDoors.push(candidate);
     selectedEntity = { kind: 'interiorDoor', id: candidate.id };
@@ -1175,6 +1245,10 @@ const api = {
     const candidate = { ...current, ...delta, id: current.id, partitionId: current.partitionId };
     const err = validateInteriorDoor(candidate, p, state.interiorDoors);
     if (err) return { ok: false, error: err };
+    const junctionError = computePartitionJunctions(state.partitions, []).map(j =>
+      checkJunctionAgainstDoors(j, [...state.interiorDoors.filter(d => d.id !== candidate.id), candidate]))
+      .find(Boolean);
+    if (junctionError) return { ok: false, error: junctionError };
     Object.assign(current, candidate);
     selectedEntity = { kind: 'interiorDoor', id };
     return markChanged(false);

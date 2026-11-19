@@ -103,3 +103,14 @@ test('La creación desde UI busca un vano libre y el alta manual conserva colisi
   assert.match(engine, /if \(error && autoPlace\)/);
   assert.match(engine, /No hay un espacio libre adecuado/);
 });
+
+test('BAT V4.5: uniones ortogonales conectadas a motor y editor sin invadir elementos', () => {
+  for (const id of ['partition-junction-box', 'part-junction-side', 'part-junction-end',
+    'btn-junction-t', 'btn-junction-l']) assert.match(html, new RegExp(`id="${id}"`));
+  assert.match(engine, /classifyPartitionJunction/);
+  assert.match(engine, /junctionBranchProposal/);
+  assert.match(engine, /addPartitionJunction/);
+  assert.match(ui, /api\.addPartitionJunction/);
+  assert.match(ui, /partitionTJunctionsCount/);
+  assert.match(ui, /partitionLJunctionsCount/);
+});
