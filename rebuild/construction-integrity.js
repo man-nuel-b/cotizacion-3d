@@ -407,12 +407,34 @@ export function resolveMagneticPartitionMove(p, position, ref, panelThickness, o
     // El punto transversal de la rama debe contactar con un segmento del host,
     // no simplemente pasar cerca de su prolongación infinita.
     const hostAlong = p.axis === 'x' ? host.cz : host.cx;
-    const contact = Math.min(hostAlong + host.length / 2, base[crossAxis] + p.thickness / 2) -
-      Math.max(hostAlong - host.length / 2, base[crossAxis] - p.thickness / 2);
-    if (contact < Math.min(p.thickness / 2, 0.03) - 1e-8) continue;
+    const hostMin = hostAlong - host.length / 2;
+    const hostMax = hostAlong + host.length / 2;
+    const contact = Math.min(hostMax, base[crossAxis] + p.thickness / 2) -
+      Math.max(hostMin, base[crossAxis] - p.thickness / 2);
+    // En una T mantenemos la coordenada transversal del usuario.
+    // Si la rama se aproxima al extremo, también ofrecemos un imán en ambas
+    // coordenadas para cerrar una esquina L sin dejar separaciones pequeñas.
+    const crossTargets = contact >= Math.min(p.thickness / 2, 0.03) - 1e-8 ?
+      [base[crossAxis]] : [hostMin, hostMax].filter(value =>
+        Math.abs(value - base[crossAxis]) <= snapDistance + 1e-8 &&
+        Math.abs(value) <= limitCross + 1e-8);
     const hostCross = p.axis === 'x' ? host.cx : host.cz;
-    near(end, hostCross - host.thickness / 2, `Unión con ${host.id}`);
-    near(start, hostCross + host.thickness / 2, `Unión con ${host.id}`);
+    for (const transverse of crossTargets) {
+      for (const [endpoint, target] of [
+        [end, hostCross - host.thickness / 2],
+        [start, hostCross + host.thickness / 2]
+      ]) {
+        const dl = target - endpoint;
+        const dc = transverse - base[crossAxis];
+        if (Math.abs(dl) > snapDistance + 1e-8 || Math.abs(dc) > snapDistance + 1e-8) continue;
+        const candidate = { ...base,
+          [longAxis]: base[longAxis] + dl,
+          [crossAxis]: transverse };
+        if (Math.abs(candidate[longAxis]) > limitLong + 1e-8) continue;
+        proposals.push({ candidate, snappedTo: `Unión con ${host.id}`,
+          distance: Math.hypot(dl, dc) });
+      }
+    }
   }
   proposals.sort((a, b) => a.distance - b.distance);
   for (const proposal of proposals) {

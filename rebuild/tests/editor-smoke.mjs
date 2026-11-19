@@ -529,6 +529,7 @@ test('BAT V4.6: arrastrar tabique con mouse modifica el modelo y respeta autoSpa
     const created = await page.evaluate(() => {
       const api = window.Container3D;
       api.setType('modular');
+      api.setSeeInside(true);
       const result = api.addPartition({ axis: 'z', length: 2.24, height: 2.3,
         thickness: .1, autoSpan: true });
       const p = api.getState().partitions[0];

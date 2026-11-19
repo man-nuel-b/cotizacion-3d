@@ -371,6 +371,12 @@ test('Imán: encuentro L en el extremo; no atraviesa un tabique ni invade puerta
   const r = resolveMagneticPartitionMove(p, { cx: .75, cz: .59 }, ref, .05, { partitions: [host, p] });
   assert.equal(r.ok, true, r.error);
   assert.equal(classifyPartitionJunction(host, r.candidate).type, 'L');
+  const nearCorner = resolveMagneticPartitionMove(p, { cx: .75, cz: .69 }, ref, .05,
+    { partitions: [host, p] });
+  assert.equal(nearCorner.ok, true, nearCorner.error);
+  assert.equal(nearCorner.snappedTo, 'Unión con host');
+  assert.ok(Math.abs(nearCorner.candidate.cz - .6) < 1e-8);
+  assert.equal(classifyPartitionJunction(host, nearCorner.candidate).type, 'L');
   const invalid = resolveMagneticPartitionMove(p, { cx: 0, cz: 0 }, ref, .05, { partitions: [host, p] });
   assert.equal(invalid.ok, false, 'Se debe rechazar un cruce profundo');
   const door = { id: 'd1', partitionId: 'host', u: .1, w: .9, h: 2, catalogCode: 'P81' };
