@@ -125,7 +125,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     for (const hit of hits) {
       const node = hit.object;
       if (node.userData.interiorDoorId) return { kind: 'interiorDoor', id: node.userData.interiorDoorId };
-      if (node.userData.partitionId) return { kind: 'partition', id: node.userData.partitionId };
+      if (node.userData.partitionId) return { kind: 'partition', id: node.userData.partitionId, hitY: hit.point.y };
       if (node.userData.objectId) return { kind: 'object', id: node.userData.objectId };
       if (node.userData.openingId !== undefined) return { kind: 'opening', id: node.userData.openingId };
     }
@@ -650,9 +650,12 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     api.selectEntity(hit.kind, hit.id);
     if (hit.kind === 'partition') {
       const p = state.partitions.find(x => x.id === hit.id);
-      const at = planeAt(ray, FLOOR);
+      // Anclar el plano de arrastre a la altura real del clic evita que un
+      // movimiento pequeño del mouse provoque saltos de varios metros.
+      const planeY = Number.isFinite(hit.hitY) ? hit.hitY : FLOOR + (p?.height || 2) / 2;
+      const at = planeAt(ray, planeY);
       if (!p || !at) return;
-      drag = { kind: 'partition', id: p.id, x: p.cx, z: p.cz,
+      drag = { kind: 'partition', id: p.id, x: p.cx, z: p.cz, planeY,
         startX: at.x, startZ: at.z, origClientX: event.clientX,
         origClientY: event.clientY, pointerId: event.pointerId, changed: false };
     } else if (hit.kind === 'object') {
@@ -675,7 +678,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     if (!drag.changed) return;
     const ray = rayFor(event); if (!ray) return;
     if (drag.kind === 'partition') {
-      const at = planeAt(ray, FLOOR); if (!at) return;
+      const at = planeAt(ray, drag.planeY); if (!at) return;
       const preview = api.previewPartitionMove(drag.id, {
         cx: drag.x + at.x - drag.startX,
         cz: drag.z + at.z - drag.startZ,
