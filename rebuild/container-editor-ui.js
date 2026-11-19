@@ -4,13 +4,16 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   const $ = id => document.getElementById(id);
   const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
   let pendingCode = null, drag = null, pointerOrigin = null;
+
   const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
   const number = id => Number(String($(id).value).replace(',', '.'));
 
   function hint(message, error = false) {
-    const node = $('scene-hint'); node.textContent = message;
-    node.style.background = error ? 'rgba(140,41,38,.95)' : 'rgba(18,35,54,.91)';
+    const node = $('scene-hint');
+    node.textContent = message;
+    node.style.background = error ? 'rgba(140,41,38,.95)' : 'rgba(18,35,54,.92)';
   }
+
   function familyName(id) { return FAMILIES.find(f => f.id === id)?.name || id; }
   function modeLabel(item) {
     return ({
@@ -28,23 +31,19 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
 
   function renderCatalog() {
     const items = findCatalog($('catalog-search').value, $('catalog-family').value);
-
-
-
-
-      const list = $('catalog-list'); list.replaceChildren();
-      $('catalog-count').textContent = items.length + ' de ' + CATALOG.length + ' partidas';
-      for (const item of items) {
-        const btn = document.createElement('button');
-        btn.type = 'button'; btn.className = 'catalog-item' + (pendingCode === item.code ? ' active' : '');
-        btn.dataset.code = item.code;
-        const code = document.createElement('span'); code.className = 'code'; code.textContent = item.code;
-        const copy = document.createElement('span'); copy.className = 'item-copy';
-        copy.textContent = item.name;
-        const meta = document.createElement('small'); meta.textContent = familyName(item.family) + ' · ' + modeLabel(item);
-        copy.appendChild(meta); btn.append(code, copy);
-        btn.addEventListener('click', () => arm(item.code)); list.appendChild(btn);
-      }
+    const list = $('catalog-list'); list.replaceChildren();
+    $('catalog-count').textContent = items.length + ' de ' + CATALOG.length + ' partidas';
+    for (const item of items) {
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'catalog-item' + (pendingCode === item.code ? ' active' : '');
+      btn.dataset.code = item.code;
+      const code = document.createElement('span'); code.className = 'code'; code.textContent = item.code;
+      const copy = document.createElement('span'); copy.className = 'item-copy';
+      copy.textContent = item.name;
+      const meta = document.createElement('small'); meta.textContent = familyName(item.family) + ' · ' + modeLabel(item);
+      copy.appendChild(meta); btn.append(code, copy);
+      btn.addEventListener('click', () => arm(item.code)); list.appendChild(btn);
+    }
   }
 
   function isWallApplication(item) {
@@ -57,8 +56,8 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     if (item.mode === 'service') {
       const result = api.addService(code); if (!result.ok) { hint(result.error, true); return; }
       pendingCode = null; $('wall-finish-controls').hidden = true;
-      hint(code + ' · Servicio técnico incorporado al listado, sin objeto físico.'); renderCatalog();
-return;
+      hint(code + ': Servicio técnico incorporado al listado, sin objeto físico.'); renderCatalog();
+      return;
     }
     pendingCode = code; renderCatalog();
     $('wall-finish-controls').hidden = !isWallApplication(item);
@@ -67,12 +66,13 @@ return;
     $('wall-control-explain').textContent = item.mode === 'wall-finish'
       ? 'La terminación cubre la superficie del muro seleccionado.'
       : 'P14/P17 se instalará como un panel 3D de 1,60 m en la cara indicada.';
+
     const msg = item.mode === 'floor' || item.mode === 'ceiling' || item.mode === 'skirting' ?
       'Haz clic en el contenedor para aplicar la terminación' :
       isWallApplication(item) || item.mode === 'opening' ?
-      'Haz clic en una de las paredes del contenedor para elegir la cara' :
-      'Haz clic dentro del contenedor para ubicar el objeto 3D';
-    hint(item.code + ' — ' + msg);
+        'Haz clic en una de las paredes del contenedor para elegir la cara' :
+        'Haz clic dentro del contenedor para ubicar el objeto 3D';
+    hint(item.code + ': ' + msg);
     if (['object', 'wall-object', 'floor', 'ceiling', 'skirting'].includes(item.mode)) {
       if (!state.seeInside) { api.setSeeInside(true); $('xray').checked = true; }
     }
@@ -92,12 +92,9 @@ return;
   }
 
   function wallHit(ray) {
-    // Intersección contra la geometría real, no el contenedor matemático.
-    // La identidad de la cara se conserva en cada panel durante la construcción.
     const panels = [];
     root.traverse(node => {
-      if (node.isMesh && node.userData.isPanel &&
-          !node.userData.isRoof && FACES[node.userData.wallFace]) {
+      if (node.isMesh && node.userData.isPanel && !node.userData.isRoof && FACES[node.userData.wallFace]) {
         panels.push(node);
       }
     });
@@ -127,6 +124,7 @@ return;
     const hits = ray.intersectObjects(root.children, true);
     for (const hit of hits) {
       const node = hit.object;
+      if (node.userData.interiorDoorId) return { kind: 'interiorDoor', id: node.userData.interiorDoorId };
       if (node.userData.partitionId) return { kind: 'partition', id: node.userData.partitionId };
       if (node.userData.objectId) return { kind: 'object', id: node.userData.objectId };
       if (node.userData.openingId !== undefined) return { kind: 'opening', id: node.userData.openingId };
@@ -135,20 +133,20 @@ return;
   }
 
   function placement(code, ray) {
+    // Protección contra eventos retrasados: solo la partida actualmente armada puede colocarse.
+    if (!code || pendingCode !== code) return;
     const item = CATALOG_BY_CODE[code]; if (!item) return;
+
     if (item.mode === 'floor' || item.mode === 'ceiling' || item.mode === 'skirting') {
-
-
-
-
-        const point = floorHit(ray);
-        if (!point) { hint('Haz clic sobre la superficie del contenedor.', true); return; }
-        const result = api.setFinish(code);
-        if (!result.ok) { hint(result.error, true); return; }
-        clearPending();
-        hint(code + ' aplicado a ' + (item.mode === 'ceiling' ? 'cielo' : item.mode === 'skirting' ? 'perímetro' : 'piso') +'.');
+      const point = floorHit(ray);
+      if (!point) { hint('Haz clic sobre la superficie del contenedor.', true); return; }
+      const result = api.setFinish(code);
+      if (!result.ok) { hint(result.error, true); return; }
+      clearPending();
+      hint(code + ' aplicado a ' + (item.mode === 'ceiling' ? 'cielo' : item.mode === 'skirting' ? 'perímetro' : 'piso') + '.');
       return;
     }
+
     if (item.mode === 'wall-finish' || item.mode === 'opening') {
       const hit = wallHit(ray);
       if (!hit) { hint('Gira el contenedor y haz clic directamente sobre una pared.', true); return; }
@@ -173,6 +171,7 @@ return;
       clearPending(); hint(code + ' colocado en la cara ' + face + '. Puedes editar sus medidas a la derecha.');
       return;
     }
+
     if (item.mode === 'object' || item.mode === 'wall-object') {
       const wallMounted = ['wall-lining', 'wet-lining'].includes(item.visual);
       const hit = wallHit(ray);
@@ -185,6 +184,7 @@ return;
       let rot = 0, x = point.x, z = point.z;
       const wallThickness = api.getWallThickness ? api.getWallThickness() : 0.06;
       const wallFixtures = ['extractor', 'water-heater', 'outlet', 'power', 'panel', 'grounding', 'aircon', 'bath-accessories'];
+
       if (wallMounted || wallFixtures.includes(item.visual)) {
         if (hit) {
           const side = hit.face;
@@ -199,26 +199,23 @@ return;
           if (side === 'D') x = -state.L / 2 + margin + rxTmp;
         }
       }
+
       const rad = rot * Math.PI / 180;
       const rx = (Math.abs(Math.cos(rad)) * w + Math.abs(Math.sin(rad)) * d) / 2;
       const rz = (Math.abs(Math.sin(rad)) * w + Math.abs(Math.cos(rad)) * d) / 2;
-      const xMin = -state.L / 2 + rx + .06, xMax = state.L / 2 - rx - .06;
-      const zMin = -state.W / 2 + rz + .06, zMax = state.W / 2 - rz - .06;
+      const clearance = api.getInteriorClearance();
+      const xMin = -state.L / 2 + rx + clearance, xMax = state.L / 2 - rx - clearance;
+      const zMin = -state.W / 2 + rz + clearance, zMax = state.W / 2 - rz - clearance;
       if (xMin > xMax || zMin > zMax) {
         hint('Colocación rechazada: el elemento no cabe en el contenedor.', true); return;
-      }
-      // Al instalar sobre una pared, el punto del raycast está en la superficie exterior.
-      // El centro debe ajustarse a la cara interior usando la dimensión completa del objeto.
-      // Los límites del motor siguen siendo la validación final.
-      if ($('strict-face-lock').checked && !wallMounted && !wallFixtures.includes(item.visual) &&
-          (x < xMin || x > xMax || z < zMin || z > zMax)) {
-        hint('Colocación rechazada: selecciona una superficie interior válida.', true); return;
       }
       x = clamp(x, xMin, xMax);
       z = clamp(z, zMin, zMax);
       const result = api.addObject(code, x, z, undefined, rot);
       if (!result.ok) { hint(code + ': ' + result.error, true); return; }
-      clearPending(); hint(code + ' agregado. Haz clic sobre él para moverlo o editarlo.');
+      // Colocación de un solo uso para object y wall-object: un clic = una partida.
+      clearPending();
+      hint(code + ' agregado. Haz clic sobre él para moverlo o editarlo.');
       return;
     }
   }
@@ -232,239 +229,442 @@ return;
   }
   function visible(id, show) { $(id).hidden = !show; }
 
+  function refreshTakeoff() {
+    const grid = $('takeoff-summary');
+    if (!grid || !api.getConstructionTakeoff) return;
+    const t = api.getConstructionTakeoff();
+    grid.replaceChildren();
+
+    const rows = [
+      ['Muros netos totales:', `${t.totalNetWallAreaM2.toFixed(2)} m²`],
+      ['Tabiques interiores (dos caras):', `${t.totalPartitionBothFacesAreaM2.toFixed(2)} m²`],
+      ['Placas en tabiques (caras seleccionadas):', `${t.totalPartitionLiningAreaM2.toFixed(2)} m²`],
+      ['Aislación de tabiques:', `${t.totalPartitionInsulationAreaM2.toFixed(2)} m²`],
+      ['Puertas interiores:', `${t.interiorDoorsCount} un`],
+      ['Descuento por vanos:', `-${t.totalOpeningsAreaM2.toFixed(2)} m²`],
+      ['Descuento muros compartidos:', `-${t.sharedDeductionM2.toFixed(2)} m²`],
+      ['Piso / Cielo:', `${t.floorAreaM2.toFixed(2)} m²`],
+      ['Zócalo perimetral:', `${t.skirtingLinearM.toFixed(2)} ml`],
+      ['Refuerzo ventanas (P90):', `${t.reinforcement.P90.openings} un (${t.reinforcement.P90.estimatedLinearM.toFixed(2)} ml)`],
+      ['Refuerzo puertas (P91):', `${t.reinforcement.P91.openings} un (${t.reinforcement.P91.estimatedLinearM.toFixed(2)} ml)`],
+      ...Object.entries(t.partitionLiningByCodeM2).sort().map(([code, area]) =>
+        [`Placas tabiques ${code}:`, `${area.toFixed(2)} m²`]),
+      ...Object.entries(t.partitionInsulationByCodeM2).sort().map(([code, area]) =>
+        [`Aislación tabiques ${code}:`, `${area.toFixed(2)} m²`]),
+      ...Object.entries(t.interiorDoorsByCode).sort().map(([code, quantity]) =>
+        [`Puertas tabiques ${code}:`, `${quantity} un`]),
+      ...['A', 'B', 'C', 'D'].map(face => [
+        `Cara ${face}: neto / revestimiento`,
+        `${t.walls[face].netAreaM2.toFixed(2)} / ${t.walls[face].liningAreaM2.toFixed(2)} m²`
+      ])
+    ];
+
+    for (const [label, val] of rows) {
+      const spanL = document.createElement('span'); spanL.textContent = label;
+      const spanV = document.createElement('strong'); spanV.textContent = val;
+      grid.append(spanL, spanV);
+    }
+
+    const list = $('shared-list');
+    if (list) {
+      list.replaceChildren();
+      for (const zone of (state.sharedWalls || [])) {
+        const row = document.createElement('div');
+        row.className = 'shared-entry';
+        const description = document.createElement('span');
+        description.textContent = `Cara ${zone.face}, desde ${zone.u.toFixed(2)} m, ${zone.w.toFixed(2)} × ${zone.h.toFixed(2)} m`;
+        const remove = document.createElement('button');
+        remove.type = 'button'; remove.className = 'alt';
+        remove.textContent = 'Quitar';
+        remove.setAttribute('aria-label', `Quitar zona compartida de cara ${zone.face}`);
+        remove.addEventListener('click', () => {
+          const result = api.removeSharedWall(zone.id);
+          $('shared-message').textContent = result.ok ? 'Zona eliminada.' : result.error;
+        });
+        row.append(description, remove); list.appendChild(row);
+      }
+    }
+  }
+
   function refreshProperties() {
     const selection = api.getSelected(), form = $('props-form');
     $('properties-empty').hidden = !!selection; form.hidden = !selection;
+    const partition = selection?.kind === 'partition';
+    $('partition-finishes-box').hidden = !partition;
     if (!selection) { setLabel('properties-title', 'Propiedades del elemento'); return; }
+
     const opening = selection.kind === 'opening';
-    const partition = selection.kind === 'partition';
+    const interiorDoor = selection.kind === 'interiorDoor';
     const obj = opening ? state.openings.find(x => x.id === selection.id) :
       partition ? state.partitions.find(x => x.id === selection.id) :
-      state.objects.find(x => x.id === selection.id);
+        interiorDoor ? state.interiorDoors.find(x => x.id === selection.id) :
+          state.objects.find(x => x.id === selection.id);
     if (!obj) { form.hidden = true; return; }
-    const item = CATALOG_BY_CODE[opening ? obj.catalogCode : obj.code];
-    setLabel('properties-title', partition ? 'Tabique interior' : opening ? 'Modificar abertura' : 'Modificar objeto 3D');
+
+    const item = CATALOG_BY_CODE[opening || interiorDoor ? obj.catalogCode : obj.code];
+    setLabel('properties-title', partition ? 'Tabique interior' : interiorDoor ? 'Puerta del tabique' :
+      opening ? 'Modificar abertura' : 'Modificar objeto 3D');
     $('prop-name').value = partition ? 'Tabique interior · Eje ' + obj.axis.toUpperCase() :
-      (item?.code || '—') + ' · ' + (item?.name || (opening ? obj.type : 'Objeto'));
-    $('btn-rotate-partition').hidden = !partition;
-    $('prop-apply').hidden = partition;
-    $('prop-duplicate').hidden = partition;
-    $('prop-delete').hidden = partition;
+      (item?.code || '-') + ' · ' + (item?.name || (opening ? obj.type : 'Objeto'));
+    const wallObject = !opening && !partition && !interiorDoor &&
+      ['metal-studs', 'wood-studs', 'partition', 'wet-partition', 'closure'].includes(item?.visual);
+    $('btn-rotate-partition').hidden = !(partition || wallObject);
+    $('btn-rotate-fit').hidden = !(partition || wallObject) || (partition && obj.autoSpan === true);
+    $('btn-rotate-fit').textContent = partition ? 'Girar y ajustar a los muros' : 'Girar y centrar ensamblaje';
+    $('rotation-help').hidden = !(partition || wallObject);
+    $('rotation-help').textContent = partition
+      ? 'El giro manual conserva largo y centro; si no cabe, usa el autoajuste expreso.'
+      : 'Un tabique del catálogo es un objeto 3D independiente. Si no cabe al girar, puedes girarlo y centrarlo expresamente.';
+    $('partition-fit-label').hidden = !partition;
+    $('partition-fit-help').hidden = !partition;
+    $('partition-fit').checked = partition && obj.autoSpan === true;
     if (partition) {
-      for (const k of ['px-label', 'py-label', 'pz-label', 'prot-label', 'pd-label', 'pface-label']) visible(k, false);
-      for (const k of ['prop-w', 'prop-h']) $('prop-' + k).closest('label').hidden = true;
+      $('part-face-a').value = obj.faceALining || '';
+      $('part-face-b').value = obj.faceBLining || '';
+      $('part-insulation').checked = obj.hasInsulation === true;
+      $('part-insulation-code').value = obj.insulationCode || 'P20';
+      $('part-insulation-code').disabled = !obj.hasInsulation;
+    }
+    $('prop-apply').hidden = false;
+    $('prop-duplicate').hidden = partition || interiorDoor;
+    $('prop-delete').hidden = false;
+    for (const k of ['prop-w', 'prop-h']) $(k).closest('label').hidden = false;
+
+    if (partition) {
+      const values = { x: obj.cx, z: obj.cz, w: obj.length, h: obj.height, d: obj.thickness };
+      for (const [k, value] of Object.entries(values)) $('prop-' + k).value = value;
+      $('prop-w').readOnly = !!obj.autoSpan;
+      $('prop-x').readOnly = !!obj.autoSpan && obj.axis === 'x';
+      $('prop-z').readOnly = !!obj.autoSpan && obj.axis === 'z';
+      setInputLabel('px-label', 'Centro X (m)');
+      setInputLabel('pz-label', 'Centro Z (m)');
+      setInputLabel('pw-label', 'Longitud del tabique (m)');
+      setInputLabel('pd-label', 'Espesor del tabique (m)');
+      visible('px-label', true); visible('pz-label', true);
+      visible('py-label', false); visible('prot-label', false);
+      visible('pd-label', true); visible('pface-label', false);
       return;
     }
-    for (const k of ['prop-w', 'prop-h']) $('prop-' + k).closest('label').hidden = false;
-    const values = opening ?
-      { x: obj.u, z: 0, y: obj.v, rot: 0, w: obj.w, h: obj.h, d: 0 } :
 
-
-
-
+    $('prop-w').readOnly = false;
+    $('prop-x').readOnly = false;
+    $('prop-z').readOnly = false;
+    setInputLabel('pw-label', 'Ancho (m)');
+    setInputLabel('pd-label', 'Fondo (m)');
+    const values = interiorDoor ? { x: obj.u, z: 0, y: 0, rot: 0, w: obj.w, h: obj.h, d: 0 } :
+      opening ? { x: obj.u, z: 0, y: obj.v, rot: 0, w: obj.w, h: obj.h, d: 0 } :
       { x: obj.x, z: obj.z, y: obj.y, rot: obj.rot, w: obj.w, h: obj.h, d: obj.d };
     for (const [k, value] of Object.entries(values)) $('prop-' + k).value = value;
-    setInputLabel('px-label', opening ? 'Distancia horizontal en cara (m)' : 'X (m)');
+
+    setInputLabel('px-label', interiorDoor ? 'Distancia desde extremo del tabique (m)' :
+      opening ? 'Distancia horizontal en cara (m)' : 'X (m)');
     setInputLabel('py-label', 'Altura desde piso (m)');
-    visible('pz-label', !opening); visible('prot-label', !opening);
-    visible('pd-label', !opening); visible('pface-label', opening);
+    visible('px-label', true); visible('py-label', !interiorDoor);
+    visible('pz-label', !opening && !interiorDoor); visible('prot-label', !opening && !interiorDoor);
+    visible('pd-label', !opening && !interiorDoor); visible('pface-label', opening);
     $('prop-face').value = opening ? obj.face : 'A';
-    if (opening && obj.type === 'window') $('oBars').checked = obj.bars === true;
-}
-
-function refreshPlaced() {
-  const list = $('placed-list'); list.replaceChildren();
-  const active = api.getSelected();
-  const entries = [
-     ...state.partitions.map(x => ({ kind: 'partition', id: x.id, code: 'TABIQUE' })),
-     ...state.objects.map(x => ({ kind: 'object', id: x.id, code: x.code })),
-     ...state.openings.map(x => ({ kind: 'opening', id: x.id, code: x.catalogCode || 'VANO' })),
-     ...state.services.map(x => ({ kind: 'service', id: x.id, code: x.code }))
-  ];
-  for (const record of entries) {
-     const btn = document.createElement('button'); btn.type = 'button';
-     btn.className = 'placed-entry' + (active?.id === record.id && active?.kind === record.kind ? ' selected' : '');
-     const label = record.kind === 'partition' ? 'Tabique interior (giro 90°)' : CATALOG_BY_CODE[record.code]?.name || 'Abertura manual';
-     btn.textContent = record.code + ' · ' + label;
-     btn.addEventListener('click', () => {
-       if (record.kind === 'service') { if (window.confirm('¿Quitar este servicio del proyecto?')) api.removeService(record.id); }
-       else api.selectEntity(record.kind, record.id);
-     });
-     if (record.kind === 'service') btn.title = 'Quitar servicio (requiere confirmación)';
-     list.appendChild(btn);
-  }
-}
-function refresh() { refreshProperties(); refreshPlaced(); }
-
-$('catalog-search').addEventListener('input', renderCatalog);
-$('catalog-family').addEventListener('change', renderCatalog);
-$('cancel-placement').addEventListener('click', clearPending);
-$('apply-wall-finish').addEventListener('click', () => {
-  const item = CATALOG_BY_CODE[pendingCode];
-  if (!isWallApplication(item)) {
-    hint('Selecciona primero un revestimiento o trasdosado de muro del catálogo.', true); return;
-  }
-  // La cara viene directamente del selector HTML; NO usar coordenadas del mouse.
-  const face = $('wall-finish-face').value;
-  const result = api.setWallLining(face, item.code);
-  if (!result.ok) { hint(result.error, true); return; }
-  clearPending();
-  hint(item.code + (item.mode === 'wall-finish' ? ' aplicado' : ' instalado') +
-    ' correctamente en la cara ' + face + '.');
-});
-
-// El checkbox configura ventanas nuevas y también la ventana existente seleccionada.
-$('oBars').addEventListener('change', event => {
-  const selected = api.getSelected();
-  if (selected?.kind !== 'opening') return;
-  const opening = state.openings.find(o => o.id === selected.id);
-  if (!opening || opening.type !== 'window') return;
-  const result = api.updateOpening(opening.id, { bars: event.target.checked });
-  if (!result.ok) {
-    event.target.checked = opening.bars === true;
-    hint('No se pudieron actualizar los barrotes: ' + result.error, true);
-    return;
-  }
-  hint(event.target.checked ? 'Barrotes agregados a la ventana seleccionada.' : 'Barrotes retirados de la ventana seleccionada.');
-});
-
-$('btn-rotate-partition').addEventListener('click', () => {
-  const selected = api.getSelected();
-  if (selected?.kind !== 'partition') return;
-  const result = api.rotatePartition(selected.id);
-  hint(result.ok ? 'Tabique girado 90°.' : result.error, !result.ok);
-});
-
-$('prop-apply').addEventListener('click', () => {
-  const selection = api.getSelected(); if (!selection) return;
-  const isOpening = selection.kind === 'opening';
-  const w = number('prop-w'), h = number('prop-h');
-  const params = isOpening ?
-    { u: number('prop-x'), v: number('prop-y'), w, h, face: $('prop-face').value } :
-    { x: number('prop-x'), z: number('prop-z'), y: number('prop-y'), rot: number('prop-rot'), w, h, d: number('prop-d') };
-  const result = isOpening ? api.updateOpening(selection.id, params) : api.updateObject(selection.id, params);
-  if (!result.ok) { hint(result.error, true); return; }
-  hint('Cambios aplicados al elemento seleccionado.');
-});
-
-$('prop-delete').addEventListener('click', () => {
-  const selection = api.getSelected(); if (!selection) return;
-  if (selection.kind === 'opening') api.removeOpening(selection.id);
-  else api.removeObject(selection.id);
-  hint('Elemento eliminado del proyecto.');
-});
-
-$('prop-duplicate').addEventListener('click', () => {
-  const selection = api.getSelected(); if (!selection) return;
-  const result = selection.kind === 'opening' ? api.duplicateOpening(selection.id) : api.duplicateObject(selection.id);
-  hint(result.ok ? 'Elemento duplicado.' : 'No se pudo duplicar: ' + result.error, !result.ok);
-});
-
-$('save-project').addEventListener('click', () => {
-  const project = { schema: 'BAT-CUBIKEITOR-V2', version: 1, exportedAt: new Date().toISOString(), state: api.getState() };
-  const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob), a = document.createElement('a');
-  a.href = url; a.download = 'bat-cubikeitor-v2.json'; a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  hint('Proyecto exportado como JSON. Guarda este archivo como respaldo.');
-});
-
-$('import-project').addEventListener('click', () => $('import-project-file').click());
-$('import-project-file').addEventListener('change', async event => {
-  const file = event.target.files?.[0]; event.target.value = ''; if (!file) return;
-  if (file.size > 2_000_000) { hint('Archivo demasiado grande.', true); return; }
-  try {
-    const data = JSON.parse(await file.text());
-    if (data.schema !== 'BAT-CUBIKEITOR-V2' || data.version !== 1) throw Error('Formato de proyecto incompatible');
-    if (!confirm('¿Reemplazar el diseño actual con el archivo seleccionado?')) return;
-    const result = api.setState(data.state);
-    if (!result.ok) throw Error(result.error);
-    clearPending();
-    if (syncPanel) syncPanel();
-    hint('Proyecto importado correctamente.');
-  } catch (err) { hint('No se pudo importar: ' + err.message, true); }
-});
-
-
-
-
-
-    const canvas = renderer.domElement;
-    canvas.addEventListener('pointerdown', event => {
-      pointerOrigin = { x: event.clientX, y: event.clientY };
-      if (pendingCode) return;
-      const ray = rayFor(event); if (!ray) return;
-      const hit = objectRayPick(ray); if (!hit) return;
-      api.selectEntity(hit.kind, hit.id);
-      if (hit.kind === 'object') {
-        const o = state.objects.find(x => x.id === hit.id);
-        if (!o) return;
-        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(FLOOR + o.y));
-        const at = ray.ray.intersectPlane(plane, new THREE.Vector3());
-        if (at) {
-          drag = {
-             id: o.id, x: o.x, z: o.z, startX: at.x, startZ: at.z, origClientX: event.clientX,
-             origClientY: event.clientY, changed: false
-          };
-          controls.enabled = false;
-        }
-      }
-    });
-
-    canvas.addEventListener('pointermove', event => {
-      if (!drag || !pointerOrigin) return;
-      if (Math.hypot(event.clientX - drag.origClientX, event.clientY - drag.origClientY) > 4)
-        drag.changed = true;
-      if (!drag.changed) return;
-      const o = state.objects.find(x => x.id === drag.id), ray = rayFor(event); if (!o || !ray) return;
-      const at = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -(FLOOR + o.y)), new THREE.Vector3());
-      if (!at) return;
-      const rot = o.rot * Math.PI / 180;
-      const rx = (Math.abs(Math.cos(rot)) * o.w + Math.abs(Math.sin(rot)) * o.d) / 2;
-      const rz = (Math.abs(Math.sin(rot)) * o.w + Math.abs(Math.cos(rot)) * o.d) / 2;
-      const x = clamp(drag.x + at.x - drag.startX, -state.L / 2 + rx + .06, state.L / 2 - rx - .06);
-      const z = clamp(drag.z + at.z - drag.startZ, -state.W / 2 + rz + .06, state.W / 2 - rz - .06);
-      drag.preview = { x, z };
-      const group = api.getEntityMeshes().find(n => n.userData.objectId === drag.id);
-      if (group) group.position.set(x, FLOOR + o.y, z);
-    });
-
-    function endDrag() {
-      controls.enabled = true;
-      const prior = drag; drag = null;
-      if (prior?.changed && prior.preview) {
-        const result = api.updateObject(prior.id, prior.preview);
-        if (!result.ok) { api.selectEntity('object', prior.id); hint(result.error, true); }
-        else hint('Objeto desplazado dentro del contenedor.');
-        pointerOrigin = null; return true;
-      }
-      return false;
+    if (interiorDoor) {
+      setInputLabel('pw-label', 'Ancho de la puerta (m)');
+      setInputLabel('pd-label', 'Espesor (m)');
+      visible('py-label', false);
     }
+    if (opening && obj.type === 'window') $('oBars').checked = obj.bars === true;
+  }
 
-    canvas.addEventListener('pointerup', event => {
-      if (endDrag()) return;
-      if (!pointerOrigin) return;
-      const moved = Math.hypot(event.clientX - pointerOrigin.x, event.clientY - pointerOrigin.y) > 7;
-      pointerOrigin = null;
-      if (moved || !pendingCode) return;
-      const ray = rayFor(event); if (ray) placement(pendingCode, ray);
-    });
-    canvas.addEventListener('pointercancel', () => {
-      if (drag) api.selectEntity('object', drag.id);
-      drag = null; controls.enabled = true; pointerOrigin = null;
-    });
+  function refreshPlaced() {
+    const list = $('placed-list'); list.replaceChildren();
+    const active = api.getSelected();
+    const entries = [
+      ...state.partitions.map(x => ({ kind: 'partition', id: x.id, code: 'TABIQUE' })),
+      ...state.interiorDoors.map(x => ({ kind: 'interiorDoor', id: x.id, code: x.catalogCode })),
+      ...state.objects.map(x => ({ kind: 'object', id: x.id, code: x.code })),
+      ...state.openings.map(x => ({ kind: 'opening', id: x.id, code: x.catalogCode || 'VANO' })),
+      ...state.services.map(x => ({ kind: 'service', id: x.id, code: x.code }))
+    ];
+    for (const record of entries) {
+      const btn = document.createElement('button'); btn.type = 'button';
+      btn.className = 'placed-entry' + (active?.id === record.id && active?.kind === record.kind ? ' selected' : '');
+      const label = record.kind === 'partition' ? 'Tabique interior (giro 90°)' :
+        record.kind === 'interiorDoor' ? 'Puerta interior asociada al tabique' :
+          CATALOG_BY_CODE[record.code]?.name || 'Abertura manual';
+      btn.textContent = record.code + ' · ' + label;
+      btn.addEventListener('click', () => {
+        if (record.kind === 'service') { if (window.confirm('¿Quitar este servicio del proyecto?')) api.removeService(record.id); }
+        else api.selectEntity(record.kind, record.id);
+      });
+      if (record.kind === 'service') btn.title = 'Quitar servicio (requiere confirmación)';
+      list.appendChild(btn);
+    }
+  }
 
-    window.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && pendingCode) { clearPending(); return; }
-      if (event.key === 'Delete' &&
-        !['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(document.activeElement?.tagName)) {
-        const selection = api.getSelected(); if (selection) {
-          if (selection.kind === 'object') api.removeObject(selection.id);
-          else if (selection.kind === 'opening') api.removeOpening(selection.id);
-        }
+  function refresh() { refreshProperties(); refreshPlaced(); refreshTakeoff(); }
+
+  $('catalog-search').addEventListener('input', renderCatalog);
+  $('catalog-family').addEventListener('change', renderCatalog);
+  $('cancel-placement').addEventListener('click', clearPending);
+  $('shared-add').addEventListener('click', () => {
+    const result = api.addSharedWall({
+      face: $('shared-face').value, u: number('shared-u'), v: number('shared-v'),
+      w: number('shared-w'), h: number('shared-h')
+    });
+    $('shared-message').textContent = result.ok
+      ? 'Zona añadida. Comprueba la geometría real del contacto antes de presupuestar.'
+      : result.error;
+  });
+
+
+  $('apply-wall-finish').addEventListener('click', () => {
+    const item = CATALOG_BY_CODE[pendingCode];
+    if (!isWallApplication(item)) {
+      hint('Selecciona primero un revestimiento o trasdosado de muro del catálogo.', true); return;
+    }
+    const face = $('wall-finish-face').value;
+    const result = api.setWallLining(face, item.code);
+    if (!result.ok) { hint(result.error, true); return; }
+    clearPending();
+    hint(item.code + (item.mode === 'wall-finish' ? ' aplicado' : ' instalado') + ' correctamente en la cara ' + face + '.');
+  });
+
+  $('oBars').addEventListener('change', event => {
+    const selected = api.getSelected();
+    if (selected?.kind !== 'opening') return;
+    const opening = state.openings.find(o => o.id === selected.id);
+    if (!opening || opening.type !== 'window') return;
+    const result = api.updateOpening(opening.id, { bars: event.target.checked });
+    if (!result.ok) {
+      event.target.checked = opening.bars === true;
+      hint('No se pudieron actualizar los barrotes: ' + result.error, true);
+      return;
+    }
+    hint(event.target.checked ? 'Barrotes agregados a la ventana seleccionada.' : 'Barrotes retirados de la ventana seleccionada.');
+  });
+
+  $('add-parametric-partition').addEventListener('click', () => {
+    const result = api.addPartition({ axis: 'z', length: Math.max(0.2, state.W - 2 * api.getInteriorClearance()),
+      height: Math.min(2.3, state.H), thickness: 0.1, cx: 0, cz: 0, autoSpan: true });
+    if (result.ok && !state.seeInside) {
+      api.setSeeInside(true);
+      $('xray').checked = true;
+    }
+    hint(result.ok ? 'Tabique paramétrico creado entre paramentos. Vista interior activada para ver el giro.' :
+      'No se pudo crear el tabique: ' + result.error, !result.ok);
+  });
+
+  $('partition-fit').addEventListener('change', event => {
+    const selected = api.getSelected();
+    if (selected?.kind !== 'partition') return;
+    const result = api.updatePartition(selected.id, { autoSpan: event.target.checked });
+    if (!result.ok) {
+      event.target.checked = !event.target.checked;
+      hint('No se pudo ajustar el tabique: ' + result.error, true);
+    } else hint(event.target.checked ? 'Tabique ajustado entre ambos paramentos.' :
+      'Autoajuste desactivado. Las medidas actuales quedan editables.');
+  });
+
+  function applyPartitionFinishChange() {
+    const selected = api.getSelected();
+    if (selected?.kind !== 'partition') return;
+    const result = api.updatePartition(selected.id, {
+      faceALining: $('part-face-a').value || null,
+      faceBLining: $('part-face-b').value || null,
+      hasInsulation: $('part-insulation').checked,
+      insulationCode: $('part-insulation').checked ? $('part-insulation-code').value : null
+    });
+    if (!result.ok) { hint('No se pudieron aplicar las capas: ' + result.error, true); refreshProperties(); }
+    else hint('Capas actualizadas y superficies recalculadas.');
+  }
+  for (const id of ['part-face-a', 'part-face-b', 'part-insulation-code']) {
+    $(id).addEventListener('change', applyPartitionFinishChange);
+  }
+  $('part-insulation').addEventListener('change', applyPartitionFinishChange);
+  $('btn-add-interior-door').addEventListener('click', () => {
+    const selected = api.getSelected();
+    if (selected?.kind !== 'partition') return;
+    const code = $('part-door-code').value;
+    const result = api.addInteriorDoor({ partitionId: selected.id, catalogCode: code,
+      w: code === 'P80' ? 0.7 : 0.8 });
+    hint(result.ok ? 'Puerta añadida al tabique. Edita posición y medidas a la derecha.' :
+      'No se pudo agregar la puerta: ' + result.error, !result.ok);
+  });
+
+  $('btn-rotate-partition').addEventListener('click', () => {
+    const selected = api.getSelected();
+    if (!selected) return;
+    let result;
+    if (selected.kind === 'partition') result = api.rotatePartition(selected.id);
+    else if (selected.kind === 'object') {
+      const wall = state.objects.find(o => o.id === selected.id);
+      const item = wall && CATALOG_BY_CODE[wall.code];
+      if (!['metal-studs', 'wood-studs', 'partition', 'wet-partition', 'closure'].includes(item?.visual)) return;
+      result = api.updateObject(selected.id, { rot: ((wall.rot + 90) % 360 + 360) % 360 });
+    } else return;
+    hint(result.ok ? selected.kind === 'partition'
+      ? `Tabique girado 90° al eje ${result.axis.toUpperCase()} (largo ${result.length.toFixed(2)} m).`
+      : 'Ensamble girado 90°.' : result.error, !result.ok);
+  });
+
+  $('btn-rotate-fit').addEventListener('click', () => {
+    const selected = api.getSelected();
+    if (!selected) return;
+    if (selected.kind === 'partition') {
+      // Esta acción opta expresamente por el ajuste paramétrico en el nuevo eje.
+      const result = api.rotatePartition(selected.id, { fitToWalls: true });
+      hint(result.ok ? `Tabique girado al eje ${result.axis.toUpperCase()} y ajustado a ${result.length.toFixed(2)} m entre paramentos.` :
+        result.error, !result.ok);
+    } else if (selected.kind === 'object') {
+      // Ensambles P10-P13/P15: centrar y girar es otra acción EXPRESA.
+      // El motor rechaza automáticamente cualquier solapamiento o invasión.
+      const wall = state.objects.find(o => o.id === selected.id);
+      const item = wall && CATALOG_BY_CODE[wall.code];
+      if (!['metal-studs', 'wood-studs', 'partition', 'wet-partition', 'closure'].includes(item?.visual)) return;
+      const result = api.updateObject(selected.id, {
+        rot: ((wall.rot + 90) % 360 + 360) % 360, x: 0, z: 0
+      });
+      hint(result.ok ? 'Ensamblaje girado 90° y centrado. Se conservaron sus medidas.' :
+        'No se puede centrar y girar: ' + result.error, !result.ok);
+    }
+  });
+
+  $('prop-apply').addEventListener('click', () => {
+    const selection = api.getSelected(); if (!selection) return;
+    const isOpening = selection.kind === 'opening';
+    const isInteriorDoor = selection.kind === 'interiorDoor';
+    const w = number('prop-w'), h = number('prop-h');
+    const isPartition = selection.kind === 'partition';
+    const params = isInteriorDoor ? { u: number('prop-x'), w, h } :
+      isOpening ? { u: number('prop-x'), v: number('prop-y'), w, h, face: $('prop-face').value } :
+      isPartition ?
+        { cx: number('prop-x'), cz: number('prop-z'), length: w, height: h, thickness: number('prop-d') } :
+        { x: number('prop-x'), z: number('prop-z'), y: number('prop-y'), rot: number('prop-rot'), w, h, d: number('prop-d') };
+    const result = isInteriorDoor ? api.updateInteriorDoor(selection.id, params) :
+      isOpening ? api.updateOpening(selection.id, params) :
+      isPartition ? api.updatePartition(selection.id, params) : api.updateObject(selection.id, params);
+    if (!result.ok) { hint(result.error, true); return; }
+    hint('Cambios aplicados al elemento seleccionado.');
+  });
+
+  $('prop-delete').addEventListener('click', () => {
+    const selection = api.getSelected(); if (!selection) return;
+    if (selection.kind === 'opening') api.removeOpening(selection.id);
+    else if (selection.kind === 'interiorDoor') api.removeInteriorDoor(selection.id);
+    else if (selection.kind === 'partition') api.removePartition(selection.id);
+    else api.removeObject(selection.id);
+    hint('Elemento eliminado del proyecto.');
+  });
+
+  $('prop-duplicate').addEventListener('click', () => {
+    const selection = api.getSelected(); if (!selection) return;
+    if (selection.kind === 'interiorDoor' || selection.kind === 'partition') return;
+    const result = selection.kind === 'opening' ? api.duplicateOpening(selection.id) : api.duplicateObject(selection.id);
+    hint(result.ok ? 'Elemento duplicado.' : 'No se pudo duplicar: ' + result.error, !result.ok);
+  });
+
+  $('save-project').addEventListener('click', () => {
+    const project = { schema: 'BAT-CUBIKEITOR-V2', version: 3, exportedAt: new Date().toISOString(), state: api.getState() };
+    const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = 'bat-cubikeitor-v4-4.json'; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    hint('Proyecto exportado como JSON. Guarda este archivo como respaldo.');
+  });
+
+  $('import-project').addEventListener('click', () => $('import-project-file').click());
+  $('import-project-file').addEventListener('change', async event => {
+    const file = event.target.files?.[0]; event.target.value = ''; if (!file) return;
+    if (file.size > 2_000_000) { hint('Archivo demasiado grande.', true); return; }
+    try {
+      const data = JSON.parse(await file.text());
+      if (data.schema !== 'BAT-CUBIKEITOR-V2' || ![1, 2, 3].includes(data.version)) {
+        throw Error('Formato de proyecto incompatible: se aceptan versiones 1, 2 y 3');
       }
-    });
+      if (!confirm('¿Reemplazar el diseño actual con el archivo seleccionado?')) return;
+      const result = api.setState(data.state);
+      if (!result.ok) throw Error(result.error);
+      clearPending();
+      if (syncPanel) syncPanel();
+      hint('Proyecto importado correctamente.');
+    } catch (err) { hint('No se pudo importar: ' + err.message, true); }
+  });
 
-    renderCatalog(); refresh();
-    return Object.freeze({ refresh, clearPending, getPending: () => pendingCode });
+  const canvas = renderer.domElement;
+  canvas.addEventListener('pointerdown', event => {
+    pointerOrigin = { x: event.clientX, y: event.clientY };
+    if (pendingCode) return;
+    const ray = rayFor(event); if (!ray) return;
+    const hit = objectRayPick(ray); if (!hit) return;
+    api.selectEntity(hit.kind, hit.id);
+    if (hit.kind === 'object') {
+      const o = state.objects.find(x => x.id === hit.id);
+      if (!o) return;
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(FLOOR + o.y));
+      const at = ray.ray.intersectPlane(plane, new THREE.Vector3());
+      if (at) {
+        drag = {
+          id: o.id, x: o.x, z: o.z, startX: at.x, startZ: at.z, origClientX: event.clientX,
+          origClientY: event.clientY, changed: false
+        };
+        controls.enabled = false;
+      }
+    }
+  });
+
+  canvas.addEventListener('pointermove', event => {
+    if (!drag || !pointerOrigin) return;
+    if (Math.hypot(event.clientX - drag.origClientX, event.clientY - drag.origClientY) > 4) drag.changed = true;
+    if (!drag.changed) return;
+    const o = state.objects.find(x => x.id === drag.id), ray = rayFor(event); if (!o || !ray) return;
+    const at = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -(FLOOR + o.y)), new THREE.Vector3());
+    if (!at) return;
+    const rot = o.rot * Math.PI / 180;
+    const rx = (Math.abs(Math.cos(rot)) * o.w + Math.abs(Math.sin(rot)) * o.d) / 2;
+    const rz = (Math.abs(Math.sin(rot)) * o.w + Math.abs(Math.cos(rot)) * o.d) / 2;
+    const margin = api.getInteriorClearance();
+    const x = clamp(drag.x + at.x - drag.startX, -state.L / 2 + rx + margin, state.L / 2 - rx - margin);
+    const z = clamp(drag.z + at.z - drag.startZ, -state.W / 2 + rz + margin, state.W / 2 - rz - margin);
+    drag.preview = { x, z };
+    const group = api.getEntityMeshes().find(n => n.userData.objectId === drag.id);
+    if (group) group.position.set(x, FLOOR + o.y, z);
+  });
+
+  function endDrag() {
+    controls.enabled = true;
+    const prior = drag; drag = null;
+    if (prior?.changed && prior.preview) {
+      const result = api.updateObject(prior.id, prior.preview);
+      if (!result.ok) { api.selectEntity('object', prior.id); hint(result.error, true); }
+      else hint('Objeto desplazado dentro del contenedor.');
+      pointerOrigin = null; return true;
+    }
+    return false;
+  }
+
+  canvas.addEventListener('pointerup', event => {
+    if (endDrag()) return;
+    if (!pointerOrigin) return;
+    const moved = Math.hypot(event.clientX - pointerOrigin.x, event.clientY - pointerOrigin.y) > 7;
+    pointerOrigin = null;
+    if (moved || !pendingCode) return;
+    const ray = rayFor(event); if (ray) placement(pendingCode, ray);
+  });
+
+  canvas.addEventListener('pointercancel', () => {
+    if (drag) api.selectEntity('object', drag.id);
+    drag = null; controls.enabled = true; pointerOrigin = null;
+  });
+
+  window.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && pendingCode) { clearPending(); return; }
+    if (event.key === 'Delete' &&
+      !['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(document.activeElement?.tagName)) {
+      const selection = api.getSelected(); if (selection) {
+        if (selection.kind === 'object') api.removeObject(selection.id);
+        else if (selection.kind === 'opening') api.removeOpening(selection.id);
+        else if (selection.kind === 'partition') api.removePartition(selection.id);
+        else if (selection.kind === 'interiorDoor') api.removeInteriorDoor(selection.id);
+      }
+    }
+  });
+
+  renderCatalog(); refresh();
+  return Object.freeze({ refresh, clearPending, getPending: () => pendingCode });
 }

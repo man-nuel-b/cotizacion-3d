@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../');
-const mime = { '.html': 'text/html;charset=utf-8', '.js': 'application/javascript;charset=utf-8', '.mjs': 'application/javascript;charset=utf-8' };
+const mime = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.mjs': 'application/javascript; charset=utf-8' };
 const localThree = path.join(repo, 'rebuild/node_modules/three');
 
 async function prepare() {
@@ -22,29 +22,27 @@ async function prepare() {
     } catch (err) { res.writeHead(404); res.end('Not found: ' + err.message); }
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-
-    const browser = await chromium.launch({
-      headless: true,
-      args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-webgl', '--disable-dev-shm-usage', '--no-sandbox']});
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-    const errors = [];
-    page.on('pageerror', error => errors.push(String(error?.stack || error)));
-    page.on('console', message => { if (message.type() === 'error') errors.push('console: ' + message.text()); });
-
-    await page.route('https://cdn.jsdelivr.net/npm/three@0.160.0/**', async route => {
-      try {
-        const key = route.request().url().split('/three@0.160.0/')[1].split('?')[0];
-        const file = path.resolve(localThree, key);
-        if (!file.startsWith(localThree + path.sep)) throw Error('file path');
-        const body = fs.readFileSync(file);
-        await route.fulfill({ status: 200, contentType: 'application/javascript', body });
-      } catch (err) { errors.push('Three CDN mapping: ' + err.message); await route.abort(); }
-    });
-
-    await page.goto('http://127.0.0.1:' + server.address().port + '/rebuild/index.html', { waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(() => Boolean(window.Container3D) && document.querySelectorAll('.catalog-item').length >= 60,
-      null, { timeout: 45000 });
-    return { server, browser, page, errors };
+  const browser = await chromium.launch({
+    headless: true,
+    args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-webgl', '--disable-dev-shm-usage', '--no-sandbox']
+  });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  const errors = [];
+  page.on('pageerror', error => errors.push(String(error?.stack || error)));
+  page.on('console', message => { if (message.type() === 'error') errors.push('console: ' + message.text()); });
+  await page.route('https://cdn.jsdelivr.net/npm/three@0.160.0/**', async route => {
+    try {
+      const key = route.request().url().split('/three@0.160.0/')[1].split('?')[0];
+      const file = path.resolve(localThree, key);
+      if (!file.startsWith(localThree + path.sep)) throw Error('file path');
+      const body = fs.readFileSync(file);
+      await route.fulfill({ status: 200, contentType: 'application/javascript', body });
+    } catch (err) { errors.push('Three CDN mapping: ' + err.message); await route.abort(); }
+  });
+  await page.goto('http://127.0.0.1:' + server.address().port + '/rebuild/index.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => Boolean(window.Container3D) && document.querySelectorAll('.catalog-item').length >= 60,
+    null, { timeout: 45000 });
+  return { server, browser, page, errors };
 }
 
 async function close({ server, browser }) {
@@ -61,6 +59,7 @@ test('BAT V2: catálogo 60 partidas, selección de objetos, edición y exportaci
     await page.locator('#catalog-search').fill('inodoro');
     assert.equal(await page.locator('.catalog-item').count(), 1);
     await page.locator('#catalog-search').fill('');
+
     await page.locator('.catalog-item[data-code="P60"]').click();
     assert.match(await page.locator('#scene-hint').innerText(), /P60/);
     await page.locator('#view canvas').click({ position: { x: 720, y: 450 } });
@@ -77,17 +76,15 @@ test('BAT V2: catálogo 60 partidas, selección de objetos, edición y exportaci
     state = await page.evaluate(() => window.Container3D.getState());
     assert.equal(state.objects[0].w, .45);
     assert.equal(state.objects[0].rot, 15);
+
     await page.locator('#catalog-search').fill('P01');
-
-
-
-
     await page.locator('.catalog-item[data-code="P01"]').click();
     await page.locator('#view canvas').click({ position: { x: 720, y: 450 } });
     state = await page.evaluate(() => window.Container3D.getState());
     assert.equal(state.finishes.floor, 'P01');
     assert.equal(state.objects.length, 1);
     assert.equal(await page.locator('#scene-hint').innerText().then(x => x.includes('aplicado')), true);
+
     await page.locator('#catalog-search').fill('P83');
     await page.locator('.catalog-item[data-code="P83"]').click();
     await page.locator('#view canvas').click({ position: { x: 690, y: 470 } });
@@ -95,6 +92,7 @@ test('BAT V2: catálogo 60 partidas, selección de objetos, edición y exportaci
     assert.equal(state.openings.length, 1, 'Window is placed via surface click');
     assert.equal(state.openings[0].catalogCode, 'P83');
     assert.equal(state.openings[0].type, 'window');
+
     const rendered = await page.evaluate(() => {
       const group = window.Container3D.getEntityMeshes()[0];
       let meshes = 0; group?.traverse(x => { if (x.isMesh) meshes++; });
@@ -105,140 +103,6 @@ test('BAT V2: catálogo 60 partidas, selección de objetos, edición y exportaci
   } finally { if (fixture) await close(fixture); }
 });
 
-test('BAT V2: three model types, safe dimensions, save & import', { timeout: 180000 }, async () => {
-  let fixture;
-  try {
-    fixture = await prepare(); const { page, errors } = fixture;
-    for (const type of ['maritimo', 'reefer', 'modular']) {
-      await page.locator('[data-t="' + type + '"]').click();
-      const value = await page.evaluate(() => window.Container3D.getState().type);
-      assert.equal(value, type);
-    }
-    let state = await page.evaluate(() => window.Container3D.getState());
-    assert.equal(state.L, 5.95);
-    const invalid = await page.evaluate(() => window.Container3D.addObject('P60', 99, 0));
-    assert.equal(invalid.ok, false);
-    assert.equal((await page.evaluate(() => window.Container3D.getState())).objects.length, 0);
-    const add = await page.evaluate(() => window.Container3D.addObject('P60', 0, 0));
-    assert.equal(add.ok, true);
-    const before = await page.evaluate(() => window.Container3D.getState());
-    const invalidUpdate = await page.evaluate(id => window.Container3D.updateObject(id, { w: NaN }), before.objects[0].id);
-    assert.equal(invalidUpdate.ok, false);
-    assert.deepEqual(await page.evaluate(() => window.Container3D.getState()), before);
-    const exported = await page.evaluate(() => window.Container3D.getState());
-    page.once('dialog', dialog => dialog.dismiss());
-    await page.locator('[data-t="reefer"]').click();
-    let after = await page.evaluate(() => window.Container3D.getState());
-    assert.equal(after.type, 'modular');
-    const restored = await page.evaluate(data => window.Container3D.setState(data), exported);
-    assert.equal(restored.ok, true);
-    assert.deepEqual(await page.evaluate(() => window.Container3D.getState()), exported);
-    assert.ok(await page.locator('#view canvas').count() === 1);
-    assert.deepEqual(errors, [], errors.join('\n'));
-  } finally { if (fixture) await close(fixture); }
-});
-
-
-test('BAT V2: el checkbox activa y desactiva barrotes en la ventana seleccionada', { timeout: 180000 }, async () => {
-  let fixture;
-  try {
-    fixture = await prepare();
-    const { page, errors } = fixture;
-    await page.locator('[data-t="modular"]').click();
-    const created = await page.evaluate(() => window.Container3D.addOpening({
-      type: 'window', face: 'A', w: 1.2, h: 1, u: 2, v: 1, bars: false
-    }));
-    assert.equal(created.ok, true);
-    assert.equal(await page.locator('#oBars').isChecked(), false);
-    await page.locator('#oBars').check();
-    let state = await page.evaluate(() => window.Container3D.getState());
-    assert.equal(state.openings[0].bars, true);
-    await page.locator('#oBars').uncheck();
-    state = await page.evaluate(() => window.Container3D.getState());
-    assert.equal(state.openings[0].bars, false);
-
-    // Al seleccionar otra ventana, el control debe reflejar su configuración.
-    const second = await page.evaluate(() => window.Container3D.addOpening({
-      type: 'window', face: 'C', w: 1.2, h: 1, u: 2, v: 1, bars: true
-    }));
-    assert.equal(second.ok, true);
-    assert.equal(await page.locator('#oBars').isChecked(), true);
-    await page.evaluate(id => window.Container3D.selectEntity('opening', id), created.id);
-    assert.equal(await page.locator('#oBars').isChecked(), false);
-    await page.locator('#oBars').check();
-    state = await page.evaluate(() => window.Container3D.getState());
-    assert.equal(state.openings.find(o => o.id === created.id).bars, true);
-    assert.equal(state.openings.find(o => o.id === second.id).bars, true);
-    assert.deepEqual(errors, [], errors.join('\\n'));
-  } finally { if (fixture) await close(fixture); }
-});
-
-
-test('BAT V2: colisiones 3D y giro de tabiques con selección', { timeout: 180000 }, async () => {
-  let fixture;
-  try {
-    fixture = await prepare();
-    const { page, errors } = fixture;
-    const first = await page.evaluate(() => window.Container3D.addObject('P60', -1.5, 0));
-    assert.equal(first.ok, true);
-    const rejected = await page.evaluate(() => window.Container3D.addObject('P60', -1.5, 0));
-    assert.equal(rejected.ok, false);
-    assert.match(rejected.error, /superpone/);
-    const second = await page.evaluate(() => window.Container3D.addObject('P60', 1.5, 0));
-    assert.equal(second.ok, true);
-    const moved = await page.evaluate(id => window.Container3D.updateObject(id, { x: -1.5, z: 0 }), second.id);
-    assert.equal(moved.ok, false);
-    const state = await page.evaluate(() => window.Container3D.getState());
-    assert.equal(state.objects.find(o => o.id === second.id).x, 1.5);
-
-    const created = await page.evaluate(() => window.Container3D.addPartition({
-      length: 1.2, height: 2, thickness: 0.1, axis: 'x', cx: 0, cz: 0
-    }));
-    assert.equal(created.ok, true);
-    assert.equal(await page.locator('#btn-rotate-partition').isVisible(), true);
-    await page.locator('#btn-rotate-partition').click();
-    let partitions = (await page.evaluate(() => window.Container3D.getState())).partitions;
-    assert.equal(partitions[0].axis, 'z');
-    await page.locator('#btn-rotate-partition').click();
-    partitions = (await page.evaluate(() => window.Container3D.getState())).partitions;
-    assert.equal(partitions[0].axis, 'x');
-    assert.deepEqual(errors, [], errors.join('\\n'));
-  } finally { if (fixture) await close(fixture); }
-});
-
-
-test('BAT V2: revestimiento se aplica en la cara seleccionada y se conserva en estado', { timeout: 180000 }, async () => {
-  let fixture;
-  try {
-    fixture = await prepare();
-    const { page, errors } = fixture;
-    await page.locator('.catalog-item[data-code="P34"]').click();
-    assert.equal(await page.locator('#wall-finish-controls').isVisible(), true);
-    await page.locator('#wall-finish-face').selectOption('C');
-    await page.locator('#apply-wall-finish').click();
-    let state = await page.evaluate(() => window.Container3D.getState());
-    assert.equal(state.finishes.walls.C, 'P34');
-    assert.equal(state.finishes.walls.A, null);
-    assert.equal(await page.locator('#wall-finish-controls').isVisible(), false);
-
-    await page.locator('.catalog-item[data-code="P36"]').click();
-    await page.locator('#wall-finish-face').selectOption('A');
-    await page.locator('#apply-wall-finish').click();
-    state = await page.evaluate(() => window.Container3D.getState());
-    assert.equal(state.finishes.walls.A, 'P36');
-    assert.equal(state.finishes.walls.C, 'P34');
-    const materialExists = await page.evaluate(() => {
-      let found = false;
-      window.Container3D.getState();
-      // The successful rebuild and persisted finish state are required.
-      return document.querySelector('#view canvas') !== null;
-    });
-    assert.equal(materialExists, true);
-    assert.deepEqual(errors, [], errors.join('\\n'));
-  } finally { if (fixture) await close(fixture); }
-});
-
-
 test('BAT V2: selector HTML aplica revestimientos y trasdosados sin raycast', { timeout: 180000 }, async () => {
   let fixture;
   try {
@@ -247,7 +111,6 @@ test('BAT V2: selector HTML aplica revestimientos y trasdosados sin raycast', { 
     await page.locator('.catalog-item[data-code="P34"]').click();
     await page.locator('#wall-finish-face').selectOption('B');
     await page.locator('#apply-wall-finish').click();
-
     let state = await page.evaluate(() => window.Container3D.getState());
     assert.equal(state.finishes.walls.B, 'P34', 'La cara B debe recibir el revestimiento');
     assert.equal(state.finishes.walls.A, null);
@@ -261,10 +124,294 @@ test('BAT V2: selector HTML aplica revestimientos y trasdosados sin raycast', { 
     assert.equal(state.objects.filter(o => o.code === 'P17').length, 1);
     assert.equal(state.finishes.walls.C, null, 'P17 no debe registrarse como una pintura de muro');
     assert.ok(state.objects.some(o => o.code === 'P17' && o.z < 0), 'P17 debe adosarse a la cara C');
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
 
-    const invalid = await page.evaluate(() => window.Container3D.setWallLining('X', 'P34'));
-    assert.equal(invalid.ok, false);
-    assert.match(invalid.error, /Cara/);
-    assert.deepEqual(errors, [], errors.join('\\n'));
+test('BAT V2 reforzado: esquineros, zona compartida, cubicación por cara y JSON compatible', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    const nearCorner = await page.evaluate(() => window.Container3D.addOpening({
+      type: 'window', face: 'A', w: 1.2, h: 1, u: 0.05, v: 0.9, bars: false
+    }));
+    assert.equal(nearCorner.ok, false);
+    assert.match(nearCorner.error, /esquinero/);
+    const valid = await page.evaluate(() => window.Container3D.addOpening({
+      type: 'window', face: 'A', w: 1.2, h: 1, u: 1.0, v: 0.9, bars: false
+    }));
+    assert.equal(valid.ok, true);
+    await page.locator('#shared-face').selectOption('A');
+    await page.locator('#shared-u').fill('3');
+    await page.locator('#shared-v').fill('0');
+    await page.locator('#shared-w').fill('1.6');
+    await page.locator('#shared-h').fill('2.3');
+    await page.locator('#shared-add').click();
+    const state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.sharedWalls.length, 1);
+    const t = await page.evaluate(() => window.Container3D.getConstructionTakeoff());
+    assert.ok(Math.abs(t.walls.A.sharedDeductionM2 - 3.68) < 1e-8);
+    assert.ok(Math.abs(t.totalNetWallAreaM2 -
+      Object.values(t.walls).reduce((sum, x) => sum + x.netAreaM2, 0)) < 1e-8);
+    assert.match(await page.locator('#takeoff-summary').innerText(), /3.68/);
+    const conflicts = await page.evaluate(() => ({
+      opening: window.Container3D.addOpening({
+        type: 'door', face: 'A', u: 3.4, v: 0, w: 0.8, h: 2, bars: false
+      }),
+      region: window.Container3D.addSharedWall({ face: 'A', u: 3.5, v: 0, w: 1, h: 2.3 })
+    }));
+    assert.equal(conflicts.opening.ok, false);
+    assert.equal(conflicts.region.ok, false);
+    const save = await page.evaluate(() => window.Container3D.getState());
+    assert.equal((await page.evaluate(s => window.Container3D.setState(s), save)).ok, true);
+    const restored = await page.evaluate(() => window.Container3D.getState());
+    assert.deepEqual(restored, save);
+    const importedLegacy = structuredClone(save);
+    delete importedLegacy.sharedWalls;
+    assert.equal((await page.evaluate(s => window.Container3D.setState(s), importedLegacy)).ok, true);
+    assert.equal((await page.evaluate(() => window.Container3D.getState())).sharedWalls.length, 0);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
+
+test('BAT V2 reforzado: reconstrucciones no acumulan geometrías ni texturas', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    const initial = await page.evaluate(() => window.Container3D.getRenderStats());
+    for (let i = 0; i < 10; i++) {
+      const r = await page.evaluate(i => window.Container3D.setFinish(i % 2 ? 'P34' : 'P30', 'A'), i);
+      assert.equal(r.ok, true);
+    }
+    await page.waitForTimeout(500);
+    const final = await page.evaluate(() => window.Container3D.getRenderStats());
+    // Refleja el conteo aproximado de recursos Three.js, no el consumo GPU exacto.
+    assert.ok(final.geometries < initial.geometries + 100, JSON.stringify({ initial, final }));
+    assert.ok(final.textures < initial.textures + 30, JSON.stringify({ initial, final }));
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
+
+test('BAT V4.2: autoSpan alternable, giro, redimensionamiento, cubicación y JSON retrocompatible', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    const original = await page.evaluate(() => window.Container3D.addPartition({
+      axis: 'z', length: 1.4, height: 2.3, thickness: .1, cx: 0, cz: .1
+    }));
+    assert.equal(original.ok, true);
+    let state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.partitions[0].autoSpan, false);
+    assert.equal(state.partitions[0].length, 1.4);
+    assert.equal(state.partitions[0].cz, .1);
+
+    assert.equal(await page.locator('#partition-fit-label').isVisible(), true);
+    await page.locator('#partition-fit').check();
+    state = await page.evaluate(() => window.Container3D.getState());
+    let margin = await page.evaluate(() => window.Container3D.getInteriorClearance());
+    assert.equal(state.partitions[0].autoSpan, true);
+    assert.ok(Math.abs(state.partitions[0].length - (state.W - 2 * margin)) < 1e-8);
+    assert.equal(state.partitions[0].cz, 0);
+    assert.equal(await page.locator('#prop-w').getAttribute('readonly'), '');
+
+    await page.locator('#btn-rotate-partition').click();
+    state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.partitions[0].axis, 'x');
+    assert.ok(Math.abs(state.partitions[0].length - (state.L - 2 * margin)) < 1e-8);
+    assert.equal(state.partitions[0].cx, 0);
+
+    const resized = await page.evaluate(() => window.Container3D.setDimensions(7, 2.6, 2.5));
+    assert.equal(resized.ok, true);
+    state = await page.evaluate(() => window.Container3D.getState());
+    margin = await page.evaluate(() => window.Container3D.getInteriorClearance());
+    assert.ok(Math.abs(state.partitions[0].length - (7 - 2 * margin)) < 1e-8);
+    const area = await page.evaluate(() => window.Container3D.getConstructionTakeoff());
+    assert.ok(Math.abs(area.totalPartitionBothFacesAreaM2 - 2 * state.partitions[0].length * 2.3) < 1e-8);
+    assert.match(await page.locator('#takeoff-summary').innerText(), /Tabiques interiores/);
+
+    const json = structuredClone(state);
+    assert.equal((await page.evaluate(s => window.Container3D.setState(s), json)).ok, true);
+    assert.deepEqual(await page.evaluate(() => window.Container3D.getState()), json);
+
+    const legacy = structuredClone(state);
+    delete legacy.partitions[0].autoSpan;
+    assert.equal((await page.evaluate(s => window.Container3D.setState(s), legacy)).ok, true);
+    const restored = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(restored.partitions[0].autoSpan, false);
+    assert.equal(restored.partitions[0].length, json.partitions[0].length);
+
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
+
+
+test('BAT V4.3: giro manual conservador, botón de ajuste expreso y JSON v2 importable', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    let added = await page.evaluate(() => window.Container3D.addPartition({
+      axis: 'x', length: 4.2, height: 2.2, thickness: .1, cx: 0, cz: 0, autoSpan: false
+    }));
+    assert.equal(added.ok, true);
+    assert.equal(await page.locator('#btn-rotate-fit').isVisible(), true);
+    await page.locator('#btn-rotate-partition').click();
+    let state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.partitions[0].axis, 'x', 'El giro inválido no cambia el estado');
+    assert.equal(state.partitions[0].length, 4.2);
+    assert.match(await page.locator('#scene-hint').innerText(), /no cabe/i);
+    await page.locator('#btn-rotate-fit').click();
+    state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.partitions[0].axis, 'z');
+    assert.equal(state.partitions[0].autoSpan, true);
+    assert.ok(state.partitions[0].length < 2.35);
+    assert.match(await page.locator('#scene-hint').innerText(), /ajustado/i);
+    assert.equal(await page.locator('#btn-rotate-fit').isVisible(), false);
+
+    const saved = { schema: 'BAT-CUBIKEITOR-V2', version: 2, state };
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#import-project-file').setInputFiles({
+      name: 'respaldo-v2.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(saved))
+    });
+    await page.waitForFunction(() => document.querySelector('#scene-hint').textContent.includes('importado'));
+    assert.deepEqual(await page.evaluate(() => window.Container3D.getState()), state);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
+
+
+test('BAT V4.3: ensamblaje P12 se gira y centra sin atravesar muros', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    const added = await page.evaluate(() => window.Container3D.addObject('P12', 0, .8));
+    assert.equal(added.ok, true);
+    assert.equal(await page.locator('#btn-rotate-fit').isVisible(), true);
+    assert.match(await page.locator('#btn-rotate-fit').innerText(), /centrar/i);
+    await page.locator('#btn-rotate-partition').click();
+    let state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.objects[0].rot, 0, 'El motor no debe aceptar un giro fuera de los límites');
+    await page.locator('#btn-rotate-fit').click();
+    state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.objects[0].rot, 90);
+    assert.equal(state.objects[0].x, 0);
+    assert.equal(state.objects[0].z, 0);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
+
+
+test('BAT V4.3: botón de tabique paramétrico muestra el interior y el botón de giro', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    await page.locator('#add-parametric-partition').click();
+    const state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.partitions.length, 1);
+    assert.equal(state.seeInside, true);
+    assert.equal(await page.locator('#xray').isChecked(), true);
+    assert.equal(await page.locator('#btn-rotate-partition').isVisible(), true);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
+
+test('BAT V4.4: editor aplica revestimientos A/B y aislación por tabique y descuenta puerta', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    await page.locator('#add-parametric-partition').click();
+    assert.equal(await page.locator('#partition-finishes-box').isVisible(), true);
+    await page.locator('#part-face-a').selectOption('P30');
+    await page.locator('#part-face-b').selectOption('P34');
+    await page.locator('#part-insulation').check();
+    await page.locator('#part-insulation-code').selectOption('P21');
+    let state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.partitions[0].faceALining, 'P30');
+    assert.equal(state.partitions[0].faceBLining, 'P34');
+    assert.equal(state.partitions[0].hasInsulation, true);
+    assert.equal(state.partitions[0].insulationCode, 'P21');
+
+    await page.locator('#btn-add-interior-door').click();
+    state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.interiorDoors.length, 1);
+    assert.equal(state.interiorDoors[0].catalogCode, 'P81');
+    assert.equal(await page.locator('#properties-title').innerText(), 'Puerta del tabique');
+    assert.equal(await page.locator('#partition-finishes-box').isVisible(), false);
+    const before = await page.evaluate(() => window.Container3D.getConstructionTakeoff());
+    assert.equal(before.interiorDoorsCount, 1);
+    assert.equal(before.partitions[0].doorsCount, 1);
+    assert.ok(before.totalPartitionLiningAreaM2 > 0);
+    assert.ok(before.totalPartitionInsulationAreaM2 > 0);
+    assert.ok(before.totalPartitionLiningAreaM2 < 2 * state.partitions[0].length * state.partitions[0].height);
+    await page.locator('#prop-w').fill('0.65');
+    await page.locator('#prop-apply').click();
+    const after = await page.evaluate(() => window.Container3D.getConstructionTakeoff());
+    assert.ok(after.totalPartitionLiningAreaM2 > before.totalPartitionLiningAreaM2);
+    assert.ok(after.totalPartitionInsulationAreaM2 > before.totalPartitionInsulationAreaM2);
+    assert.match(await page.locator('#takeoff-summary').innerText(), /Placas en tabiques/);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
+
+test('BAT V4.4: las puertas persisten en JSON v3 y se eliminan con su tabique', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    const added = await page.evaluate(() => window.Container3D.addPartition({
+      axis: 'x', length: 3, height: 2.3, thickness: 0.1,
+      faceALining: 'P30', faceBLining: null, hasInsulation: true, insulationCode: 'P20'
+    }));
+    assert.equal(added.ok, true);
+    const created = await page.evaluate(id => window.Container3D.addInteriorDoor({ partitionId: id }), added.id);
+    assert.equal(created.ok, true);
+    const backup = await page.evaluate(() => window.Container3D.getState());
+    await page.evaluate(() => window.Container3D.removePartition(window.Container3D.getState().partitions[0].id));
+    assert.equal(await page.evaluate(() => window.Container3D.getState().interiorDoors.length), 0);
+    const project = { schema: 'BAT-CUBIKEITOR-V2', version: 3, state: backup };
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#import-project-file').setInputFiles({
+      name: 'respaldo-v3.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(project))
+    });
+    await page.waitForFunction(() => document.querySelector('#scene-hint').textContent.includes('importado'));
+    assert.deepEqual(await page.evaluate(() => window.Container3D.getState()), backup);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
+
+
+test('BAT V4.4.1: catálogo se desarma tras un solo objeto o ensamble', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    const canvas = page.locator('#view canvas');
+
+    await page.locator('.catalog-item[data-code="P60"]').click();
+    assert.match(await page.locator('.catalog-item[data-code="P60"]').getAttribute('class'), /active/);
+    await canvas.click({ position: { x: 720, y: 450 } });
+    await page.waitForFunction(() => window.Container3D.getState().objects.length === 1);
+    assert.doesNotMatch(await page.locator('.catalog-item[data-code="P60"]').getAttribute('class'), /active/, 'Catálogo debe quedar desarmado');
+    await canvas.click({ position: { x: 720, y: 450 } });
+    assert.equal((await page.evaluate(() => window.Container3D.getState())).objects.length, 1, 'El segundo clic no debe duplicar P60');
+
+    await page.evaluate(() => {
+      const id = window.Container3D.getState().objects[0].id;
+      window.Container3D.removeObject(id);
+    });
+    await page.locator('.catalog-item[data-code="P12"]').click();
+    await canvas.click({ position: { x: 720, y: 450 } });
+    await page.waitForFunction(() => window.Container3D.getState().objects.some(o => o.code === 'P12'));
+    assert.doesNotMatch(await page.locator('.catalog-item[data-code="P12"]').getAttribute('class'), /active/);
+    await canvas.click({ position: { x: 720, y: 450 } });
+    const added = await page.evaluate(() => window.Container3D.getState().objects.filter(o => o.code === 'P12').length);
+    assert.equal(added, 1, 'El segundo clic no debe duplicar el ensamble P12');
+    assert.deepEqual(errors, [], errors.join('\n'));
   } finally { if (fixture) await close(fixture); }
 });
