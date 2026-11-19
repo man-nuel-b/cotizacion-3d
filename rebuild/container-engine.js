@@ -757,6 +757,50 @@ function fittedPartition(p, ref = state) {
   return resolvePartitionGeometry(p, ref, profileThicknessFor(ref));
 }
 
+/**
+ * Sugerencias de posición para insertar otra división transversal/longitudinal.
+ * Busca el punto medio de cada tramo libre entre tabiques paralelos, empezando
+ * por los recintos más amplios. No modifica geometría ni obvia colisiones.
+ * Los recintos menores a ~65 cm entre divisiones no se subdividen de forma
+ * automática: la persona puede editar el centro manualmente si lo requiere.
+ */
+function freePartitionCenters(p, ref = state) {
+  const alongX = p.axis === 'z';
+  const crossWidth = alongX ? ref.L : ref.W;
+  const margin = interiorClearance(profileThicknessFor(ref));
+  const maxCenter = crossWidth / 2 - margin - p.thickness / 2;
+  if (maxCenter <= 0) return [];
+  const boundaries = [-maxCenter, maxCenter];
+  const peers = (ref.partitions || []).filter(other => other.axis === p.axis);
+  const occupied = peers.map(other => alongX ? other.cx : other.cz)
+    .filter(value => Number.isFinite(value) && Math.abs(value) < maxCenter)
+    .sort((a, b) => a - b);
+  const cuts = [boundaries[0], ...occupied, boundaries[1]];
+  const minSpace = 0.65;
+  const bays = [];
+  for (let i = 0; i < cuts.length - 1; i++) {
+    const left = cuts[i], right = cuts[i + 1];
+    // Reservar espacio suficiente a cada lado, evitando crear un recinto
+    // automático diminuto solo porque el grosor del tabique cabe.
+    if (right - left < minSpace * 2 + p.thickness) continue;
+    bays.push({ center: (left + right) / 2, width: right - left, left, right });
+  }
+  bays.sort((a, b) => b.width - a.width || b.center - a.center);
+  const samples = [];
+  for (const bay of bays) {
+    // Primero centro de vano; después puntos laterales cuando hay mobiliario.
+    const range = bay.width / 2 - minSpace - p.thickness / 2;
+    for (const amount of [0, .5, -.5]) {
+      const point = bay.center + amount * range;
+      if (!samples.some(x => Math.abs(x - point) < 0.01)) samples.push(point);
+    }
+  }
+  return samples.map(center => ({
+    cx: alongX ? center : p.cx,
+    cz: alongX ? p.cz : center
+  }));
+}
+
 function partitionSpecificationError(p) {
   return validatePartitionSpecification(p);
 }
@@ -1021,19 +1065,40 @@ const api = {
   },
 
   addPartition({ length = undefined, height, thickness = .1, axis = 'x', cx = 0, cz = 0, autoSpan = false,
-    faceALining = null, faceBLining = null, hasInsulation = false, insulationCode = null }) {
+    faceALining = null, faceBLining = null, hasInsulation = false, insulationCode = null,
+    autoPlace = false }) {
     let candidate;
     try {
       candidate = fittedPartition({ id: 'partition-' + state.nextId, length, height, thickness, axis, cx, cz, autoSpan,
         faceALining, faceBLining, hasInsulation, insulationCode: hasInsulation ? (insulationCode || 'P20') : insulationCode });
     } catch (error) { return { ok: false, error: String(error.message || error) }; }
-    const error = partitionSpecificationError(candidate) || partitionError(candidate);
-    if (error) return { ok: false, error };
+    if (typeof autoPlace !== 'boolean') return { ok: false, error: 'Modo de colocación inválido' };
+    const specificationError = partitionSpecificationError(candidate);
+    if (specificationError) return { ok: false, error: specificationError };
+    let error = partitionError(candidate);
+    let automaticallyPositioned = false;
+    if (error && autoPlace) {
+      for (const pos of freePartitionCenters(candidate)) {
+        const option = fittedPartition({ ...candidate, ...pos });
+        if (partitionError(option)) continue;
+        candidate = option;
+        error = null;
+        automaticallyPositioned = true;
+        break;
+      }
+    }
+    if (error) return {
+      ok: false,
+      error: autoPlace ?
+        `No hay un espacio libre adecuado para otro tabique completo (${error}). ` +
+        'Mueve un tabique existente o desactiva autoSpan y ajusta una división manual.' : error
+    };
     state.nextId++;
     state.partitions.push(candidate);
     selectedEntity = { kind: 'partition', id: candidate.id };
     build();
-    return { ok: true, id: candidate.id };
+    return { ok: true, id: candidate.id, cx: candidate.cx, cz: candidate.cz,
+      axis: candidate.axis, autoPlaced: automaticallyPositioned };
   },
 
   updatePartition(id, delta = {}) {

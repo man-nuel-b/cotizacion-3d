@@ -448,3 +448,26 @@ test('BAT V4.4.2: cubierta centrada y oculta al entrar, para los tres tipos de c
     assert.deepEqual(errors, [], errors.join('\n'));
   } finally { if (fixture) await close(fixture); }
 });
+
+
+test('UI: crear tres tabiques consecutivos los reparte en bahías libres sin superposición', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    const btn = page.locator('#add-parametric-partition');
+    for (let count = 1; count <= 3; count++) {
+      await btn.click();
+      await page.waitForFunction(expected => window.Container3D.getState().partitions.length === expected,
+        count, { timeout: 25000 });
+    }
+    const state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.partitions.length, 3);
+    assert.equal(state.partitions[0].cx, 0);
+    assert.ok(Math.abs(state.partitions[1].cx - state.partitions[0].cx) >= .65);
+    assert.ok(Math.abs(state.partitions[2].cx - state.partitions[1].cx) >= .65);
+    assert.equal(state.partitions.every(p => p.axis === 'z' && p.autoSpan === true), true);
+    assert.match(await page.locator('#scene-hint').innerText(), /espacio libre/i);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});

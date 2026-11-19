@@ -440,14 +440,23 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   });
 
   $('add-parametric-partition').addEventListener('click', () => {
+    // Inserciones consecutivas buscan otro espacio libre, no el centro ocupado.
     const result = api.addPartition({ axis: 'z', length: Math.max(0.2, state.W - 2 * api.getInteriorClearance()),
-      height: Math.min(2.3, state.H), thickness: 0.1, cx: 0, cz: 0, autoSpan: true });
+      height: Math.min(2.3, state.H), thickness: 0.1, cx: 0, cz: 0,
+      autoSpan: true, autoPlace: true });
     if (result.ok && !state.seeInside) {
       api.setSeeInside(true);
       $('xray').checked = true;
     }
-    hint(result.ok ? 'Tabique paramétrico creado entre paramentos. Vista interior activada para ver el giro.' :
-      'No se pudo crear el tabique: ' + result.error, !result.ok);
+    if (!result.ok) {
+      hint('No se pudo crear el tabique: ' + result.error, true);
+    } else if (result.autoPlaced) {
+      const cross = result.axis === 'z' ? 'X' : 'Z';
+      const position = result.axis === 'z' ? result.cx : result.cz;
+      hint(`Nuevo tabique colocado en ${cross} = ${position.toFixed(2)} m, dentro de un espacio libre. Puedes moverlo desde Propiedades.`);
+    } else {
+      hint('Tabique creado entre paramentos. Selecciónalo para moverlo o añadir una puerta.');
+    }
   });
 
   $('partition-fit').addEventListener('change', event => {

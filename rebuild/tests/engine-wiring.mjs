@@ -95,3 +95,11 @@ test('V4.4: se conectan materiales por cara, aislación y puertas entre UI y mot
   assert.match(ui, /api\.removeInteriorDoor\(selection\.id\)/);
   assert.match(ui, /interiorDoorsCount/);
 });
+
+
+test('La creación desde UI busca un vano libre y el alta manual conserva colisiones estrictas', () => {
+  assert.match(ui, /autoSpan: true, autoPlace: true/);
+  assert.match(engine, /function freePartitionCenters\(/);
+  assert.match(engine, /if \(error && autoPlace\)/);
+  assert.match(engine, /No hay un espacio libre adecuado/);
+});

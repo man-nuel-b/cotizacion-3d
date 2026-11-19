@@ -65,7 +65,12 @@ function fixture() {
     SAMPLES: { maritimo: [], reefer: [], modular: [] },
     console
   };
-  vm.runInNewContext(apiCode + '\n globalThis.testAPI = api;', ctx, { filename: 'engine-api-under-test.js' });
+  const helperStart = source.indexOf('function freePartitionCenters(');
+  const helperEnd = source.indexOf('\nfunction partitionSpecificationError(', helperStart);
+  assert.ok(helperStart >= 0 && helperEnd > helperStart);
+  const helperCode = source.slice(helperStart, helperEnd);
+  vm.runInNewContext(helperCode + '\n' + apiCode + '\n globalThis.testAPI = api;', ctx,
+    { filename: 'engine-api-under-test.js' });
   return { api: ctx.testAPI, state, ctx };
 }
 
@@ -181,4 +186,57 @@ test('API real: no acepta aislación incompatible ni puerta que invada otra', ()
   const another = api.addInteriorDoor({ partitionId: wall.id, u: 1.1 });
   assert.equal(another.ok, false);
   assert.match(another.error, /solapadas/);
+});
+
+
+test('API real: segundo tabique autoPlace ocupa otra bahía libre sin superponerse', () => {
+  const { api } = fixture();
+  const props = { axis: 'z', height: 2.3, thickness: .1, autoSpan: true, autoPlace: true };
+  const first = api.addPartition(props); good(first);
+  const second = api.addPartition(props); good(second);
+  const third = api.addPartition(props); good(third);
+  const partitions = api.getState().partitions;
+  assert.equal(partitions.length, 3);
+  assert.equal(partitions[0].cx, 0);
+  assert.ok(Math.abs(partitions[1].cx) >= .65);
+  assert.ok(Math.abs(partitions[2].cx - partitions[1].cx) >= .65);
+  assert.equal(second.autoPlaced, true);
+  assert.equal(third.autoPlaced, true);
+  assert.equal(checkPartitionCollisions(partitions[2], partitions.slice(0, 2)), null);
+});
+
+test('API real: creación manual en la misma posición se sigue rechazando', () => {
+  const { api } = fixture();
+  const props = { axis: 'z', height: 2.3, thickness: .1, autoSpan: true };
+  good(api.addPartition(props));
+  const before = api.getState();
+  const second = api.addPartition(props);
+  assert.equal(second.ok, false);
+  assert.match(second.error, /superpone/);
+  assert.deepEqual(api.getState(), before);
+});
+
+test('API real: si el contenedor está ocupado autoPlace no inserta ni rompe el estado', () => {
+  const { api } = fixture();
+  const props = { axis: 'z', height: 2.3, thickness: .1, autoSpan: true, autoPlace: true };
+  let count = 0;
+  for (let i = 0; i < 20; i++) {
+    const result = api.addPartition(props);
+    if (!result.ok) {
+      assert.match(result.error, /espacio libre/);
+      break;
+    }
+    count++;
+  }
+  assert.ok(count >= 3 && count < 20);
+  assert.equal(api.getState().partitions.length, count);
+});
+
+test('API real: la búsqueda de posición libre también respeta objetos que bloquean una bahía', () => {
+  const { api, state } = fixture();
+  const props = { axis: 'z', height: 2.3, thickness: .1, autoSpan: true, autoPlace: true };
+  good(api.addPartition(props));
+  state.objects.push({ id: 'obj-test', code: 'P60', x: 1.45, z: 0, y: 0, w: .8, d: .8, h: 1, rot: 0 });
+  const next = api.addPartition(props); good(next);
+  assert.ok(next.cx < -0.65, 'Debe seleccionar una bahía distinta de aquella ocupada por mobiliario');
 });
