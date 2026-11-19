@@ -9,7 +9,7 @@ import {
   validatePartitionInsideContainer, checkPartitionCollisions,
   validateInteriorDoor, validatePartitionSpecification, computeWallTakeoff,
   validateSharedWallRegion, classifyPartitionJunction, computePartitionJunctions,
-  checkJunctionAgainstDoors, resolveMagneticPartitionMove
+  checkJunctionAgainstDoors, resolveMagneticPartitionMove, validateBathFloor
 } from '../construction-integrity.js';
 import { CATALOG, CATALOG_BY_CODE } from '../container-catalog.js';
 
@@ -23,14 +23,14 @@ const apiCode = source.slice(start, end + 3);
 function fixture() {
   const state = {
     type: 'maritimo', L: 6, W: 2.4, H: 2.5, color: '#999999', openings: [],
-    partitions: [], interiorDoors: [], objects: [], services: [], sharedWalls: [],
+    partitions: [], interiorDoors: [], objects: [], services: [], sharedWalls: [], bathFloor: null,
     finishes: { floor: null, ceiling: null, skirting: null,
       walls: { A: null, B: null, C: null, D: null } },
     seeInside: true, nextId: 1
   };
-  const T = { maritimo: { dims: [6, 2.4, 2.5], color: '#999999' },
-    reefer: { dims: [6, 2.4, 2.5], color: '#eeeeee' },
-    modular: { dims: [6, 2.4, 2.5], color: '#cccccc' } };
+  const T = { maritimo: { dims: [6, 2.4, 2.5], color: '#999999', R: .046, T: .004 },
+    reefer: { dims: [6, 2.4, 2.5], color: '#eeeeee', R: .046, T: .004 },
+    modular: { dims: [6, 2.4, 2.5], color: '#cccccc', R: .046, T: .004 } };
   const panel = .05;
   const partitionDoorError = (p, doors = state.interiorDoors) => {
     for (const d of doors) if (d.partitionId === p.id) {
@@ -63,7 +63,7 @@ function fixture() {
     markChanged() { buildCount++; return { ok: true }; },
     CATALOG, CATALOG_BY_CODE, interiorClearance, resolvePartitionGeometry,
     resolveRotatedPartition, validateInteriorDoor, validatePartitionSpecification,
-    computeWallTakeoff, validateSharedWallRegion, classifyPartitionJunction,
+    computeWallTakeoff, validateSharedWallRegion, validateBathFloor, classifyPartitionJunction,
     computePartitionJunctions, checkJunctionAgainstDoors, resolveMagneticPartitionMove,
     SAMPLES: { maritimo: [], reefer: [], modular: [] },
     console
@@ -349,4 +349,89 @@ test('API real: mover un tabique sobre otro se rechaza sin alterar estado', () =
   const invalid = api.movePartition(b.id, { cx: -1, cz: 0, snap: true });
   assert.equal(invalid.ok, false);
   assert.equal(state.partitions.find(p => p.id === b.id).cx, 1);
+});
+
+
+test('API real: piso de baño separado y remanente evita doble cubicación por partida', () => {
+  const { api } = fixture();
+  const result = api.setBathFloor({ code: 'P05', length: 2.0, width: 1.2 });
+  good(result);
+  assert.equal(result.bathAreaM2, 2.4);
+  assert.ok(Math.abs(result.remainingAreaM2 - 12) < 1e-8);
+  assert.deepEqual(JSON.parse(JSON.stringify(api.getState().bathFloor)),
+    { code: 'P05', length: 2, width: 1.2 });
+  const t = api.getConstructionTakeoff();
+  assert.ok(Math.abs(t.floorAreaM2 - 14.4) < 1e-8);
+  assert.ok(Math.abs(t.bathFloorAreaM2 - 2.4) < 1e-8);
+  assert.ok(Math.abs(t.remainingFloorAreaM2 - 12) < 1e-8);
+  assert.ok(Math.abs(t.floorByCodeM2.P05 - 2.4) < 1e-8);
+  good(api.setFinish('P01'));
+  const afterFinish = api.getConstructionTakeoff();
+  assert.ok(Math.abs(afterFinish.floorByCodeM2.P01 - 12) < 1e-9);
+  assert.equal(afterFinish.floorByCodeM2.P05, 2.4);
+  assert.ok(Math.abs(Object.values(afterFinish.floorByCodeM2).reduce((a,b)=>a+b,0) - 14.4) < 1e-8);
+});
+
+test('API real: código erróneo y cotas fuera del área útil no cambian el proyecto', () => {
+  const { api } = fixture();
+  const before = api.getState();
+  assert.equal(api.setBathFloor({ code: 'P08', length: 2, width: 1 }).ok, false);
+  assert.equal(api.setBathFloor({ code: 'P30', length: 2, width: 1 }).ok, false);
+  assert.equal(api.setBathFloor({ code: 'P05', length: 6, width: 1 }).ok, false);
+  assert.equal(api.setBathFloor({ code: 'P05', length: Number.NaN, width: 1 }).ok, false);
+  assert.equal(api.setBathFloor({ code: 'P05', length: 2, width: -1 }).ok, false);
+  assert.deepEqual(api.getState(), before);
+});
+
+test('API real: cambio de dimensiones rechaza piso de baño incompatible sin mutación parcial', () => {
+  const { api } = fixture();
+  good(api.setBathFloor({ code: 'P06', length: 4.5, width: 2.1 }));
+  const before = api.getState();
+  const bad = api.setDimensions(4.2, 2.4, 2.5);
+  assert.equal(bad.ok, false);
+  assert.match(bad.error, /Piso de baño incompatible/);
+  assert.deepEqual(api.getState(), before);
+  good(api.setDimensions(5, 2.4, 2.5));
+});
+
+test('API real: quitar y cambiar tipo de contenedor limpian piso de baño', () => {
+  const { api } = fixture();
+  good(api.setBathFloor({ code: 'P05', length: 2, width: 1 }));
+  const cleared = api.clearBathFloor();
+  good(cleared);
+  assert.ok(Math.abs(cleared.remainingAreaM2 - 14.4) < 1e-8);
+  assert.equal(api.getConstructionTakeoff().bathFloor, null);
+  good(api.setBathFloor({ code: 'P06', length: 2, width: 1 }));
+  good(api.setType('modular'));
+  assert.equal(api.getState().bathFloor, null);
+});
+
+test('API real: exportar e importar piso de baño y JSON legado sin campo', () => {
+  const first = fixture();
+  good(first.api.setBathFloor({ code: 'P05', length: 2, width: 1.2 }));
+  const saved = first.api.getState();
+  const second = fixture();
+  good(second.api.setState(saved));
+  assert.deepEqual(JSON.parse(JSON.stringify(second.api.getState())), JSON.parse(JSON.stringify(saved)));
+  const legacy = structuredClone(saved);
+  delete legacy.bathFloor;
+  good(second.api.setState(legacy));
+  assert.equal(second.api.getState().bathFloor, null);
+});
+
+test('API real: importar piso de baño inválido restaura el estado y los materiales anteriores', () => {
+  const { api } = fixture();
+  good(api.setBathFloor({ code: 'P05', length: 1.5, width: 1.2 }));
+  const before = api.getState();
+  for (const candidate of [
+    { code: 'P30', length: 1, width: 1 },
+    { code: 'P06', length: 12, width: 1 },
+    { code: 'P05', length: null, width: 1 },
+    'bad data'
+  ]) {
+    const bad = structuredClone(before);
+    bad.bathFloor = candidate;
+    assert.equal(api.setState(bad).ok, false);
+    assert.deepEqual(api.getState(), before);
+  }
 });

@@ -229,10 +229,24 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   }
   function visible(id, show) { $(id).hidden = !show; }
 
+  const bathFloorCodeSelect = $('bath-floor-code');
+  for (const floor of CATALOG.filter(item => item.mode === 'floor')) {
+    const option = document.createElement('option');
+    option.value = floor.code;
+    option.textContent = floor.code + ' · ' + floor.name;
+    bathFloorCodeSelect.append(option);
+  }
+  bathFloorCodeSelect.value = 'P05';
+
   function refreshTakeoff() {
     const grid = $('takeoff-summary');
     if (!grid || !api.getConstructionTakeoff) return;
     const t = api.getConstructionTakeoff();
+    if (state.bathFloor) {
+      $('bath-floor-code').value = state.bathFloor.code;
+      $('bath-floor-length').value = state.bathFloor.length;
+      $('bath-floor-width').value = state.bathFloor.width;
+    }
     grid.replaceChildren();
 
     const rows = [
@@ -244,7 +258,11 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       ['Uniones de tabiques en T / L:', `${t.partitionTJunctionsCount} / ${t.partitionLJunctionsCount} un`],
       ['Descuento por vanos:', `-${t.totalOpeningsAreaM2.toFixed(2)} m²`],
       ['Descuento muros compartidos:', `-${t.sharedDeductionM2.toFixed(2)} m²`],
-      ['Piso / Cielo:', `${t.floorAreaM2.toFixed(2)} m²`],
+      ['Piso total / Cielo:', `${t.floorAreaM2.toFixed(2)} m²`],
+      ['Piso baño:', `${t.bathFloorAreaM2.toFixed(2)} m²${t.bathFloor ? ' · ' + t.bathFloor.code : ''}`],
+      ['Piso general restante:', `${t.remainingFloorAreaM2.toFixed(2)} m²`],
+      ...Object.entries(t.floorByCodeM2).sort().map(([code, area]) =>
+        [`Piso ${code} asignado:`, `${area.toFixed(2)} m²`]),
       ['Zócalo perimetral:', `${t.skirtingLinearM.toFixed(2)} ml`],
       ['Refuerzo ventanas (P90):', `${t.reinforcement.P90.openings} un (${t.reinforcement.P90.estimatedLinearM.toFixed(2)} ml)`],
       ['Refuerzo puertas (P91):', `${t.reinforcement.P91.openings} un (${t.reinforcement.P91.estimatedLinearM.toFixed(2)} ml)`],
@@ -412,6 +430,19 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   $('catalog-search').addEventListener('input', renderCatalog);
   $('catalog-family').addEventListener('change', renderCatalog);
   $('cancel-placement').addEventListener('click', clearPending);
+  $('bath-floor-apply').addEventListener('click', () => {
+    const result = api.setBathFloor({
+      code: $('bath-floor-code').value,
+      length: number('bath-floor-length'),
+      width: number('bath-floor-width')
+    });
+    $('bath-floor-message').textContent = result.ok ? result.alert : result.error;
+    if (!result.ok) hint(result.error, true);
+  });
+  $('bath-floor-clear').addEventListener('click', () => {
+    const result = api.clearBathFloor();
+    $('bath-floor-message').textContent = result.alert;
+  });
   $('shared-add').addEventListener('click', () => {
     const result = api.addSharedWall({
       face: $('shared-face').value, u: number('shared-u'), v: number('shared-v'),
@@ -602,7 +633,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     const project = { schema: 'BAT-CUBIKEITOR-V2', version: 3, exportedAt: new Date().toISOString(), state: api.getState() };
     const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob), a = document.createElement('a');
-    a.href = url; a.download = 'bat-cubikeitor-v4-4.json'; a.click();
+    a.href = url; a.download = 'bat-cubikeitor-v4-7.json'; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     hint('Proyecto exportado como JSON. Guarda este archivo como respaldo.');
   });

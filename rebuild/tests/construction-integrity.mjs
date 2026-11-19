@@ -2,6 +2,7 @@ import { resolveMagneticPartitionMove } from '../construction-integrity.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  validateBathFloor,
   interiorClearance, objectAABB, partitionAABB, aabbOverlap,
   resolvePartitionGeometry, resolveRotatedPartition, sanitizeAndClampPartition,
   validateObjectInsideContainer, validatePartitionInsideContainer,
@@ -397,4 +398,31 @@ test('autoSpan: arrastrar solo desplaza el centro transversal y limita contra pe
   assert.equal(r.ok, true, r.error);
   assert.equal(r.candidate.cz, 0);
   assert.ok(Math.abs(r.candidate.cx - 2.87) < 1e-8);
+});
+
+
+test('Baño: validador puro admite null y valida paneles, dimensiones, códigos y números', () => {
+  const dims = { L: 6, W: 2.4, H: 2.5 };
+  assert.equal(validateBathFloor(null, dims, .05), null);
+  assert.equal(validateBathFloor({ code: 'P05', length: 5.84, width: 2.24 }, dims, .05), null);
+  assert.match(validateBathFloor({ code: 'P05', length: 5.85, width: 2.2 }, dims, .05), /exceden/);
+  assert.match(validateBathFloor({ code: 'P05', length: 2, width: 2.25 }, dims, .05), /exceden/);
+  assert.match(validateBathFloor({ code: '', length: 1, width: 1 }, dims), /partida/);
+  assert.match(validateBathFloor({ code: 'P05', length: 0, width: 1 }, dims), /positivos/);
+  assert.match(validateBathFloor([], dims), /inválida/);
+  assert.match(validateBathFloor({ code: 'P05', length: 1, width: 1 }, dims, NaN), /Espesor/);
+});
+
+test('Baño: suma superficies y remanente de piso sin descontar dos veces', () => {
+  const state = { L: 6, W: 2.4, H: 2.5, openings: [], partitions: [], sharedWalls: [], interiorDoors: [],
+    finishes: { floor: 'P01', walls: {} }, bathFloor: { code: 'P05', length: 2, width: 1.2 } };
+  const q = computeWallTakeoff(state);
+  assert.ok(Math.abs(q.floorAreaM2 - 14.4) < 1e-9);
+  assert.ok(Math.abs(q.bathFloorAreaM2 - 2.4) < 1e-9);
+  assert.ok(Math.abs(q.remainingFloorAreaM2 - 12) < 1e-9);
+  assert.ok(Math.abs(q.floorByCodeM2.P01 + q.floorByCodeM2.P05 - q.floorAreaM2) < 1e-9);
+  state.bathFloor.code = 'P01';
+  assert.ok(Math.abs(computeWallTakeoff(state).floorByCodeM2.P01 - 14.4) < 1e-9);
+  state.bathFloor = null;
+  assert.ok(Math.abs(computeWallTakeoff(state).remainingFloorAreaM2 - 14.4) < 1e-9);
 });

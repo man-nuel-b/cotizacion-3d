@@ -12,7 +12,8 @@ import {
   withOpeningReinforcement, computeWallTakeoff, validateOpeningCornerClearance,
   validateSharedWallRegion, validateOpeningAgainstSharedWalls,
   validateInteriorDoor, validatePartitionSpecification, PARTITION_LINING_THICKNESS_M,
-  classifyPartitionJunction, computePartitionJunctions, checkJunctionAgainstDoors, resolveMagneticPartitionMove
+  classifyPartitionJunction, computePartitionJunctions, checkJunctionAgainstDoors, resolveMagneticPartitionMove,
+  validateBathFloor
 } from './construction-integrity.js';
 
 /* ============ Tipos de contenedor ============ */
@@ -260,6 +261,7 @@ const state = {
   L: 12.03, W: 2.35, H: 2.39, color: '#7d8388',
   openings: [], partitions: [], interiorDoors: [], objects: [], services: [], sharedWalls: [],
   finishes: { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null } },
+  bathFloor: null,
   seeInside: false, nextId: 1,
 };
 
@@ -923,6 +925,7 @@ const api = {
     state.color = c.color; state.openings = []; state.partitions = []; state.interiorDoors = []; state.services = []; state.sharedWalls = [];
     state.objects = [];
     state.finishes = { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null } };
+    state.bathFloor = null;
     state.nextId = 1; selectedEntity = null;
     if (samples) for (const x of SAMPLES[key]) {
       const sample = withOpeningReinforcement({ id: state.nextId, bars: false, ...x });
@@ -935,6 +938,8 @@ const api = {
     if (!validDimensions(L, W, H)) return { ok: false, error: 'Dimensiones fuera de rango permitido' };
     const next = { L, W, H };
     const nextRef = { ...state, L, W, H };
+    const bathError = validateBathFloor(state.bathFloor, nextRef, profileThicknessFor(nextRef));
+    if (bathError) return { ok: false, error: 'Piso de baño incompatible con las nuevas dimensiones: ' + bathError };
     if (state.openings.some(o => validateOpening(o, o.id, nextRef))) {
       return { ok: false, error: 'Algunas aberturas quedarían fuera o invadirían los esquineros' };
     }
@@ -962,6 +967,31 @@ const api = {
     state.partitions = projectedPartitions;
     [state.L, state.W, state.H] = [L, W, H];
     return markChanged(false);
+  },
+
+  setBathFloor({ code, length, width } = {}) {
+    if (CATALOG_BY_CODE[code]?.mode !== 'floor') {
+      return { ok: false, error: 'Selecciona una partida válida de piso para el baño' };
+    }
+    const candidate = { code, length: Number(length), width: Number(width) };
+    const issue = validateBathFloor(candidate, state, profileThicknessFor());
+    if (issue) return { ok: false, error: issue };
+    state.bathFloor = candidate;
+    // La zona no tiene posición definida en planta; no dibujar un rectángulo ficticio.
+    // El editor refresca superficies y resumen, sin reconstruir la escena WebGL.
+    editor?.refresh();
+    const bathAreaM2 = candidate.length * candidate.width;
+    const remainingAreaM2 = Math.max(0, state.L * state.W - bathAreaM2);
+    return { ok: true, bathFloor: { ...candidate }, bathAreaM2, remainingAreaM2,
+      alert: `Baño: ${bathAreaM2.toFixed(2)} m² (${candidate.length.toFixed(2)} × ${candidate.width.toFixed(2)} m). Quedan ${remainingAreaM2.toFixed(2)} m² disponibles para el piso general.` };
+  },
+
+  clearBathFloor() {
+    state.bathFloor = null;
+    editor?.refresh();
+    const remainingAreaM2 = state.L * state.W;
+    return { ok: true, bathAreaM2: 0, remainingAreaM2,
+      alert: `Piso de baño retirado. Quedan ${remainingAreaM2.toFixed(2)} m² disponibles para el piso general.` };
   },
 
   addOpening({ type = 'door', face = 'A', w, h, u, v = 0, bars = false, catalogCode = null }) {
@@ -1337,6 +1367,20 @@ const api = {
           throw Error('Lista de ' + key + ' inválida o demasiado extensa');
         }
       }
+      // Respaldos anteriores no incluyen bathFloor. Solo se acepta el campo
+      // canónico superior para evitar dos fuentes de verdad divergentes.
+      let cleanBathFloor = null;
+      if (s.bathFloor !== undefined && s.bathFloor !== null) {
+        if (!s.bathFloor || typeof s.bathFloor !== 'object' || Array.isArray(s.bathFloor)) {
+          throw Error('Configuración de piso de baño inválida');
+        }
+        const code = String(s.bathFloor.code || '');
+        if (CATALOG_BY_CODE[code]?.mode !== 'floor') throw Error('Código de piso de baño inválido');
+        cleanBathFloor = { code, length: Number(s.bathFloor.length), width: Number(s.bathFloor.width) };
+      }
+      const issueBath = validateBathFloor(cleanBathFloor, s,
+        (TYPES[s.type].R + TYPES[s.type].T));
+      if (issueBath) throw Error('Piso de baño inválido: ' + issueBath);
       const finishes = s.finishes || { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null } };
       if (!finishes.walls || typeof finishes.walls !== 'object') throw Error('Acabados inválidos');
       const validFinish = (code, modes) => code === null || modes.includes(CATALOG_BY_CODE[code]?.mode);
@@ -1439,6 +1483,7 @@ const api = {
         type: s.type, L: Number(s.L), W: Number(s.W), H: Number(s.H), color: s.color,
         openings: [], partitions: cleanPartitions, interiorDoors: cleanInteriorDoors,
         objects: cleanObjects, services: cleanServices, sharedWalls: cleanSharedWalls,
+        bathFloor: cleanBathFloor,
         finishes: {
           floor: finishes.floor || null, ceiling: finishes.ceiling || null, skirting: finishes.skirting || null,
           walls: {
@@ -1449,6 +1494,8 @@ const api = {
         seeInside: !!s.seeInside, nextId: maxId + 1
       });
 
+      const bathErr = validateBathFloor(state.bathFloor, state, profileThicknessFor());
+      if (bathErr) throw Error('Piso de baño inválido: ' + bathErr);
       // Primero validar la ubicación de los vanos y las zonas de contacto,
       // después verificar que ninguna zona invade el área libre de otra.
       for (const o of cleanOpenings) {
