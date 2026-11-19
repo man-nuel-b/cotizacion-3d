@@ -1,116 +1,117 @@
 <!doctype html>
- <html lang="es">
- <head>
- <meta charset="utf-8">
- <meta name="viewport" content="width=device-width,initial-scale=1">
- <title>BAT-CUBIKEITOR V2 | Editor modular 3D</title>
- <style>
-   html,body{margin:0;height:100%;background:#dfe3e8;font-family:system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden}
-   #view{position:fixed;inset:0}
-   #panel{position:fixed;top:14px;right:14px;width:280px;box-sizing:border-box;max-height:calc(100% - 24px);overflow-x:hidden;overflow-y:auto;
-     background:rgba(255,255,255,.94);padding:12px;border-radius:10px;font-size:13px;color:#1d2530;
-     box-shadow:0 4px 18px rgba(0,0,0,.18);display:grid;gap:8px;z-index:3;border:1px solid #d5dce4}
-   #panel h4{margin:6px 0 0;font-size:13px;border-bottom:1px solid #e1e5eb;padding-bottom:5px}
-   #panel section{display:grid;gap:7px}
-   .row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-   label{display:grid;gap:2px;font-size:11px;color:#55606e}
-   #panel>*,.row>*{min-width:0}
-   input,select,button{font:inherit;padding:6px;border:1px solid #c4cad2;border-radius:6px;background:#fff;color:#1d2530;box-sizing:border-box;width:100%}
-   input[type=checkbox]{width:auto}
-   button{cursor:pointer;background:#2b3a4a;color:#fff;border:0}
-   button.alt{background:#e8ecf0;color:#1d2530}
-   button:disabled{opacity:.55;cursor:not-allowed}
-   .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
-   .seg button{background:#e8ecf0;color:#1d2530;padding:8px 4px;font-size:12px;line-height:1.2}
-   .seg button.on{background:#2b3a4a;color:#fff}
-   #desc{font-size:11.5px;color:#55606e;line-height:1.35}
-   #msg{font-size:12px;color:#b3261e;min-height:14px}
-   .chk{display:flex;gap:6px;align-items:center;font-size:12px;color:#1d2530}
-   .chk input{padding:0}
-   #catalog-panel{position:fixed;top:14px;left:14px;bottom:14px;width:300px;box-sizing:border-box;
-     background:rgba(255,255,255,.97);border:1px solid #d5dce4;box-shadow:0 8px 24px rgba(16,33,50,.18);
-     border-radius:12px;display:flex;flex-direction:column;overflow:hidden;z-index:3;color:#1b293a}
-   .catalog-heading{padding:17px 15px 12px;border-bottom:1px solid #e6e9ef}
-   .catalog-heading strong{font-size:18px;letter-spacing:-.4px}
-   .catalog-heading p{font-size:11px;color:#586779;margin:6px 0 0;line-height:1.4}
-   .catalog-fields{padding:12px;display:grid;gap:7px;border-bottom:1px solid #e6e9ef}
-   #catalog-list{flex:1;overflow-y:auto;padding:8px}
-   .catalog-item{display:flex;align-items:flex-start;gap:9px;padding:10px;border:1px solid transparent;
-     margin:3px 0;border-radius:9px;background:#f5f7f9;color:#202d3c;text-align:left;line-height:1.3}
-   .catalog-item:hover{background:#e9eff6}
-   .catalog-item.active{border-color:#e1a12e;background:#fff4da;box-shadow:inset 3px 0 #e0a035}
-   .catalog-item .code{background:#25374a;color:white;border-radius:5px;font-weight:700;font-size:11px;padding:5px6px;flex:none}
-   .catalog-item .item-copy{font-size:11px;flex:1}
-   .catalog-item .item-copy small{display:block;color:#758092;font-size:10px;margin-top:4px}
-   .catalog-footer{padding:11px 13px;border-top:1px solid #e6e9ef;font-size:11px;color:#536477;display:grid;gap:6px}
-   #cancel-placement{background:#e7ecf0;color:#243344}
-   #scene-hint{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:2;
-     padding:11px 17px;border-radius:999px;background:rgba(18,35,54,.9);color:white;
-     font-size:12px;max-width:calc(100% - 680px);text-align:center;pointer-events:none;
-     box-shadow:0 4px 12px rgba(0,0,0,.18)}
-   #properties{background:#edf3fa;border:1px solid #d7e2ec;border-radius:9px;padding:10px;display:grid;gap:8px}
-   #properties-title{font-size:13px;font-weight:700;color:#162e47}
-   .property-buttons{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-
-
-
-
-  #props-form{display:grid;gap:7px}
-  [hidden]{display:none !important}
-  #placed-list{max-height:145px;overflow-y:auto;display:grid;gap:4px}
-  .placed-entry{background:#eef2f6;color:#213448;font-size:11px;text-align:left}
-  .placed-entry.selected{background:#ffdf9d;color:#24201c}
-  .tiny{font-size:10.5px;color:#5f6f83;line-height:1.45}
-  @media(max-width:920px){
-    #catalog-panel{width:240px;top:9px;bottom:9px;left:9px}
-    #panel{width:245px;top:9px;right:9px;max-height:calc(100% - 18px)}
-    #scene-hint{max-width:calc(100% - 520px)}
-  }
-  @media(max-width:680px){
-    html,body{overflow:auto;height:auto;min-height:100%}
-    #view{position:relative;height:56vh;min-height:340px;margin-top:190px}
-    #catalog-panel{position:absolute;top:8px;left:8px;right:8px;bottom:auto;width:auto;height:176px}
-    #catalog-list{display:flex;gap:5px;overflow-x:auto;overflow-y:hidden;padding:7px}
-    .catalog-item{min-width:185px;margin:0}
-    .catalog-heading{padding:7px 10px}
-    .catalog-heading p{display:none}
-    .catalog-fields{padding:6px;grid-template-columns:1fr 1fr}
-    .catalog-footer{display:none}
-    #panel{position:relative;top:auto;right:auto;width:auto;max-height:none;margin:8px;display:grid}
-    #scene-hint{position:absolute;left:50%;top:450px;bottom:auto;max-width:calc(100% - 30px)}
-  }
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BAT-CUBIKEITOR V2 | Editor modular 3D</title>
+<style>
+html, body{margin:0;height:100%;background:#dfe3e8;font-family:system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden}
+#view{position:fixed;inset:0}
+#panel{position:fixed;top:14px;right:14px;width:290px;box-sizing:border-box;max-height:calc(100% - 28px);background:rgba(255,255,255,.95);padding:12px;border-radius:10px;font-size:13px;color:#1d2530;box-shadow:0 4px 18px rgba(0,0,0,.18);display:grid;gap:8px;z-index:3;border:1px solid #d5dce4;overflow-x:hidden;overflow-y:auto}
+#panel h4{margin:6px 0 0;font-size:13px;border-bottom:1px solid #e1e5eb;padding-bottom:5px}
+#panel section{display:grid;gap:7px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+label{display:grid;gap:2px;font-size:11px;color:#55606e}
+#panel>*,.row>*{min-width:0}
+input, select, button{font:inherit;padding:6px;border:1px solid #c4cad2;border-radius:6px;background:#fff;color:#1d2530;box-sizing:border-box;width:100%}
+input[type=checkbox]{width:auto}
+button{cursor:pointer;background:#2b3a4a;color:#fff;border:0;transition:background .15s}
+button:hover:not(:disabled){background:#1e2a36}
+button.alt{background:#e8ecf0;color:#1d2530}
+button.alt:hover:not(:disabled){background:#dce2e8}
+button:disabled{opacity:.55;cursor:not-allowed}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.seg button{background:#e8ecf0;color:#1d2530;padding:8px 4px;font-size:12px;line-height:1.2}
+.seg button.on{background:#2b3a4a;color:#fff}
+#desc{font-size:11.5px;color:#55606e;line-height:1.35}
+#msg{font-size:12px;color:#b3261e;min-height:14px}
+.chk{display:flex;gap:6px;align-items:center;font-size:12px;color:#1d2530}
+.chk input{padding:0}
+#catalog-panel{position:fixed;top:14px;left:14px;bottom:14px;width:300px;box-sizing:border-box;background:rgba(255,255,255,.97);border:1px solid #d5dce4;box-shadow:0 8px 24px rgba(16,33,50,.18);border-radius:12px;display:flex;flex-direction:column;overflow:hidden;z-index:3;color:#1b293a}
+.catalog-heading{padding:17px 15px 12px;border-bottom:1px solid #e6e9ef}
+.catalog-heading strong{font-size:18px;letter-spacing:-.4px}
+.catalog-heading p{font-size:11px;color:#586779;margin:6px 0 0;line-height:1.4}
+.catalog-fields{padding:12px;display:grid;gap:7px;border-bottom:1px solid #e6e9ef}
+#catalog-list{flex:1;overflow-y:auto;padding:8px}
+.catalog-item{display:flex;align-items:flex-start;gap:9px;padding:10px;border:1px solid transparent;margin:3px 0;border-radius:9px;background:#f5f7f9;color:#202d3c;text-align:left;line-height:1.3}
+.catalog-item:hover{background:#e9eff6}
+.catalog-item.active{border-color:#e1a12e;background:#fff4da;box-shadow:inset 3px 0 #e0a035}
+.catalog-item .code{background:#25374a;color:white;border-radius:5px;font-weight:700;font-size:11px;padding:5px 6px;flex:none}
+.catalog-item .item-copy{font-size:11px;flex:1}
+.catalog-item .item-copy small{display:block;color:#758092;font-size:10px;margin-top:4px}
+.catalog-footer{padding:11px 13px;border-top:1px solid #e6e9ef;font-size:11px;color:#536477;display:grid;gap:6px}
+#cancel-placement{background:#e7ecf0;color:#243344}
+#scene-hint{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:2;padding:11px 17px;border-radius:999px;background:rgba(18,35,54,.92);color:white;font-size:12px;max-width:calc(100% - 680px);text-align:center;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.18)}
+#properties{background:#edf3fa;border:1px solid #d7e2ec;border-radius:9px;padding:10px;display:grid;gap:8px}
+#properties-title{font-size:13px;font-weight:700;color:#162e47}
+.property-buttons{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+#props-form{display:grid;gap:7px}
+[hidden]{display:none !important}
+#placed-list{max-height:135px;overflow-y:auto;display:grid;gap:4px}
+.placed-entry{background:#eef2f6;color:#213448;font-size:11px;text-align:left;padding:6px;border-radius:6px;border:1px solid #d5dce4}
+.placed-entry.selected{background:#ffdf9d;color:#24201c;font-weight:600}
+.tiny{font-size:10.5px;color:#5f6f83;line-height:1.45}
+#takeoff-box{background:#f7f9fc;border:1px solid #d5dce4;border-radius:8px;padding:8px;font-size:11px;color:#243344;display:grid;gap:4px}
+#takeoff-box strong{color:#162e47;font-size:11.5px}
+#shared-wall-config summary{cursor:pointer;font-weight:650;margin:8px 0 6px}
+#shared-wall-config .row{grid-template-columns:1fr 1fr}
+.shared-entry{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid #e1e7ed}
+.shared-entry button{width:auto;flex:none;font-size:11px;padding:4px 8px}
+.takeoff-grid{display:grid;grid-template-columns:1fr auto;gap:3px 8px}
+@media (max-width: 920px){
+#catalog-panel{width:240px;top:9px;bottom:9px;left:9px}
+#panel{width:245px;top:9px;right:9px;max-height:calc(100% - 18px)}
+#scene-hint{max-width:calc(100% - 520px)}
+}
+@media (max-width: 680px){
+html,body{overflow:auto;height:auto;min-height:100%}
+#view{position:relative;height:56vh;min-height:340px;margin-top:190px}
+#catalog-panel{position:absolute;top:8px;left:8px;right:8px;bottom:auto;width:auto;height:176px}
+#catalog-list{display:flex;gap:5px;overflow-x:auto;overflow-y:hidden;padding:7px}
+.catalog-item{min-width:185px;margin:0}
+.catalog-heading{padding:7px 10px}
+.catalog-heading p{display:none}
+.catalog-fields{padding:6px;grid-template-columns:1fr 1fr}
+.catalog-footer{display:none}
+#panel{position:relative;top:auto;right:auto;width:auto;max-height:none;margin:8px;display:grid}
+#scene-hint{position:absolute;left:50%;top:450px;bottom:auto;max-width:calc(100% - 30px)}
+}
 </style>
 <script type="importmap">
-{ "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-} }
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
 </script>
 </head>
 <body>
 <div id="view"></div>
 <aside id="catalog-panel" aria-label="Catálogo técnico 3D">
- <div class="catalog-heading"><strong>BAT-CUBIKEITOR <span style="color:#d78d12">V2</span></strong>
-  <p>Catálogo de 60 partidas · selecciona un elemento y haz clic en el contenedor</p></div>
- <div class="catalog-fields">
-  <input id="catalog-search" aria-label="Buscar por código o nombre" placeholder="Buscar: P60, ventana, piso..." type="search">
-  <select id="catalog-family" aria-label="Familia"><option value="">Todas las familias</option></select>
- </div>
- <div id="catalog-list" aria-label="Elementos disponibles"></div>
- <div id="wall-finish-controls" class="catalog-fields" hidden>
-  <label for="wall-finish-face">Cara del muro para el revestimiento</label>
-  <select id="wall-finish-face" aria-label="Cara para revestimiento">
-    <option value="A">Cara A</option><option value="B">Cara B</option>
-    <option value="C">Cara C</option><option value="D">Cara D</option>
-  </select>
-  <button id="apply-wall-finish" type="button">Aplicar revestimiento a esta cara</button>
-  <small id="wall-control-explain">La terminación cubre la superficie del muro seleccionado.</small>
- </div>
- <div class="catalog-footer">
-  <span id="catalog-count">60 elementos disponibles</span>
-  <button id="cancel-placement" type="button">Cancelar selección</button>
-  <span>Modelos 3D de referencia. Sin APU ni precios asociados.</span>
- </div>
+  <div class="catalog-heading">
+    <strong>BAT-CUBIKEITOR <span style="color:#d78d12">V2</span></strong>
+    <p>Catálogo de 60 partidas · selecciona un elemento y haz clic en el contenedor</p>
+  </div>
+  <div class="catalog-fields">
+    <input id="catalog-search" aria-label="Buscar por código o nombre" placeholder="Buscar: P60, ventana, piso..." type="search">
+    <select id="catalog-family" aria-label="Familia"><option value="">Todas las familias</option></select>
+  </div>
+  <div id="catalog-list" aria-label="Elementos disponibles"></div>
+  <div id="wall-finish-controls" class="catalog-fields" hidden>
+    <label for="wall-finish-face">Cara del muro para el revestimiento</label>
+    <select id="wall-finish-face" aria-label="Cara para revestimiento">
+      <option value="A">Cara A</option><option value="B">Cara B</option>
+      <option value="C">Cara C</option><option value="D">Cara D</option>
+    </select>
+    <button id="apply-wall-finish" type="button">Aplicar revestimiento a esta cara</button>
+    <small id="wall-control-explain">La terminación cubre la superficie del muro seleccionado.</small>
+  </div>
+  <div class="catalog-footer">
+    <span id="catalog-count">60 elementos disponibles</span>
+    <button id="cancel-placement" type="button">Cancelar selección</button>
+    <span>Modelos 3D de referencia. Sin APU ni precios asociados.</span>
+  </div>
 </aside>
 <div id="scene-hint" role="status" aria-live="polite">Selecciona un objeto a la izquierda para empezar</div>
 <div id="panel">
@@ -118,31 +119,96 @@
     <div id="properties-title">Propiedades del elemento</div>
     <p id="properties-empty" class="tiny">Selecciona un objeto o una abertura del modelo para editarlo.</p>
     <div id="props-form" hidden>
-       <label>Elemento<input id="prop-name" readonly></label>
-       <div class="row">
-        <label id="px-label">X (m)<input id="prop-x" type="number" step=".05"></label>
-        <label id="pz-label">Z (m)<input id="prop-z" type="number" step=".05"></label>
-        <label id="py-label">Altura (m)<input id="prop-y" type="number" step=".05"></label>
-        <label id="prot-label">Giro (grados)<input id="prop-rot" type="number" step="5"></label>
-        <label>Ancho (m)<input id="prop-w" type="number" min=".01" step=".05"></label>
+      <label>Elemento<input id="prop-name" readonly></label>
+      <div class="row">
+        <label id="px-label">X (m) <input id="prop-x" type="number" step=".05"></label>
+        <label id="pz-label">Z (m) <input id="prop-z" type="number" step=".05"></label>
+        <label id="py-label">Altura (m) <input id="prop-y" type="number" step=".05"></label>
+        <label id="prot-label">Giro (grados) <input id="prop-rot" type="number" step="5"></label>
+        <label id="pw-label">Ancho (m)<input id="prop-w" type="number" min=".01" step=".05"></label>
         <label>Alto (m)<input id="prop-h" type="number" min=".01" step=".05"></label>
         <label id="pd-label">Fondo (m)<input id="prop-d" type="number" min=".01" step=".05"></label>
         <label id="pface-label" hidden>Cara<select id="prop-face"><option>A</option><option>B</option><option>C</option><option>D</option></select></label>
-       </div>
-       <button id="prop-apply" type="button">Aplicar modificaciones</button>
-       <button id="btn-rotate-partition" type="button" class="alt" hidden>Girar tabique (90°)</button>
-       <div class="property-buttons">
+      </div>
+      <button id="prop-apply" type="button">Aplicar modificaciones</button>
+      <label class="chk" id="partition-fit-label" hidden>
+        <input id="partition-fit" type="checkbox"> Longitud automática entre muros (autoSpan)
+      </label>
+      <small class="tiny" id="partition-fit-help" hidden>Longitud interior útil completa del eje X o Z; mantiene el espesor y la coordenada transversal. Si colisiona, se rechaza el cambio.</small>
+      <div id="partition-finishes-box" hidden>
+        <h4>Capas del tabique seleccionado</h4>
+        <div class="row">
+          <label>Revestimiento cara A<select id="part-face-a">
+            <option value="">Sin revestir</option>
+            <option value="P30">P30 · Volcanita ST 15 mm</option>
+            <option value="P31">P31 · Volcanita RH 15 mm</option>
+            <option value="P32">P32 · Fibrocemento 6 mm</option>
+            <option value="P33">P33 · Terciado 12 mm</option>
+            <option value="P34">P34 · OSB 9,5 mm</option>
+            <option value="P35">P35 · Wall panel PVC</option>
+          </select></label>
+          <label>Revestimiento cara B<select id="part-face-b">
+            <option value="">Sin revestir</option>
+            <option value="P30">P30 · Volcanita ST 15 mm</option>
+            <option value="P31">P31 · Volcanita RH 15 mm</option>
+            <option value="P32">P32 · Fibrocemento 6 mm</option>
+            <option value="P33">P33 · Terciado 12 mm</option>
+            <option value="P34">P34 · OSB 9,5 mm</option>
+            <option value="P35">P35 · Wall panel PVC</option>
+          </select></label>
+        </div>
+        <label class="chk"><input id="part-insulation" type="checkbox"> Incorporar aislación interior</label>
+        <label>Material aislante<select id="part-insulation-code">
+          <option value="P20">P20 · Lana de vidrio 50 mm</option>
+          <option value="P21">P21 · Lana mineral 50 mm</option>
+          <option value="P22">P22 · Poliestireno EPS 50 mm</option>
+        </select></label>
+        <label>Puerta interior<select id="part-door-code">
+          <option value="P81">P81 · Puerta MDF 80 × 200 cm</option>
+          <option value="P80">P80 · Puerta terciada 70 × 200 cm</option>
+        </select></label>
+        <button id="btn-add-interior-door" type="button" class="alt">Añadir puerta al tabique</button>
+        <small class="tiny">Se abrirá un vano en el tabique. Selecciona la puerta creada para modificar ancho, alto y posición; las superficies se recalculan.</small>
+      </div>
+
+        <button id="btn-rotate-partition" type="button" class="alt" hidden>Girar tabique 90°</button>
+        <button id="btn-rotate-fit" type="button" class="alt" hidden>Girar y ajustar a los muros</button>
+        <small id="rotation-help" class="tiny" hidden>El giro manual mantiene el largo y la posición. Si no cabe en el otro eje, usa «Girar y ajustar a los muros» para cambiar al modo paramétrico.</small>
+      <div class="property-buttons">
         <button id="prop-duplicate" type="button" class="alt">Duplicar</button>
         <button id="prop-delete" type="button" class="alt">Eliminar</button>
-       </div>
+      </div>
     </div>
+    <button id="add-parametric-partition" type="button" class="alt">Añadir tabique paramétrico</button>
     <div id="placed-list" aria-label="Elementos incorporados"></div>
     <div class="property-buttons">
-       <button id="save-project" type="button" class="alt">Exportar JSON</button>
-       <button id="import-project" type="button" class="alt">Importar JSON</button>
-       <input type="file" id="import-project-file" accept=".json,application/json" hidden>
+      <button id="save-project" type="button" class="alt">Exportar JSON</button>
+      <button id="import-project" type="button" class="alt">Importar JSON</button>
+      <input type="file" id="import-project-file" accept=".json,application/json" hidden>
     </div>
   </section>
+
+  <h4>Cubicación geométrica preliminar</h4>
+  <div id="takeoff-box" aria-live="polite">
+    <strong>Resumen de superficies y refuerzos</strong>
+    <div class="takeoff-grid" id="takeoff-summary"></div>
+    <span class="tiny">Cubicación geométrica preliminar sin precios ni APU.</span>
+    <details id="shared-wall-config">
+      <summary>Contacto con otro contenedor (configurar)</summary>
+      <p class="tiny">Los muros compartidos NO se detectan automáticamente. Ingresa solo la zona de contacto real en esta cara; nunca una superficie que tenga una ventana o puerta.</p>
+      <div class="row">
+        <label>Cara<select id="shared-face"><option>A</option><option>B</option><option>C</option><option>D</option></select></label>
+        <label>Inicio horizontal (m)<input id="shared-u" type="number" value="0.20" min="0" step="0.05"></label>
+        <label>Desde piso (m)<input id="shared-v" type="number" value="0" min="0" step="0.05"></label>
+        <label>Ancho de contacto (m)<input id="shared-w" type="number" value="1.60" min="0.01" step="0.05"></label>
+        <label>Alto de contacto (m)<input id="shared-h" type="number" value="2.30" min="0.01" step="0.05"></label>
+      </div>
+      <button id="shared-add" type="button">Registrar zona compartida</button>
+      <div id="shared-list" class="tiny" aria-label="Zonas compartidas registradas"></div>
+      <small id="shared-message" class="tiny" role="status"></small>
+    </details>
+  </div>
+
   <b>Tipo de contenedor</b>
   <div class="seg" id="seg">
     <button data-t="maritimo" class="on">Marítimo</button>
@@ -150,14 +216,10 @@
     <button data-t="modular">Modular</button>
   </div>
   <div id="desc"></div>
-
-
-
-
   <h4>Dimensiones</h4>
   <div class="row">
-    <label>Largo (m)<input id="dL" type="number" step="0.01"></label>
-    <label>Ancho (m)<input id="dW" type="number" step="0.01"></label>
+    <label>Largo (m) <input id="dL" type="number" step="0.01"></label>
+    <label>Ancho (m) <input id="dW" type="number" step="0.01"></label>
     <label>Alto int. (m)<input id="dH" type="number" step="0.01"></label>
     <label>Color<input id="dC" type="color"></label>
   </div>
@@ -170,7 +232,7 @@
     <label>Ancho (m)<input id="oW" type="number" step="0.05" value="0.9"></label>
     <label>Alto (m)<input id="oH" type="number" step="0.05" value="2"></label>
     <label>Posición horiz. (m)<input id="oU" type="number" step="0.05" value="1"></label>
-    <label>Altura desde piso (m)<input id="oV" type="number" step="0.05" value="0"></label>
+    <label>Altura desde piso (m) <input id="oV" type="number" step="0.05" value="0"></label>
   </div>
   <label class="chk"><input id="oBars" type="checkbox"> Ventana con barrotes</label>
   <button id="bAdd">Agregar abertura</button>

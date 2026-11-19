@@ -6,10 +6,17 @@ on:
     paths:
       - 'rebuild/**'
       - '.github/workflows/v2-editor-ci.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'rebuild/**'
+      - '.github/workflows/v2-editor-ci.yml'
   workflow_dispatch:
+
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
@@ -18,15 +25,16 @@ jobs:
           node-version: '22'
       - name: Validate project files and module syntax
         run: |
-          for file in rebuild/index.html rebuild/container-engine.js rebuild/container-catalog.js rebuild/container-object-models.js rebuild/container-editor-ui.js; do test -s "$file"; done
-          for file in rebuild/container-engine.js rebuild/container-catalog.js rebuild/container-object-models.js rebuild/container-editor-ui.js; do node --experimental-default-type=module --check "$file"; done
+          for file in rebuild/index.html rebuild/container-engine.js rebuild/container-catalog.js rebuild/container-object-models.js rebuild/container-editor-ui.js rebuild/construction-integrity.js rebuild/resource-disposal.js; do test -s "$file"; done
+          for file in rebuild/container-engine.js rebuild/container-catalog.js rebuild/container-object-models.js rebuild/container-editor-ui.js rebuild/construction-integrity.js rebuild/resource-disposal.js; do node --experimental-default-type=module --check "$file"; done
+          node --experimental-default-type=module --test rebuild/tests/construction-integrity.mjs rebuild/tests/partition-layers-doors.mjs rebuild/tests/partition-api-integration.mjs rebuild/tests/engine-wiring.mjs rebuild/tests/resource-disposal.mjs rebuild/tests/editor-placement-once.mjs
           node --experimental-default-type=module --input-type=module -e "
-            import {CATALOG,CATALOG_BY_CODE,FAMILIES} from './rebuild/container-catalog.js';
-            import assert from 'node:assert/strict';
-            assert.equal(CATALOG.length,60);
-            assert.equal(new Set(CATALOG.map(x=>x.code)).size,60);
-            assert.equal(FAMILIES.length,8);
-            for(const c of CATALOG)assert.equal(CATALOG_BY_CODE[c.code],c);
+          import { CATALOG, CATALOG_BY_CODE, FAMILIES } from './rebuild/container-catalog.js';
+          import assert from 'node:assert/strict';
+          assert.equal(CATALOG.length, 60);
+          assert.equal(new Set(CATALOG.map(x => x.code)).size, 60);
+          assert.equal(FAMILIES.length, 8);
+          for (const c of CATALOG) assert.equal(CATALOG_BY_CODE[c.code], c);
           "
       - name: Install isolated test dependencies
         run: npm install --prefix rebuild --no-save --no-package-lock three@0.160.0 playwright@1.58.2

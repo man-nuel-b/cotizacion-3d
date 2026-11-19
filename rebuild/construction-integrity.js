@@ -1,0 +1,457 @@
+// Núcleo geométrico puro: sin Three.js ni DOM. Cotas en metros.
+// Son restricciones preliminares, NO sustituyen cálculo estructural ni planos de taller.
+
+export const OPENING_REINFORCEMENT = Object.freeze({ window: 'P90', door: 'P91' });
+export const REINFORCEMENT_META = Object.freeze({
+  P90: Object.freeze({ description: 'Refuerzo perimetral de ventana (provisional)', reviewRequired: true }),
+  P91: Object.freeze({ description: 'Refuerzo perimetral de puerta (provisional)', reviewRequired: true })
+});
+
+const finite = Number.isFinite;
+
+export function interiorClearance(panelThickness) {
+  if (!finite(panelThickness) || panelThickness < 0) throw Error('Espesor estructural inválido');
+  // Holgura mínima de 8 cm; aumenta si el perfil ocupa mayor espesor.
+  return Math.max(0.08, panelThickness + 0.02);
+}
+
+export function objectAABB(obj) {
+  const angle = (obj.rot || 0) * Math.PI / 180;
+  const c = Math.abs(Math.cos(angle));
+  const s = Math.abs(Math.sin(angle));
+  return {
+    x: obj.x,
+    z: obj.z,
+    y0: obj.y,
+    y1: obj.y + obj.h,
+    rx: (c * obj.w + s * obj.d) / 2,
+    rz: (s * obj.w + c * obj.d) / 2
+  };
+}
+
+export function partitionAABB(p, ref = null, panelThickness = null) {
+  const q = ref ? resolvePartitionGeometry(p, ref, panelThickness) : p;
+  const isXAxis = q.axis === 'x';
+  return {
+    x: q.cx,
+    z: q.cz,
+    y0: 0,
+    y1: q.height,
+    rx: isXAxis ? q.length / 2 : q.thickness / 2,
+    rz: isXAxis ? q.thickness / 2 : q.length / 2,
+    length: q.length,
+    isXAxis
+  };
+}
+
+export function aabbOverlap(a, b, clearance = 0.01) {
+  return Math.abs(a.x - b.x) < a.rx + b.rx + clearance &&
+    Math.abs(a.z - b.z) < a.rz + b.rz + clearance &&
+    a.y0 < b.y1 && b.y0 < a.y1;
+}
+
+// SAT de rectángulos orientados (OBB en planta), con test vertical separado.
+// AABB es la fase rápida; SAT evita rechazos falsos en mobiliario girado.
+export function orientedOverlap(a, b, clearance = 0.01) {
+  if (!aabbOverlap(objectAABB(a), objectAABB(b), clearance)) return false;
+  const box = o => {
+    const angle = (o.rot || 0) * Math.PI / 180;
+    const c = Math.cos(angle), s = Math.sin(angle);
+    return { x: o.x, z: o.z, ux: [c, -s], uz: [s, c], rw: o.w / 2, rd: o.d / 2 };
+  };
+  const A = box(a), B = box(b);
+  const dx = B.x - A.x, dz = B.z - A.z;
+  for (const axis of [A.ux, A.uz, B.ux, B.uz]) {
+    const radius = r => r.rw * Math.abs(r.ux[0] * axis[0] + r.ux[1] * axis[1]) +
+      r.rd * Math.abs(r.uz[0] * axis[0] + r.uz[1] * axis[1]);
+    const distance = Math.abs(dx * axis[0] + dz * axis[1]);
+    if (distance >= radius(A) + radius(B) + clearance) return false;
+  }
+  return true;
+}
+function partitionAsObject(p) {
+  return {
+    x: p.cx, z: p.cz, y: 0, w: p.length, d: p.thickness,
+    h: p.height, rot: p.axis === 'z' ? 90 : 0
+  };
+}
+
+export function validateObjectInsideContainer(obj, ref, panelThickness) {
+  if (![obj.x, obj.y, obj.z, obj.w, obj.h, obj.d, obj.rot].every(finite) ||
+      obj.w <= 0.02 || obj.h <= 0.02 || obj.d <= 0.008) {
+    return 'Dimensiones o coordenadas del objeto inválidas';
+  }
+  const box = objectAABB(obj);
+  const margin = interiorClearance(panelThickness);
+  if (Math.abs(box.x) + box.rx > ref.L / 2 - margin + 1e-8 ||
+      Math.abs(box.z) + box.rz > ref.W / 2 - margin + 1e-8) {
+    return 'El objeto invade el perfil estructural o excede los límites interiores del contenedor';
+  }
+  if (box.y0 < 0 || box.y1 > ref.H + 1e-8) {
+    return 'El objeto supera la altura útil o está bajo el piso terminado';
+  }
+  return null;
+}
+
+/**
+ * Resuelve la geometría del tabique según una opción EXPRESA de autoajuste.
+ * autoSpan=false/ausente conserva exactamente la longitud, posición y altura
+ * del proyecto antiguo; nunca corrige datos inválidos de forma silenciosa.
+ * autoSpan=true adopta la longitud útil completa del eje activo y centra el
+ * tabique en ese eje para tocar ambos paramentos interiores (con holgura de
+ * perfiles ya descontada). La posición sobre el otro eje se mantiene.
+ * Es una aproximación geométrica, no una especificación estructural.
+ */
+export function resolvePartitionGeometry(p, ref, panelThickness) {
+  if (!p || !['x', 'z'].includes(p.axis) ||
+      ![ref?.L, ref?.W, ref?.H].every(n => finite(n) && n > 0) ||
+      ![p.thickness, p.height, p.cx, p.cz].every(finite) ||
+      p.thickness <= 0 || p.height <= 0) {
+    throw Error('Dimensiones o eje del tabique inválidos');
+  }
+  if (p.autoSpan !== undefined && typeof p.autoSpan !== 'boolean') {
+    throw Error('autoSpan debe ser booleano');
+  }
+  if (!p.autoSpan && (!finite(p.length) || p.length <= 0)) {
+    throw Error('La longitud manual del tabique debe ser positiva');
+  }
+  const margin = interiorClearance(panelThickness);
+  const usableL = ref.L - 2 * margin;
+  const usableW = ref.W - 2 * margin;
+  if (usableL <= 0 || usableW <= 0) throw Error('Espacio interior insuficiente para el tabique');
+  if (!p.autoSpan) return { ...p, autoSpan: false };
+  return {
+    ...p,
+    autoSpan: true,
+    length: p.axis === 'x' ? usableL : usableW,
+    cx: p.axis === 'x' ? 0 : p.cx,
+    cz: p.axis === 'z' ? 0 : p.cz
+  };
+}
+
+/**
+ * Calcula el giro perpendicular de un tabique SIN modificar el original.
+ * - Manual: conserva largo y centro; los límites se validan después.
+ * - autoSpan: ajusta el largo al nuevo eje, como intervención explícita.
+ * La comprobación de colisiones pertenece al motor y se realiza antes de guardar.
+ */
+export function resolveRotatedPartition(p, ref, panelThickness, { autoSpan = p?.autoSpan === true } = {}) {
+  if (!p || !['x', 'z'].includes(p.axis) || typeof autoSpan !== 'boolean') {
+    throw Error('Tabique o modo de rotación inválido');
+  }
+  return resolvePartitionGeometry({
+    ...p,
+    axis: p.axis === 'x' ? 'z' : 'x',
+    autoSpan
+  }, ref, panelThickness);
+}
+
+// Alias explícito para el código de integración inicial; no acota los datos
+// manuales, pues hacerlo sin aviso modificaría diseños existentes.
+export function sanitizeAndClampPartition(p, ref, panelThickness) {
+  return resolvePartitionGeometry(p, ref, panelThickness);
+}
+
+export function validatePartitionInsideContainer(p, ref, panelThickness) {
+  if (!p || !['x', 'z'].includes(p.axis) ||
+      ![p.cx, p.cz, p.length, p.height, p.thickness].every(finite) ||
+      p.length <= 0 || p.height <= 0 || p.thickness <= 0 || p.height > ref.H ||
+      (p.autoSpan !== undefined && typeof p.autoSpan !== 'boolean')) {
+    return 'Dimensiones o eje del tabique inválidos';
+  }
+  let resolved;
+  try { resolved = resolvePartitionGeometry(p, ref, panelThickness); }
+  catch (error) { return String(error.message || error); }
+  // El estado persistido debe coincidir con la geometría que se dibuja.
+  // Evita que la cubicación utilice longitud autoajustada mientras el 3D
+  // y las colisiones conservan una longitud desactualizada.
+  if (p.autoSpan === true &&
+      (Math.abs(p.length - resolved.length) > 1e-7 ||
+       Math.abs(p.cx - resolved.cx) > 1e-7 ||
+       Math.abs(p.cz - resolved.cz) > 1e-7)) {
+    return 'La geometría del tabique autoajustado no está sincronizada';
+  }
+  const box = partitionAABB(p);
+  const margin = interiorClearance(panelThickness);
+  if (Math.abs(box.x) + box.rx > ref.L / 2 - margin + 1e-8 ||
+      Math.abs(box.z) + box.rz > ref.W / 2 - margin + 1e-8) {
+    return 'El tabique invade el perfil estructural o excede los límites interiores';
+  }
+  return null;
+}
+
+export const FACES = Object.freeze(['A', 'B', 'C', 'D']);
+
+// Aislamiento preliminar de esquineros, en metros. La verificación final
+// de refuerzos debe realizarla un especialista según el tipo de contenedor.
+export function validateOpeningCornerClearance(opening, span, cornerPostMargin = 0.14) {
+  if (![opening.u, opening.w, span, cornerPostMargin].every(finite) ||
+      opening.w <= 0 || span <= 0 || cornerPostMargin < 0) {
+    return 'Dimensiones de abertura o margen de esquinero inválidos';
+  }
+  if (opening.u < cornerPostMargin - 1e-8 ||
+      opening.u + opening.w > span - cornerPostMargin + 1e-8) {
+    return 'La abertura y su refuerzo invaden la zona del esquinero estructural ISO';
+  }
+  return null;
+}
+
+export function rectanglesOverlap(a, b) {
+  return a.u < b.u + b.w - 1e-8 && b.u < a.u + a.w - 1e-8 &&
+    a.v < b.v + b.h - 1e-8 && b.v < a.v + a.h - 1e-8;
+}
+
+// Una zona compartida se registra en UNA cara del contenedor actual.
+// Para modelos con varios contenedores cada superficie se registra en su
+// propio modelo; no se descuenta dos veces de la misma cara.
+export function validateSharedWallRegion(zone, state, excludeId = null) {
+  if (!FACES.includes(zone?.face)) return 'Cara de muro compartido inválida';
+  const { u, v, w, h } = zone;
+  if (![u, v, w, h].every(finite) || w <= 0 || h <= 0) {
+    return 'Posición o dimensiones de muro compartido inválidas';
+  }
+  const span = zone.face === 'A' || zone.face === 'C' ? state.L : state.W;
+  if (u < 0 || v < 0 || u + w > span + 1e-8 || v + h > state.H + 1e-8) {
+    return 'El muro compartido excede los límites de la cara seleccionada';
+  }
+  if ((state.openings || []).some(o => o.face === zone.face && rectanglesOverlap(o, zone))) {
+    return 'El muro compartido no puede solaparse con una abertura';
+  }
+  if ((state.sharedWalls || []).some(other => other.id !== excludeId &&
+      other.face === zone.face && rectanglesOverlap(other, zone))) {
+    return 'La zona se superpone con otro muro compartido';
+  }
+  return null;
+}
+
+export function validateOpeningAgainstSharedWalls(opening, regions = []) {
+  return regions.some(zone => zone.face === opening.face && rectanglesOverlap(opening, zone))
+    ? 'La abertura se superpone con una zona de muro compartido' : null;
+}
+
+export function checkObjectCollisions(candidate, objects = [], partitions = []) {
+  for (const other of objects) {
+    if (other.id === candidate.id) continue;
+    if (orientedOverlap(candidate, other)) {
+      return 'El elemento se superpone físicamente con otro objeto';
+    }
+  }
+  for (const partition of partitions) {
+    if (orientedOverlap(candidate, partitionAsObject(partition))) {
+      return 'El elemento se superpone con un tabique interior';
+    }
+  }
+  return null;
+}
+
+export function checkPartitionCollisions(candidate, partitions = [], objects = []) {
+  for (const other of partitions) {
+    if (other.id === candidate.id) continue;
+    if (orientedOverlap(partitionAsObject(candidate), partitionAsObject(other))) {
+      return 'El tabique se superpone con otro tabique';
+    }
+  }
+  for (const obj of objects) {
+    if (orientedOverlap(partitionAsObject(candidate), obj)) {
+      return 'El tabique se superpone con un objeto existente';
+    }
+  }
+  return null;
+}
+
+export function reinforcementCodeFor(type) {
+  return OPENING_REINFORCEMENT[type] || null;
+}
+
+export function withOpeningReinforcement(opening) {
+  const code = reinforcementCodeFor(opening.type);
+  if (!code) throw Error('Tipo de vano inválido');
+  return { ...opening, reinforcementCode: code };
+}
+
+// Estimación de proyecto para planificar un segundo contenedor. Esta función
+// NO aplica el descuento al editor de un único módulo y requiere confirmar
+// en terreno la longitud y la altura de contacto real.
+export function computeSharedWallDeduction(primaryDims, secondaryDims, layout = 'single') {
+  if (![primaryDims?.L, primaryDims?.W, primaryDims?.H,
+        secondaryDims?.L, secondaryDims?.W, secondaryDims?.H]
+      .every(n => finite(n) && n > 0)) throw Error('Dimensiones de módulos inválidas');
+  if (!['single', 'double', 'lshape'].includes(layout)) throw Error('Distribución de módulos inválida');
+  if (layout === 'double') return 2 * Math.min(primaryDims.L, secondaryDims.L) * Math.min(primaryDims.H, secondaryDims.H);
+  if (layout === 'lshape') return 2 * Math.min(primaryDims.W, secondaryDims.W) * Math.min(primaryDims.H, secondaryDims.H);
+  return 0;
+}
+
+// Catálogo de terminaciones y aislantes admitidos para tabiques independientes.
+export const PARTITION_LINING_CODES = Object.freeze(['P30', 'P31', 'P32', 'P33', 'P34', 'P35']);
+// P35 es espesor de representación aproximado; verificar ficha técnica.
+export const PARTITION_LINING_THICKNESS_M = Object.freeze({ P30: .015, P31: .015, P32: .006, P33: .012, P34: .0095, P35: .008 });
+export const PARTITION_INSULATION_CODES = Object.freeze(['P20', 'P21', 'P22']);
+
+/** La coordenada u se mide desde el extremo inicial (-L/2) del tabique. */
+export function validateInteriorDoor(door, partition, existingDoors = []) {
+  if (!partition || !door || door.partitionId !== partition.id) return 'Tabique anfitrión inexistente para la puerta interior';
+  if (!['P80', 'P81'].includes(door.catalogCode)) return 'Partida de puerta interior inválida';
+  if (![door.u, door.w, door.h, partition.length, partition.height].every(finite) ||
+      door.w < 0.35 || door.h < 1.2 || door.h >= partition.height - 0.05 + 1e-8) {
+    return 'Dimensiones de la puerta interior o dintel inválidos';
+  }
+  const margin = 0.08;
+  if (door.u < margin - 1e-8 || door.u + door.w > partition.length - margin + 1e-8) {
+    return 'La puerta interior excede el largo útil del tabique (margen mínimo 8 cm)';
+  }
+  if (!Array.isArray(existingDoors)) return 'Lista de puertas interiores inválida';
+  for (const other of existingDoors) {
+    if (other.id === door.id || other.partitionId !== partition.id) continue;
+    if (door.u < other.u + other.w + 0.05 - 1e-8 && other.u < door.u + door.w + 0.05 - 1e-8) {
+      return 'Puertas interiores solapadas o separadas menos de 5 cm';
+    }
+  }
+  return null;
+}
+
+export function validatePartitionSpecification(p) {
+  if (!p || (p.faceALining != null && !PARTITION_LINING_CODES.includes(p.faceALining)) ||
+      (p.faceBLining != null && !PARTITION_LINING_CODES.includes(p.faceBLining))) {
+    return 'Revestimiento de tabique inválido';
+  }
+  if (typeof p.hasInsulation !== 'boolean' ||
+      (p.hasInsulation && !PARTITION_INSULATION_CODES.includes(p.insulationCode)) ||
+      (!p.hasInsulation && p.insulationCode != null)) {
+    return 'Configuración de aislación de tabique inválida';
+  }
+  const plates = (PARTITION_LINING_THICKNESS_M[p.faceALining] || 0) +
+    (PARTITION_LINING_THICKNESS_M[p.faceBLining] || 0);
+  // Los proyectos legados sin capas pueden tener espesores inferiores a 35 mm.
+  const requiredCore = p.hasInsulation ? 0.05 : (plates > 0 ? 0.01 : 0);
+  if (!finite(p.thickness) || p.thickness + 1e-9 < plates + requiredCore) {
+    return 'El espesor del tabique no permite alojar el núcleo y las capas seleccionadas';
+  }
+  return null;
+}
+
+export function computeWallTakeoff(state) {
+  if (![state.L, state.W, state.H].every(n => finite(n) && n > 0)) {
+    throw Error('Dimensiones del contenedor inválidas para cubicación');
+  }
+  // El único dato contable para paredes compartidas es state.sharedWalls.
+  // Rechazamos regiones inválidas en vez de producir totales incoherentes.
+  const regions = state.sharedWalls || [];
+  const zoneIds = new Set();
+  for (const zone of regions) {
+    if (zoneIds.has(zone.id)) throw Error('ID duplicado en zona de contacto');
+    zoneIds.add(zone.id);
+    const issue = validateSharedWallRegion(zone, state, zone.id);
+    if (issue) throw Error(issue);
+  }
+  const walls = {};
+  const reinforcement = {
+    P90: { code: 'P90', openings: 0, estimatedLinearM: 0, provisional: true },
+    P91: { code: 'P91', openings: 0, estimatedLinearM: 0, provisional: true }
+  };
+  let totalGrossWallAreaM2 = 0;
+  let totalOpeningsAreaM2 = 0;
+  let sharedDeductionM2 = 0;
+  let skirtingLinearM = 0;
+
+  for (const face of FACES) {
+    const span = face === 'A' || face === 'C' ? state.L : state.W;
+    const gross = span * state.H;
+    const openings = (state.openings || []).filter(o => o.face === face);
+    const openingArea = openings.reduce((sum, o) => sum + o.w * o.h, 0);
+    const sharedAreas = regions.filter(x => x.face === face);
+    const shared = sharedAreas.reduce((sum, x) => sum + x.w * x.h, 0);
+    const net = Math.max(0, gross - openingArea - shared);
+    const finish = state.finishes?.walls?.[face] || null;
+    walls[face] = {
+      face, grossAreaM2: gross, openingsAreaM2: openingArea,
+      sharedDeductionM2: shared, netAreaM2: net,
+      liningCode: finish, liningAreaM2: finish ? net : 0
+    };
+    totalGrossWallAreaM2 += gross;
+    totalOpeningsAreaM2 += openingArea;
+    sharedDeductionM2 += shared;
+
+    // Descontar tramos reales a nivel de piso, por cara: vanos de puerta
+    // y paños compartidos. La validación impide que se superpongan.
+    const doorWidth = openings.filter(o => o.type === 'door' && o.v <= 0.05)
+      .reduce((sum, o) => sum + o.w, 0);
+    const sharedBase = sharedAreas.filter(x => x.v <= 0.05)
+      .reduce((sum, x) => sum + x.w, 0);
+    skirtingLinearM += Math.max(0, span - doorWidth - sharedBase);
+
+    for (const op of openings) {
+      const code = reinforcementCodeFor(op.type);
+      if (code) {
+        reinforcement[code].openings++;
+        reinforcement[code].estimatedLinearM += 2 * (op.w + op.h);
+      }
+    }
+  }
+  const totalNetWallAreaM2 = FACES.reduce((sum, face) => sum + walls[face].netAreaM2, 0);
+  const interiorDoors = state.interiorDoors || [];
+  if (!Array.isArray(interiorDoors)) throw Error('Puertas interiores inválidas en la cubicación');
+  const uniqueDoors = new Set();
+  for (const d of interiorDoors) {
+    if (uniqueDoors.has(d.id)) throw Error('Puerta interior duplicada');
+    uniqueDoors.add(d.id);
+    const host = (state.partitions || []).find(p => p.id === d.partitionId);
+    const err = validateInteriorDoor(d, host, interiorDoors);
+    if (err) throw Error('Puerta interior inválida en la cubicación: ' + err);
+  }
+  let totalPartitionLiningAreaM2 = 0;
+  let totalPartitionInsulationAreaM2 = 0;
+  const partitionLiningByCodeM2 = {};
+  const partitionInsulationByCodeM2 = {};
+  const interiorDoorsByCode = {};
+  for (const d of interiorDoors) interiorDoorsByCode[d.catalogCode] = (interiorDoorsByCode[d.catalogCode] || 0) + 1;
+  const partitions = (state.partitions || []).map(p => {
+    if (![p.length, p.height].every(finite) || p.length <= 0 || p.height <= 0)
+      throw Error('Tabique sin geometría válida en la cubicación');
+    const specError = validatePartitionSpecification({
+      ...p, faceALining: p.faceALining ?? null, faceBLining: p.faceBLining ?? null,
+      hasInsulation: p.hasInsulation === true,
+      insulationCode: p.hasInsulation === true ? (p.insulationCode || 'P20') : null
+    });
+    if (specError) throw Error(specError);
+    const doors = interiorDoors.filter(d => d.partitionId === p.id);
+    const doorsAreaM2 = doors.reduce((sum, d) => sum + d.w * d.h, 0);
+    const grossOneFaceM2 = p.length * p.height;
+    const oneFaceAreaM2 = grossOneFaceM2 - doorsAreaM2;
+    if (oneFaceAreaM2 < -1e-8) throw Error('Las puertas exceden la superficie del tabique');
+    const faceALining = p.faceALining || null;
+    const faceBLining = p.faceBLining || null;
+    const faceALiningAreaM2 = faceALining ? Math.max(0, oneFaceAreaM2) : 0;
+    const faceBLiningAreaM2 = faceBLining ? Math.max(0, oneFaceAreaM2) : 0;
+    const hasInsulation = p.hasInsulation === true;
+    const insulationCode = hasInsulation ? (p.insulationCode || 'P20') : null;
+    const insulationAreaM2 = hasInsulation ? Math.max(0, oneFaceAreaM2) : 0;
+    if (faceALining) partitionLiningByCodeM2[faceALining] = (partitionLiningByCodeM2[faceALining] || 0) + faceALiningAreaM2;
+    if (faceBLining) partitionLiningByCodeM2[faceBLining] = (partitionLiningByCodeM2[faceBLining] || 0) + faceBLiningAreaM2;
+    if (insulationCode) partitionInsulationByCodeM2[insulationCode] = (partitionInsulationByCodeM2[insulationCode] || 0) + insulationAreaM2;
+    totalPartitionLiningAreaM2 += faceALiningAreaM2 + faceBLiningAreaM2;
+    totalPartitionInsulationAreaM2 += insulationAreaM2;
+    return {
+      id: p.id, axis: p.axis, autoSpan: p.autoSpan === true,
+      lengthM: p.length, heightM: p.height, doorsCount: doors.length, doorsAreaM2,
+      grossOneFaceM2, oneFaceAreaM2: Math.max(0, oneFaceAreaM2),
+      bothFacesAreaM2: Math.max(0, oneFaceAreaM2) * 2,
+      faceALining, faceALiningAreaM2, faceBLining, faceBLiningAreaM2,
+      hasInsulation, insulationCode, insulationAreaM2
+    };
+  });
+  const totalPartitionOneFaceAreaM2 = partitions.reduce((sum, p) => sum + p.oneFaceAreaM2, 0);
+  const totalPartitionBothFacesAreaM2 = partitions.reduce((sum, p) => sum + p.bothFacesAreaM2, 0);
+  const floorAreaM2 = state.L * state.W;
+  return {
+    walls, partitions, interiorDoorsCount: interiorDoors.length, interiorDoorsByCode,
+    totalPartitionOneFaceAreaM2, totalPartitionBothFacesAreaM2,
+    totalPartitionLiningAreaM2, totalPartitionInsulationAreaM2,
+    partitionLiningByCodeM2, partitionInsulationByCodeM2,
+    floorAreaM2, ceilingAreaM2: floorAreaM2, skirtingLinearM,
+    reinforcement, totalGrossWallAreaM2, totalOpeningsAreaM2,
+    sharedDeductionM2, totalNetWallAreaM2,
+    status: 'preliminary',
+    warning: 'Cubicación geométrica preliminar: superficies netas de placas y aislación de tabiques. No considera mermas, perfilería, fijaciones, dinteles estructurales, costos ni certificación estructural.'
+  };
+}
