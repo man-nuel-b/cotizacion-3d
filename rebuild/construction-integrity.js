@@ -518,6 +518,41 @@ export function validatePartitionSpecification(p) {
   return null;
 }
 
+/**
+ * Reserva de superficie de piso para baño (sin coordenadas en planta).
+ * La especificación de materiales y la ubicación física son etapas separadas.
+ * Conserva floorAreaM2 bruto para compatibilidad con las versiones previas.
+ */
+export function validateBathFloor(bathFloor, containerDims, panelThickness = null) {
+  if (bathFloor == null) return null;
+  if (!bathFloor || typeof bathFloor !== 'object' || Array.isArray(bathFloor)) {
+    return 'Configuración de piso de baño inválida';
+  }
+  const { length, width, code } = bathFloor;
+  if (typeof code !== 'string' || !code.trim()) {
+    return 'Selecciona una partida de piso para el baño';
+  }
+  if (![length, width].every(n => finite(n) && n > 0)) {
+    return 'El largo y el ancho del baño deben ser números positivos';
+  }
+  if (!containerDims || ![containerDims.L, containerDims.W].every(n => finite(n) && n > 0)) {
+    return 'Dimensiones del contenedor inválidas';
+  }
+  if (panelThickness !== null && (!finite(panelThickness) || panelThickness < 0)) {
+    return 'Espesor estructural inválido';
+  }
+  const margin = panelThickness == null ? 0 : interiorClearance(panelThickness);
+  const usableL = containerDims.L - 2 * margin;
+  const usableW = containerDims.W - 2 * margin;
+  if (usableL <= 0 || usableW <= 0 || length > usableL + 1e-8 || width > usableW + 1e-8) {
+    return `Las dimensiones del baño (${length.toFixed(2)} × ${width.toFixed(2)} m) exceden el interior útil (${Math.max(0,usableL).toFixed(2)} × ${Math.max(0,usableW).toFixed(2)} m)`;
+  }
+  if (length * width > containerDims.L * containerDims.W + 1e-8) {
+    return 'La superficie del baño supera el piso total';
+  }
+  return null;
+}
+
 export function computeWallTakeoff(state) {
   if (![state.L, state.W, state.H].every(n => finite(n) && n > 0)) {
     throw Error('Dimensiones del contenedor inválidas para cubicación');
@@ -636,6 +671,23 @@ export function computeWallTakeoff(state) {
   const totalPartitionOneFaceAreaM2 = partitions.reduce((sum, p) => sum + p.oneFaceAreaM2, 0);
   const totalPartitionBothFacesAreaM2 = partitions.reduce((sum, p) => sum + p.bothFacesAreaM2, 0);
   const floorAreaM2 = state.L * state.W;
+  // Asignación contable: el piso de baño consume superficie del piso general,
+  // sin reducir el área bruta ni representar una ubicación inexistente en 3D.
+  const rawBath = state.bathFloor ?? null;
+  const bathIssue = validateBathFloor(rawBath, state);
+  if (bathIssue) throw Error(bathIssue);
+  const bathFloorAreaM2 = rawBath ? rawBath.length * rawBath.width : 0;
+  const remainingFloorAreaM2 = Math.max(0, floorAreaM2 - bathFloorAreaM2);
+  const bathFloor = rawBath ? {
+    code: rawBath.code, lengthM: rawBath.length, widthM: rawBath.width,
+    areaM2: bathFloorAreaM2
+  } : null;
+  const generalFloorCode = state.finishes?.floor || null;
+  const floorByCodeM2 = {};
+  if (generalFloorCode && remainingFloorAreaM2 > 0) floorByCodeM2[generalFloorCode] = remainingFloorAreaM2;
+  if (bathFloor && bathFloorAreaM2 > 0) {
+    floorByCodeM2[bathFloor.code] = (floorByCodeM2[bathFloor.code] || 0) + bathFloorAreaM2;
+  }
   return {
     walls, partitions, interiorDoorsCount: interiorDoors.length, interiorDoorsByCode,
     partitionJunctions, partitionTJunctionsCount, partitionLJunctionsCount,
@@ -643,6 +695,7 @@ export function computeWallTakeoff(state) {
     totalPartitionLiningAreaM2, totalPartitionInsulationAreaM2,
     partitionLiningByCodeM2, partitionInsulationByCodeM2,
     floorAreaM2, ceilingAreaM2: floorAreaM2, skirtingLinearM,
+    bathFloor, bathFloorAreaM2, remainingFloorAreaM2, floorByCodeM2,
     reinforcement, totalGrossWallAreaM2, totalOpeningsAreaM2,
     sharedDeductionM2, totalNetWallAreaM2,
     status: 'preliminary',

@@ -1,7 +1,7 @@
 {
   "name": "bat-cubikeitor-v2-editor",
   "private": true,
-  "version": "2.6.0-drag-magnet.1",
+  "version": "2.7.0-bath-floor.1",
   "type": "module",
   "description": "Editor 3D modular con cubicación geométrica preliminar, sin APU ni precios.",
   "scripts": {

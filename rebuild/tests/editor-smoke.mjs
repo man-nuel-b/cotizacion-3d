@@ -577,3 +577,33 @@ test('BAT V4.6: imán une una rama al tabique anfitrión sin atravesarlo', { tim
     assert.deepEqual(errors, [], errors.join('\n'));
   } finally { if (fixture) await close(fixture); }
 });
+
+
+test('UI: piso de baño, área restante, rechazo de dimensiones y borrado', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    await page.locator('#bath-floor-config summary').click();
+    await page.locator('#bath-floor-code').selectOption('P05');
+    await page.locator('#bath-floor-length').fill('2');
+    await page.locator('#bath-floor-width').fill('1.2');
+    await page.locator('#bath-floor-apply').click();
+    let actual = await page.evaluate(() => ({
+      state: window.Container3D.getState(), area: window.Container3D.getConstructionTakeoff()
+    }));
+    assert.equal(actual.state.bathFloor.code, 'P05');
+    assert.ok(Math.abs(actual.area.bathFloorAreaM2 - 2.4) < 1e-8);
+    assert.ok(Math.abs(actual.area.floorAreaM2 - actual.area.remainingFloorAreaM2 - 2.4) < 1e-8);
+    assert.match(await page.locator('#takeoff-summary').innerText(), /Piso general restante/);
+    await page.locator('#bath-floor-length').fill('100');
+    await page.locator('#bath-floor-apply').click();
+    assert.match(await page.locator('#bath-floor-message').innerText(), /exceden/);
+    assert.equal((await page.evaluate(() => window.Container3D.getState())).bathFloor.length, 2);
+    await page.locator('#bath-floor-clear').click();
+    actual = await page.evaluate(() => ({ state: window.Container3D.getState(), area: window.Container3D.getConstructionTakeoff() }));
+    assert.equal(actual.state.bathFloor, null);
+    assert.equal(actual.area.remainingFloorAreaM2, actual.area.floorAreaM2);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});

@@ -219,6 +219,20 @@ html,body{overflow:auto;height:auto;min-height:100%}
     <strong>Resumen de superficies y refuerzos</strong>
     <div class="takeoff-grid" id="takeoff-summary"></div>
     <span class="tiny">Cubicación geométrica preliminar sin precios ni APU.</span>
+    <details id="bath-floor-config">
+      <summary>Asignar piso de baño y superficie restante</summary>
+      <p class="tiny">Reserva cuantitativa: define largo, ancho y partida de piso. No posiciona una habitación en la escena 3D.</p>
+      <div class="row">
+        <label>Partida de piso<select id="bath-floor-code" aria-label="Piso del baño"></select></label>
+        <label>Largo baño (m)<input id="bath-floor-length" type="number" value="2.00" min="0.01" step="0.05"></label>
+        <label>Ancho baño (m)<input id="bath-floor-width" type="number" value="1.20" min="0.01" step="0.05"></label>
+      </div>
+      <div class="property-buttons">
+        <button id="bath-floor-apply" type="button">Aplicar piso baño</button>
+        <button id="bath-floor-clear" type="button" class="alt">Quitar piso baño</button>
+      </div>
+      <small id="bath-floor-message" class="tiny" role="status"></small>
+    </details>
     <details id="shared-wall-config">
       <summary>Contacto con otro contenedor (configurar)</summary>
       <p class="tiny">Los muros compartidos NO se detectan automáticamente. Ingresa solo la zona de contacto real en esta cara; nunca una superficie que tenga una ventana o puerta.</p>

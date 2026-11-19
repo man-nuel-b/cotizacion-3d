@@ -128,3 +128,17 @@ test('BAT V4.6: vista previa de arrastre, imán y conexión T/L están conectada
   assert.match(ui, /setPointerCapture/);
   assert.match(html, /id="partition-magnet"/);
 });
+
+
+test('Piso baño: conectores API, panel y JSON legado están presentes', () => {
+  assert.match(engine, /setBathFloor\(\{ code, length, width \}/);
+  assert.match(engine, /clearBathFloor\(\)/);
+  assert.match(engine, /bathFloor: cleanBathFloor/);
+  assert.match(engine, /validateBathFloor\(state\.bathFloor, nextRef/);
+  const ui = fs.readFileSync(path.join(root, 'container-editor-ui.js'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  for (const name of ['bath-floor-code', 'bath-floor-length', 'bath-floor-width', 'bath-floor-apply', 'bath-floor-clear']) {
+    assert.ok(html.includes('id="' + name + '"'));
+    assert.ok(ui.includes("$('" + name + "')"));
+  }
+});
