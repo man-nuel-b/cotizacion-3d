@@ -8,7 +8,8 @@ import {
   interiorClearance, resolvePartitionGeometry, resolveRotatedPartition,
   validatePartitionInsideContainer, checkPartitionCollisions,
   validateInteriorDoor, validatePartitionSpecification, computeWallTakeoff,
-  validateSharedWallRegion
+  validateSharedWallRegion, classifyPartitionJunction, computePartitionJunctions,
+  checkJunctionAgainstDoors
 } from '../construction-integrity.js';
 import { CATALOG, CATALOG_BY_CODE } from '../container-catalog.js';
 
@@ -53,7 +54,8 @@ function fixture() {
     partitionDoorError,
     partitionError(p, ref = state) {
       return validatePartitionInsideContainer(p, ref, panel) ||
-        checkPartitionCollisions(p, ref.partitions || state.partitions, ref.objects || state.objects);
+        checkPartitionCollisions(p, ref.partitions || state.partitions, ref.objects || state.objects,
+          ref.interiorDoors || state.interiorDoors);
     },
     objectError() { return null; },
     validateOpening() { return null; },
@@ -61,7 +63,8 @@ function fixture() {
     markChanged() { buildCount++; return { ok: true }; },
     CATALOG, CATALOG_BY_CODE, interiorClearance, resolvePartitionGeometry,
     resolveRotatedPartition, validateInteriorDoor, validatePartitionSpecification,
-    computeWallTakeoff, validateSharedWallRegion,
+    computeWallTakeoff, validateSharedWallRegion, classifyPartitionJunction,
+    computePartitionJunctions, checkJunctionAgainstDoors,
     SAMPLES: { maritimo: [], reefer: [], modular: [] },
     console
   };
@@ -239,4 +242,74 @@ test('API real: la búsqueda de posición libre también respeta objetos que blo
   state.objects.push({ id: 'obj-test', code: 'P60', x: 1.45, z: 0, y: 0, w: .8, d: .8, h: 1, rot: 0 });
   const next = api.addPartition(props); good(next);
   assert.ok(next.cx < -0.65, 'Debe seleccionar una bahía distinta de aquella ocupada por mobiliario');
+});
+
+
+test('API real: una T se crea desde tabique seleccionado y llega al paramento útil', () => {
+  const { api } = fixture();
+  const first = api.addPartition({ axis: 'z', height: 2.3, thickness: .1, autoSpan: true });
+  good(first);
+  const joined = api.addPartitionJunction({ hostId: first.id, type: 'T', side: 1 });
+  good(joined);
+  const st = api.getState();
+  assert.equal(st.partitions.length, 2);
+  assert.equal(st.partitions[1].axis, 'x');
+  assert.equal(st.partitions[1].autoSpan, false);
+  assert.equal(st.partitions[1].cx > 0, true);
+  assert.equal(classifyPartitionJunction(st.partitions[0], st.partitions[1])?.type, 'T');
+  assert.equal(api.getConstructionTakeoff().partitionTJunctionsCount, 1);
+  const second = api.addPartitionJunction({ hostId: first.id, type: 'T', side: -1 });
+  good(second);
+  assert.equal(api.getConstructionTakeoff().partitionTJunctionsCount, 2);
+  const exported = api.getState();
+  assert.ok(exported.partitions.length === 3);
+  const result = api.setState(exported);
+  good(result);
+  assert.equal(api.getConstructionTakeoff().partitionTJunctionsCount, 2);
+});
+
+test('API real: L en tabique manual; no sobreposición ni hueco de puerta en la unión', () => {
+  const { api } = fixture();
+  const host = api.addPartition({ axis: 'z', length: 1.5, cx: -.8, cz: -.2,
+    height: 2.3, thickness: .1, autoSpan: false });
+  good(host);
+  const l = api.addPartitionJunction({ hostId: host.id, type: 'L', side: 1, endpoint: 1 });
+  good(l);
+  const s = api.getState();
+  assert.equal(classifyPartitionJunction(s.partitions[0], s.partitions[1])?.type, 'L');
+  assert.equal(api.getConstructionTakeoff().partitionLJunctionsCount, 1);
+  const forbidden = api.addInteriorDoor({ partitionId: host.id, u: .08, w: .4, h: 2 });
+  assert.equal(forbidden.ok, false);
+  assert.match(forbidden.error, /vano|puerta/i);
+});
+
+test('API real: un intento L sobre autoSpan se rechaza con explicación útil', () => {
+  const { api } = fixture();
+  const host = api.addPartition({ axis: 'z', height: 2.3, thickness: .1, autoSpan: true });
+  good(host);
+  const r = api.addPartitionJunction({ hostId: host.id, type: 'L' });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /desactiva autoSpan/);
+});
+
+test('API real: la rama T se detiene ante el siguiente tabique paralelo, sin atravesarlo', () => {
+  const { api } = fixture();
+  const left = api.addPartition({ axis: 'z', length: 2, height: 2.3,
+    thickness: .1, cx: -1.1, cz: 0, autoSpan: false });
+  good(left);
+  const right = api.addPartition({ axis: 'z', length: 2, height: 2.3,
+    thickness: .1, cx: 1.1, cz: 0, autoSpan: false });
+  good(right);
+  const branch = api.addPartitionJunction({ hostId: left.id, type: 'T', side: 1 });
+  good(branch);
+  const takeoff = api.getConstructionTakeoff();
+  assert.equal(takeoff.partitionTJunctionsCount, 2, 'Contacto correcto con ambos tabiques anfitriones');
+  const state = api.getState();
+  assert.ok(state.partitions[2].length < 2.2, 'La rama se detiene antes del siguiente muro');
+  const saved = api.getState();
+  saved.partitions[2].cx -= 0.15; // moverla hacia dentro del tabique anfitrión
+  const rejected = api.setState(saved);
+  assert.equal(rejected.ok, false, 'Rechaza proyecto importado con intersección ilegal');
+  assert.equal(api.getConstructionTakeoff().partitionTJunctionsCount, 2,
+    'Mantiene intacto el proyecto anterior si importación es inválida');
 });

@@ -171,6 +171,28 @@ html,body{overflow:auto;height:auto;min-height:100%}
         <small class="tiny">Se abrirá un vano en el tabique. Selecciona la puerta creada para modificar ancho, alto y posición; las superficies se recalculan.</small>
       </div>
 
+        <div id="partition-junction-box" hidden>
+          <h4>Dividir recintos · uniones en T y L</h4>
+          <div class="row">
+            <label>Dirección de la nueva rama
+              <select id="part-junction-side">
+                <option value="1">Lado positivo (+X / +Z)</option>
+                <option value="-1">Lado negativo (−X / −Z)</option>
+              </select>
+            </label>
+            <label>Extremo para esquina L
+              <select id="part-junction-end">
+                <option value="1">Extremo positivo</option>
+                <option value="-1">Extremo negativo</option>
+              </select>
+            </label>
+          </div>
+          <div class="row">
+            <button id="btn-junction-t" type="button" class="alt">Crear unión en T</button>
+            <button id="btn-junction-l" type="button" class="alt">Crear esquina en L</button>
+          </div>
+          <small class="tiny" id="junction-help">Selecciona el tabique anfitrión. T: une en la zona central; L: une en uno de sus extremos. No se permiten cruces ni invasiones.</small>
+        </div>
         <button id="btn-rotate-partition" type="button" class="alt" hidden>Girar tabique 90°</button>
         <button id="btn-rotate-fit" type="button" class="alt" hidden>Girar y ajustar a los muros</button>
         <small id="rotation-help" class="tiny" hidden>El giro manual mantiene el largo y la posición. Si no cabe en el otro eje, usa «Girar y ajustar a los muros» para cambiar al modo paramétrico.</small>

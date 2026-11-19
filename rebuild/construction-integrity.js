@@ -244,11 +244,86 @@ export function checkObjectCollisions(candidate, objects = [], partitions = []) 
   return null;
 }
 
-export function checkPartitionCollisions(candidate, partitions = [], objects = []) {
+/**
+ * Encuentro constructivo de dos tabiques ortogonales (en planta).
+ * Solo admite que el EXTREMO de una división llegue a una cara del tabique
+ * anfitrión: ni solapamientos profundos ni cruces X. Las holguras son de
+ * representación, no una especificación de uniones estructurales.
+ *
+ * Cara A = normal positiva del tabique (Z en eje X; X en eje Z).
+ */
+export function classifyPartitionJunction(a, b, tolerance = 0.003) {
+  if (!a || !b || a.id === b.id || a.axis === b.axis ||
+      !['x', 'z'].includes(a.axis) || !['x', 'z'].includes(b.axis) ||
+      ![a.cx, a.cz, a.length, a.thickness, a.height,
+        b.cx, b.cz, b.length, b.thickness, b.height, tolerance].every(finite) ||
+      Math.min(a.length, b.length, a.thickness, b.thickness, a.height, b.height) <= 0 ||
+      tolerance < 0 || Math.min(a.height, b.height) < 0.3) return null;
+
+  function tryButt(host, branch) {
+    const hostCross = host.axis === 'z' ? host.cx : host.cz;
+    const branchLong = host.axis === 'z' ? branch.cx : branch.cz;
+    const branchAlongHost = host.axis === 'z' ? branch.cz : branch.cx;
+    const hostAlong = host.axis === 'z' ? host.cz : host.cx;
+    const hostMin = hostAlong - host.length / 2;
+    const hostMax = hostAlong + host.length / 2;
+    const overlap = Math.min(hostMax, branchAlongHost + branch.thickness / 2) -
+      Math.max(hostMin, branchAlongHost - branch.thickness / 2);
+    // Una L puede contactar en el remate del tabique. Nunca basta el contacto
+    // en un punto: debe quedar al menos media alma transversal de unión.
+    if (overlap < Math.min(branch.thickness / 2, 0.03) - 1e-8) return null;
+    const bMin = branchLong - branch.length / 2;
+    const bMax = branchLong + branch.length / 2;
+    const facePositive = hostCross + host.thickness / 2;
+    const faceNegative = hostCross - host.thickness / 2;
+    let side;
+    if (Math.abs(bMin - facePositive) <= tolerance && bMax > facePositive + 0.05) side = 1;
+    else if (Math.abs(bMax - faceNegative) <= tolerance && bMin < faceNegative - 0.05) side = -1;
+    else return null;
+    const atEnd = Math.min(Math.abs(branchAlongHost - hostMin),
+      Math.abs(branchAlongHost - hostMax)) <= branch.thickness / 2 + 0.02;
+    const hostU = host.axis === 'x' ? branchAlongHost - hostMin : hostMax - branchAlongHost;
+    return {
+      type: atEnd ? 'L' : 'T', hostId: host.id, branchId: branch.id,
+      hostFace: side === 1 ? 'A' : 'B', side,
+      hostU, contactWidthM: overlap,
+      contactHeightM: Math.min(host.height, branch.height)
+    };
+  }
+  return tryButt(a, b) || tryButt(b, a);
+}
+
+export function checkJunctionAgainstDoors(junction, doors = []) {
+  if (!junction) return null;
+  const halfWidth = junction.contactWidthM / 2;
+  const start = junction.hostU - halfWidth;
+  const end = junction.hostU + halfWidth;
+  return doors.some(d => d.partitionId === junction.hostId &&
+    start < d.u + d.w + 0.015 - 1e-8 && end > d.u - 0.015 + 1e-8)
+    ? 'El encuentro T/L coincide con el vano de una puerta interior' : null;
+}
+
+export function computePartitionJunctions(partitions = [], doors = []) {
+  if (!Array.isArray(partitions)) throw Error('Tabiques inválidos para encuentros');
+  const junctions = [];
+  for (let i = 0; i < partitions.length; i++) for (let j = i + 1; j < partitions.length; j++) {
+    const junction = classifyPartitionJunction(partitions[i], partitions[j]);
+    if (!junction) continue;
+    const conflict = checkJunctionAgainstDoors(junction, doors);
+    if (conflict) throw Error(conflict);
+    junctions.push(junction);
+  }
+  return junctions;
+}
+
+export function checkPartitionCollisions(candidate, partitions = [], objects = [], interiorDoors = []) {
   for (const other of partitions) {
     if (other.id === candidate.id) continue;
     if (orientedOverlap(partitionAsObject(candidate), partitionAsObject(other))) {
-      return 'El tabique se superpone con otro tabique';
+      const joint = classifyPartitionJunction(candidate, other);
+      if (!joint) return 'El tabique se superpone con otro tabique (cruce o invasión no admisible)';
+      const doorError = checkJunctionAgainstDoors(joint, interiorDoors);
+      if (doorError) return doorError;
     }
   }
   for (const obj of objects) {
@@ -391,6 +466,11 @@ export function computeWallTakeoff(state) {
   const totalNetWallAreaM2 = FACES.reduce((sum, face) => sum + walls[face].netAreaM2, 0);
   const interiorDoors = state.interiorDoors || [];
   if (!Array.isArray(interiorDoors)) throw Error('Puertas interiores inválidas en la cubicación');
+  // Los encuentros se realizan cara contra testa: sin invasión física y sin
+  // descontar arbitrariamente revestimientos continuos del anfitrión.
+  const partitionJunctions = computePartitionJunctions(state.partitions || [], interiorDoors);
+  const partitionTJunctionsCount = partitionJunctions.filter(j => j.type === 'T').length;
+  const partitionLJunctionsCount = partitionJunctions.filter(j => j.type === 'L').length;
   const uniqueDoors = new Set();
   for (const d of interiorDoors) {
     if (uniqueDoors.has(d.id)) throw Error('Puerta interior duplicada');
@@ -445,6 +525,7 @@ export function computeWallTakeoff(state) {
   const floorAreaM2 = state.L * state.W;
   return {
     walls, partitions, interiorDoorsCount: interiorDoors.length, interiorDoorsByCode,
+    partitionJunctions, partitionTJunctionsCount, partitionLJunctionsCount,
     totalPartitionOneFaceAreaM2, totalPartitionBothFacesAreaM2,
     totalPartitionLiningAreaM2, totalPartitionInsulationAreaM2,
     partitionLiningByCodeM2, partitionInsulationByCodeM2,
@@ -452,6 +533,6 @@ export function computeWallTakeoff(state) {
     reinforcement, totalGrossWallAreaM2, totalOpeningsAreaM2,
     sharedDeductionM2, totalNetWallAreaM2,
     status: 'preliminary',
-    warning: 'Cubicación geométrica preliminar: superficies netas de placas y aislación de tabiques. No considera mermas, perfilería, fijaciones, dinteles estructurales, costos ni certificación estructural.'
+    warning: 'Cubicación geométrica preliminar: superficies netas de placas y aislación de tabiques. Encuentros T/L de cara contra testa sin invasión; requiere definir anclajes y refuerzos en proyecto constructivo. No considera mermas, perfilería, fijaciones, dinteles estructurales, costos ni certificación estructural.'
   };
 }

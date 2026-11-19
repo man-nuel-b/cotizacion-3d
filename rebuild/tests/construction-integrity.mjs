@@ -6,6 +6,7 @@ import {
   validateObjectInsideContainer, validatePartitionInsideContainer,
   validateOpeningCornerClearance,
   checkObjectCollisions, checkPartitionCollisions,
+  classifyPartitionJunction, computePartitionJunctions, checkJunctionAgainstDoors,
   reinforcementCodeFor, withOpeningReinforcement,
   computeWallTakeoff, computeSharedWallDeduction
 } from '../construction-integrity.js';
@@ -268,4 +269,59 @@ test('Giro de tabique sigue respetando las colisiones con objetos', () => {
   assert.equal(checkPartitionCollisions(original, [], [sofa]), null);
   const turned = resolveRotatedPartition(original, dims, panel);
   assert.match(checkPartitionCollisions(turned, [], [sofa]), /objeto/);
+});
+
+const jointWall = (id, axis, length, cx, cz) => ({ id, axis, length, cx, cz,
+  thickness: 0.1, height: 2.35, autoSpan: false,
+  faceALining: 'P30', faceBLining: 'P34', hasInsulation: false, insulationCode: null });
+
+test('Unión T real: tabique ortogonal termina exactamente contra la cara anfitriona', () => {
+  const host = jointWall('host', 'z', 2, 0, 0);
+  const branch = jointWall('branch', 'x', 2, 1.05, 0); // extremo X = 0.05
+  const j = classifyPartitionJunction(host, branch);
+  assert.equal(j?.type, 'T');
+  assert.equal(j.hostId, 'host');
+  assert.equal(j.branchId, 'branch');
+  assert.equal(j.hostFace, 'A');
+  assert.equal(checkPartitionCollisions(branch, [host]), null);
+  const q = computeWallTakeoff({ ...dims, partitions: [host, branch] });
+  assert.equal(q.partitionTJunctionsCount, 1);
+  assert.equal(q.partitionLJunctionsCount, 0);
+  assert.equal(q.partitionJunctions.length, 1);
+  assert.ok(Math.abs(q.totalPartitionLiningAreaM2 - (2*2.35*4)) < 1e-8);
+});
+
+test('Unión L real: conexión con remate de un tabique sin invadir sus perfiles', () => {
+  const host = jointWall('host', 'z', 1.8, -.6, -.1);
+  const branch = jointWall('branch', 'x', 1.1, 0, .75); // límite host +z = .8; esquina
+  const j = classifyPartitionJunction(host, branch);
+  assert.equal(j?.type, 'L');
+  assert.equal(j.hostFace, 'A');
+  assert.equal(checkPartitionCollisions(branch, [host]), null);
+  assert.equal(computePartitionJunctions([host, branch])[0].type, 'L');
+});
+
+test('La unión rechaza cruces X, tabiques paralelos y penetraciones mayores a 3 mm', () => {
+  const host = jointWall('host', 'z', 2, 0, 0);
+  const crosses = jointWall('cross', 'x', 2, 0, 0);
+  assert.equal(classifyPartitionJunction(host, crosses), null);
+  assert.match(checkPartitionCollisions(crosses, [host]), /cruce|invasión/);
+  const penetrates = jointWall('branch', 'x', 2, 1.026, 0); // extremo=.026, entra 24 mm
+  assert.equal(classifyPartitionJunction(host, penetrates), null);
+  assert.match(checkPartitionCollisions(penetrates, [host]), /cruce|invasión/);
+  const parallel = jointWall('parallel', 'z', 2, 0, 0);
+  assert.equal(classifyPartitionJunction(host, parallel), null);
+  assert.match(checkPartitionCollisions(parallel, [host]), /cruce|invasión/);
+});
+
+test('Encuentro en hueco de puerta del anfitrión se rechaza en ambas direcciones', () => {
+  const host = jointWall('host', 'z', 2, 0, 0);
+  const branch = jointWall('branch', 'x', 2, 1.05, 0);
+  const j = classifyPartitionJunction(host, branch);
+  const d = { id: 'door-1', partitionId: 'host', u: .6, w: .8, h: 2, catalogCode: 'P81' };
+  assert.match(checkJunctionAgainstDoors(j, [d]), /vano/);
+  assert.match(checkPartitionCollisions(branch, [host], [], [d]), /vano/);
+  assert.throws(() => computePartitionJunctions([host, branch], [d]), /vano/);
+  const away = { ...d, u: .08, w: .4 };
+  assert.equal(checkJunctionAgainstDoors(j, [away]), null);
 });
