@@ -334,6 +334,97 @@ export function checkPartitionCollisions(candidate, partitions = [], objects = [
   return null;
 }
 
+
+/**
+ * Vista previa de desplazamiento con imán, SIN modificar el estado.
+ * Mantiene longitud, orientación, altura y capas existentes. El ajuste solo
+ * traslada el centro del tabique y se acepta si pasa las reglas T/L, objetos,
+ * esquineros, puertas y límites interiores. No crea juntas estructurales.
+ *
+ * autoSpan=true: la coordenada del eje largo se mantiene fija; solo se puede
+ * desplazar el tabique perpendicularmente (entre vanos a lo largo del módulo).
+ */
+export function resolveMagneticPartitionMove(p, position, ref, panelThickness, options = {}) {
+  if (!p || !position || ![position.cx, position.cz].every(finite) ||
+      !['x', 'z'].includes(p.axis) ||
+      ![p.length, p.thickness, p.height, ref?.L, ref?.W].every(finite) ||
+      Math.min(p.length, p.thickness, p.height, ref.L, ref.W) <= 0) {
+    return { ok: false, error: 'Coordenadas o geometría del tabique inválidas' };
+  }
+  const partitions = options.partitions || [];
+  const objects = options.objects || [];
+  const interiorDoors = options.interiorDoors || [];
+  const snap = options.snap !== false;
+  const snapDistance = options.snapDistance ?? 0.18;
+  if (!finite(snapDistance) || snapDistance < 0 || snapDistance > 0.5 ||
+      !Array.isArray(partitions) || !Array.isArray(objects) || !Array.isArray(interiorDoors)) {
+    return { ok: false, error: 'Opciones de ajuste magnético inválidas' };
+  }
+  const margin = interiorClearance(panelThickness);
+  const longAxis = p.axis === 'x' ? 'cx' : 'cz';
+  const crossAxis = p.axis === 'x' ? 'cz' : 'cx';
+  const longDim = p.axis === 'x' ? ref.L : ref.W;
+  const crossDim = p.axis === 'x' ? ref.W : ref.L;
+  const limitLong = longDim / 2 - margin - p.length / 2;
+  const limitCross = crossDim / 2 - margin - p.thickness / 2;
+  if (limitLong < -1e-8 || limitCross < -1e-8) {
+    return { ok: false, error: 'El tabique no cabe en los límites interiores' };
+  }
+  const cap = (v, max) => Math.min(max, Math.max(-max, v));
+  const base = { ...p };
+  base[longAxis] = p.autoSpan === true ? 0 : cap(position[longAxis], Math.max(0, limitLong));
+  base[crossAxis] = cap(position[crossAxis], Math.max(0, limitCross));
+  const check = candidate => validatePartitionInsideContainer(candidate, ref, panelThickness) ||
+    validatePartitionSpecification(candidate) ||
+    checkPartitionCollisions(candidate, partitions, objects, interiorDoors) ||
+    interiorDoors.filter(d => d.partitionId === p.id)
+      .map(d => validateInteriorDoor(d, candidate, interiorDoors)).find(Boolean) || null;
+  const directError = check(base);
+  if (!snap || p.autoSpan === true) {
+    return directError ? { ok: false, error: directError } : { ok: true, candidate: base, snappedTo: null };
+  }
+
+  const proposals = [];
+  const start = base[longAxis] - p.length / 2;
+  const end = base[longAxis] + p.length / 2;
+  const lowWall = -longDim / 2 + margin;
+  const highWall = longDim / 2 - margin;
+  const near = (endpoint, target, label) => {
+    const delta = target - endpoint;
+    if (Math.abs(delta) <= snapDistance + 1e-9) {
+      const candidate = { ...base, [longAxis]: base[longAxis] + delta };
+      // No se permite que el imán desplace el tabique fuera de los perfiles.
+      if (Math.abs(candidate[longAxis]) <= limitLong + 1e-8) {
+        proposals.push({ candidate, snappedTo: label, distance: Math.abs(delta) });
+      }
+    }
+  };
+  near(start, lowWall, p.axis === 'x' ? 'Pared interior X−' : 'Pared interior Z−');
+  near(end, highWall, p.axis === 'x' ? 'Pared interior X+' : 'Pared interior Z+');
+
+  for (const host of partitions) {
+    if (host.id === p.id || host.axis === p.axis) continue;
+    // El punto transversal de la rama debe contactar con un segmento del host,
+    // no simplemente pasar cerca de su prolongación infinita.
+    const hostAlong = p.axis === 'x' ? host.cz : host.cx;
+    const contact = Math.min(hostAlong + host.length / 2, base[crossAxis] + p.thickness / 2) -
+      Math.max(hostAlong - host.length / 2, base[crossAxis] - p.thickness / 2);
+    if (contact < Math.min(p.thickness / 2, 0.03) - 1e-8) continue;
+    const hostCross = p.axis === 'x' ? host.cx : host.cz;
+    near(end, hostCross - host.thickness / 2, `Unión con ${host.id}`);
+    near(start, hostCross + host.thickness / 2, `Unión con ${host.id}`);
+  }
+  proposals.sort((a, b) => a.distance - b.distance);
+  for (const proposal of proposals) {
+    if (check(proposal.candidate)) continue;
+    // Una unión real requiere la coincidencia geométrica de testa con cara.
+    // Las colisiones adyacentes siguen sujetas al validador normal.
+    return { ok: true, candidate: proposal.candidate, snappedTo: proposal.snappedTo };
+  }
+  return directError ? { ok: false, error: directError } :
+    { ok: true, candidate: base, snappedTo: null };
+}
+
 export function reinforcementCodeFor(type) {
   return OPENING_REINFORCEMENT[type] || null;
 }

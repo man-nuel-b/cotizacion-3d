@@ -519,3 +519,60 @@ test('BAT V4.5: botones T/L crean ramas ortogonales y actualizan cubicación', {
     assert.deepEqual(errors, [], errors.join('\n'));
   } finally { if (fixture) await close(fixture); }
 });
+
+
+test('BAT V4.6: arrastrar tabique con mouse modifica el modelo y respeta autoSpan', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    const created = await page.evaluate(() => {
+      const api = window.Container3D;
+      api.setType('modular');
+      const result = api.addPartition({ axis: 'z', length: 2.24, height: 2.3,
+        thickness: .1, autoSpan: true });
+      const p = api.getState().partitions[0];
+      return { result, point: api.getScreenPoint(p.cx, .14 + p.height * .55, p.cz) };
+    });
+    assert.equal(created.result.ok, true, created.result.error);
+    assert.equal(created.point.visible, true);
+    const start = created.point;
+    const before = await page.evaluate(() => window.Container3D.getState().partitions[0]);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x + 85, start.y, { steps: 10 });
+    await page.mouse.up();
+    const after = await page.evaluate(() => window.Container3D.getState().partitions[0]);
+    assert.notEqual(after.cx, before.cx, 'Arrastrar el tabique debe desplazarlo en X');
+    assert.equal(after.cz, 0, 'autoSpan eje Z bloquea el desplazamiento longitudinal');
+    assert.equal(after.length, before.length);
+    assert.equal(await page.locator('#partition-magnet').isChecked(), true);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
+
+test('BAT V4.6: imán une una rama al tabique anfitrión sin atravesarlo', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    const results = await page.evaluate(() => {
+      const api = window.Container3D;
+      api.setType('modular');
+      const host = api.addPartition({ axis: 'z', height: 2.3, thickness: .1, autoSpan: true });
+      const branch = api.addPartition({ axis: 'x', height: 2.3, thickness: .1,
+        length: 1.2, cx: .75, cz: 0, autoSpan: false });
+      if (!host.ok || !branch.ok) return { host, branch };
+      const preview = api.previewPartitionMove(branch.id, { cx: .75, cz: 0, snap: true });
+      const moved = api.movePartition(branch.id, { cx: .75, cz: 0, snap: true });
+      return { host, branch, preview, moved, state: api.getState(), t: api.getConstructionTakeoff() };
+    });
+    assert.equal(results.host.ok, true, results.host.error);
+    assert.equal(results.branch.ok, true, results.branch.error);
+    assert.equal(results.preview.ok, true, results.preview.error);
+    assert.match(results.preview.snappedTo, /Unión con/);
+    assert.equal(results.moved.ok, true, results.moved.error);
+    assert.equal(results.t.partitionTJunctionsCount, 1);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});

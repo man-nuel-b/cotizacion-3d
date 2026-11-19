@@ -114,3 +114,17 @@ test('BAT V4.5: uniones ortogonales conectadas a motor y editor sin invadir elem
   assert.match(ui, /partitionTJunctionsCount/);
   assert.match(ui, /partitionLJunctionsCount/);
 });
+
+
+test('BAT V4.6: vista previa de arrastre, imán y conexión T/L están conectadas a motor y UI', () => {
+  const src = fs.readFileSync(path.join(root, 'container-engine.js'), 'utf8');
+  const ui = fs.readFileSync(path.join(root, 'container-editor-ui.js'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  assert.match(src, /previewPartitionMove\(/);
+  assert.match(src, /movePartition\(/);
+  assert.match(src, /partitionGroupId = p\.id/);
+  assert.match(ui, /api\.previewPartitionMove\(/);
+  assert.match(ui, /api\.movePartition\(/);
+  assert.match(ui, /setPointerCapture/);
+  assert.match(html, /id="partition-magnet"/);
+});

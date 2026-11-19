@@ -1,3 +1,4 @@
+import { resolveMagneticPartitionMove } from '../construction-integrity.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -324,4 +325,70 @@ test('Encuentro en hueco de puerta del anfitrión se rechaza en ambas direccione
   assert.throws(() => computePartitionJunctions([host, branch], [d]), /vano/);
   const away = { ...d, u: .08, w: .4 };
   assert.equal(checkJunctionAgainstDoors(j, [away]), null);
+});
+
+
+// V4.6: ajuste magnético y edición sin mutación del estado.
+
+test('Imán: un tabique manual termina exactamente contra el paramento interior, sin alterar su longitud', () => {
+  const ref = { L: 6, W: 2.4, H: 2.5 };
+  const p = { id: 'p1', axis: 'x', length: 1, height: 2.3, thickness: .1, cx: 0, cz: 0,
+    autoSpan: false, faceALining: null, faceBLining: null, hasInsulation: false, insulationCode: null };
+  const old = structuredClone(p);
+  const r = resolveMagneticPartitionMove(p, { cx: 2.40, cz: 0 }, ref, .05);
+  assert.equal(r.ok, true, r.error);
+  assert.match(r.snappedTo, /Pared interior X\+/);
+  assert.ok(Math.abs(r.candidate.cx - 2.42) < 1e-8);
+  assert.equal(r.candidate.length, 1);
+  assert.deepEqual(p, old, 'El cálculo no muta el tabique original');
+  const manual = resolveMagneticPartitionMove(p, { cx: 2.40, cz: 0 }, ref, .05, { snap: false });
+  assert.equal(manual.ok, true);
+  assert.equal(manual.candidate.cx, 2.4);
+  assert.equal(manual.snappedTo, null);
+});
+
+test('Imán: crea un encuentro T real al acercar el extremo a la cara anfitriona', () => {
+  const ref = { L: 6, W: 2.4, H: 2.5 };
+  const host = { id: 'host', axis: 'z', length: 2.24, height: 2.3, thickness: .1,
+    cx: 0, cz: 0, autoSpan: true, faceALining: null, faceBLining: null,
+    hasInsulation: false, insulationCode: null };
+  const p = { ...host, id: 'branch', axis: 'x', length: 1.2, cx: 1.1, cz: 0, autoSpan: false };
+  const r = resolveMagneticPartitionMove(p, { cx: .75, cz: 0 }, ref, .05, { partitions: [host, p] });
+  assert.equal(r.ok, true, r.error);
+  assert.match(r.snappedTo, /Unión con host/);
+  assert.ok(Math.abs(r.candidate.cx - .65) < 1e-8);
+  const joint = classifyPartitionJunction(host, r.candidate);
+  assert.equal(joint.type, 'T');
+  assert.equal(checkPartitionCollisions(r.candidate, [host, p]), null);
+});
+
+test('Imán: encuentro L en el extremo; no atraviesa un tabique ni invade puertas', () => {
+  const ref = { L: 6, W: 2.4, H: 2.5 };
+  const host = { id: 'host', axis: 'z', length: 1.2, height: 2.3, thickness: .1,
+    cx: 0, cz: 0, autoSpan: false, faceALining: null, faceBLining: null,
+    hasInsulation: false, insulationCode: null };
+  const p = { ...host, id: 'branch', axis: 'x', length: 1.2, cx: 1.1, cz: .59 };
+  const r = resolveMagneticPartitionMove(p, { cx: .75, cz: .59 }, ref, .05, { partitions: [host, p] });
+  assert.equal(r.ok, true, r.error);
+  assert.equal(classifyPartitionJunction(host, r.candidate).type, 'L');
+  const invalid = resolveMagneticPartitionMove(p, { cx: 0, cz: 0 }, ref, .05, { partitions: [host, p] });
+  assert.equal(invalid.ok, false, 'Se debe rechazar un cruce profundo');
+  const door = { id: 'd1', partitionId: 'host', u: .1, w: .9, h: 2, catalogCode: 'P81' };
+  const doorHost = { ...host, length: 1.2 };
+  const opposite = { ...p, cz: 0 };
+  const blocked = resolveMagneticPartitionMove(opposite, { cx: .75, cz: 0 }, ref, .05,
+    { partitions: [doorHost, opposite], interiorDoors: [door] });
+  assert.equal(blocked.ok, true, 'Se puede mantener la posición original sin contacto');
+  assert.equal(blocked.snappedTo, null, 'No se debe unir a través de una puerta');
+});
+
+test('autoSpan: arrastrar solo desplaza el centro transversal y limita contra perfiles', () => {
+  const ref = { L: 6, W: 2.4, H: 2.5 };
+  const p = { id: 'auto', axis: 'z', length: 2.24, height: 2.3,
+    thickness: .1, cx: 0, cz: 0, autoSpan: true,
+    faceALining: null, faceBLining: null, hasInsulation: false, insulationCode: null };
+  const r = resolveMagneticPartitionMove(p, { cx: 8, cz: 0.7 }, ref, .05);
+  assert.equal(r.ok, true, r.error);
+  assert.equal(r.candidate.cz, 0);
+  assert.ok(Math.abs(r.candidate.cx - 2.87) < 1e-8);
 });
