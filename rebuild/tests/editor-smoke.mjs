@@ -142,6 +142,7 @@ test('BAT V2 reforzado: esquineros, zona compartida, cubicación por cara y JSON
       type: 'window', face: 'A', w: 1.2, h: 1, u: 1.0, v: 0.9, bars: false
     }));
     assert.equal(valid.ok, true);
+    await page.locator('#shared-wall-config summary').click();
     await page.locator('#shared-face').selectOption('A');
     await page.locator('#shared-u').fill('3');
     await page.locator('#shared-v').fill('0');
