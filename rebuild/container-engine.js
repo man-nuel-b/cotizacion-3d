@@ -581,7 +581,9 @@ function build() {
   const roof = wallPanels(rl, rw, [], rmat);
   roof.traverse(node => { if (node.isMesh && node.userData.isPanel) node.userData.isRoof = true; });
   roof.rotation.x = Math.PI / 2;
-  roof.position.set(0, totalH - WALL + 0.0005, rw / 2);
+  // wallPanels ocupa Y local [0, rw]. Tras rotar 90° esa Y pasa al eje Z global.
+  // Desplazar -rw/2 centra la cubierta dentro del ancho del contenedor.
+  roof.position.set(0, totalH - WALL + 0.0005, -rw / 2);
   root.add(roof);
   walls.push({ group: roof, mat: rmat, n: new THREE.Vector3(0, 1, 0), half: 0, hidden: false, roof: true });
 
@@ -690,6 +692,12 @@ function build() {
 function setWallHidden(w, hide) {
   if (w.hidden === hide) return;
   w.hidden = hide;
+  // La cubierta debe desaparecer en modo interior, no desplazarse ni generar sombra.
+  // Ocultarla por visibilidad elimina también el fantasma translúcido (opacidad .07).
+  if (w.roof) {
+    w.group.visible = !hide;
+    return;
+  }
   w.mat.transparent = hide;
   w.mat.opacity = hide ? 0.07 : 1;
   w.mat.depthWrite = !hide;
@@ -784,6 +792,18 @@ const api = {
   getInteriorClearance() { return interiorClearance(profileThicknessFor()); },
 
   getConstructionTakeoff() { return computeWallTakeoff(state); },
+  // Diagnóstico geométrico: permite verificar la posición real en coordenadas globales.
+  getRoofBounds() {
+    const roof = walls.find(w => w.roof);
+    if (!roof) return null;
+    const bounds = new THREE.Box3().setFromObject(roof.group);
+    return {
+      visible: roof.group.visible,
+      minX: bounds.min.x, maxX: bounds.max.x,
+      minY: bounds.min.y, maxY: bounds.max.y,
+      minZ: bounds.min.z, maxZ: bounds.max.z
+    };
+  },
   getRenderStats() {
     return { geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures };
   },

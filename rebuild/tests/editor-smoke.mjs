@@ -142,6 +142,7 @@ test('BAT V2 reforzado: esquineros, zona compartida, cubicación por cara y JSON
       type: 'window', face: 'A', w: 1.2, h: 1, u: 1.0, v: 0.9, bars: false
     }));
     assert.equal(valid.ok, true);
+    await page.locator('#shared-wall-config summary').click();
     await page.locator('#shared-face').selectOption('A');
     await page.locator('#shared-u').fill('3');
     await page.locator('#shared-v').fill('0');
@@ -412,6 +413,38 @@ test('BAT V4.4.1: catálogo se desarma tras un solo objeto o ensamble', { timeou
     await canvas.click({ position: { x: 720, y: 450 } });
     const added = await page.evaluate(() => window.Container3D.getState().objects.filter(o => o.code === 'P12').length);
     assert.equal(added, 1, 'El segundo clic no debe duplicar el ensamble P12');
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
+
+// Regresión visual/geométrica: la cubierta no debe aparecer desplazada al costado.
+test('BAT V4.4.2: cubierta centrada y oculta al entrar, para los tres tipos de contenedor', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    for (const kind of ['maritimo', 'reefer', 'modular']) {
+      const metrics = await page.evaluate(kind => {
+        window.Container3D.setType(kind);
+        return { state: window.Container3D.getState(), roof: window.Container3D.getRoofBounds() };
+      }, kind);
+      const { state, roof } = metrics;
+      assert.ok(roof && roof.visible, `Cubierta visible al iniciar ${kind}`);
+      const epsilon = 0.015;
+      assert.ok(Math.abs((roof.minZ + roof.maxZ) / 2) < epsilon, `${kind}: cubierta centrada en Z`);
+      assert.ok(Math.abs((roof.minX + roof.maxX) / 2) < epsilon, `${kind}: cubierta centrada en X`);
+      assert.ok(roof.minZ >= -state.W / 2 - epsilon && roof.maxZ <= state.W / 2 + epsilon,
+        `${kind}: cubierta contenida entre las caras laterales`);
+      assert.ok(roof.minX >= -state.L / 2 - epsilon && roof.maxX <= state.L / 2 + epsilon,
+        `${kind}: cubierta contenida entre los extremos`);
+
+      await page.evaluate(() => window.Container3D.setSeeInside(true));
+      assert.equal(await page.evaluate(() => window.Container3D.getRoofBounds().visible), false,
+        `${kind}: la cubierta se oculta en modo interior`);
+      await page.evaluate(() => window.Container3D.setSeeInside(false));
+      assert.equal(await page.evaluate(() => window.Container3D.getRoofBounds().visible), true,
+        `${kind}: la cubierta reaparece al salir del modo interior`);
+    }
     assert.deepEqual(errors, [], errors.join('\n'));
   } finally { if (fixture) await close(fixture); }
 });
