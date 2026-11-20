@@ -28,6 +28,37 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     for (const item of elements) if (item) card.appendChild(item);
     return card;
   };
+  const floorCard = document.createElement('section');
+  floorCard.id='floor-inspector-card'; floorCard.className='inspector-card';
+  const floorTitle=document.createElement('h3');floorTitle.textContent='Acabado y orientación del piso';
+  const floorMaterialLabel=document.createElement('label');floorMaterialLabel.textContent='Material de piso';
+  const floorMaterialSelect=document.createElement('select');floorMaterialSelect.id='floor-inspector-material';
+  floorMaterialSelect.add(new Option('Sin acabado adicional (piso base)',''));
+  CATALOG.filter(item=>item.mode==='floor').forEach(item=>floorMaterialSelect.add(new Option(item.code+' · '+item.name,item.code)));
+  floorMaterialLabel.append(floorMaterialSelect);
+  const floorDirectionLabel=document.createElement('label');floorDirectionLabel.textContent='Orientación de instalación';
+  const floorDirectionSelect=document.createElement('select');floorDirectionSelect.id='floor-inspector-direction';
+  floorDirectionSelect.add(new Option('A lo largo del contenedor','length'));
+  floorDirectionSelect.add(new Option('A lo ancho del contenedor','width'));
+  floorDirectionLabel.append(floorDirectionSelect);
+  const floorMeasures=document.createElement('p');floorMeasures.className='tiny';
+  const floorRemove=document.createElement('button');floorRemove.type='button';floorRemove.className='alt';
+  floorRemove.textContent='Retirar acabado del piso';
+  floorCard.append(floorTitle,floorMaterialLabel,floorDirectionLabel,floorMeasures,floorRemove);
+  $('inspector-body').appendChild(floorCard);
+  function editFloorMaterial(code){
+    const result=code?api.setFinish(code):api.clearFloorFinish();
+    if(!result.ok){hint(result.error,true);return;}
+    hint(code?'Acabado del piso actualizado.':'Acabado retirado; se muestra el piso base.');
+  }
+  floorMaterialSelect.addEventListener('change',e=>editFloorMaterial(e.target.value));
+  floorRemove.addEventListener('click',()=>editFloorMaterial(''));
+  floorDirectionSelect.addEventListener('change',e=>{
+    const result=api.setFloorDirection(e.target.value);
+    if(!result.ok){hint(result.error,true);return;}
+    hint('Orientación del piso actualizada.');
+  });
+
   const geometry = makeInspectorCard('inspector-geometry', 'Ubicación y dimensiones', [
     $('prop-name').closest('label'), $('prop-x').closest('.row'), $('prop-apply')
   ]);
@@ -99,7 +130,8 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     inspectorDismissedKey = null;
     inspector.hidden = false;
     syncStageLayout();
-    $('prop-x').focus({ preventScroll: true });
+    if(api.getSelected()?.kind==='floor')floorMaterialSelect.focus({preventScroll:true});
+    else $('prop-x').focus({ preventScroll: true });
   });
 
   const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
@@ -246,6 +278,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       if (node.userData.partitionId) return { kind: 'partition', id: node.userData.partitionId, hitY: hit.point.y };
       if (node.userData.objectId) return { kind: 'object', id: node.userData.objectId };
       if (node.userData.openingId !== undefined) return { kind: 'opening', id: node.userData.openingId };
+      if (node.userData.isGeneralFloor || node.userData.isBathFloor) return { kind: 'floor', id: 'general' };
     }
     return null;
   }
@@ -429,7 +462,24 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   function refreshProperties() {
     const selection = api.getSelected(), form = $('props-form');
     syncInspector(selection);
-    $('properties-empty').hidden = !!selection; form.hidden = !selection;
+    const floorSelected=selection?.kind==='floor';
+    floorCard.hidden=!floorSelected;
+    if(floorSelected){
+      $('properties-title').textContent='Modificar piso';
+      $('inspector-subtitle').textContent='Acabado, superficie y orientación del revestimiento';
+      inspector.dataset.layout='basic';
+      floorMaterialSelect.value=state.finishes.floor||'';
+      floorDirectionSelect.value=state.floorDirection||'length';
+      floorMeasures.textContent='Superficie bruta de referencia: '+(state.L*state.W).toFixed(2)+' m². La cubicación debe descontar perfiles y recortes.';
+      $('inspector-actions').hidden=true;
+      $('properties-empty').hidden=true;form.hidden=true;
+      $('partition-finishes-box').hidden=true;
+      $('partition-junction-box').hidden=true;
+      $('inspector-opening-bars-label').hidden=true;
+      return;
+    }
+    $('inspector-actions').hidden=false;
+    $('properties-empty').hidden=!!selection;form.hidden=!selection;
     const partition = selection?.kind === 'partition';
     $('partition-finishes-box').hidden = !partition;
     $('partition-junction-box').hidden = !partition;
