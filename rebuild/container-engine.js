@@ -1816,7 +1816,7 @@ $('xray').onchange = e => api.setSeeInside(e.target.checked);
 
 api.setType('maritimo', { samples: false });
 syncPanel();
-const refreshElectrical = installElectricalUI({scene,state,FLOOR});
+const refreshElectrical = installElectricalUI({scene,state,FLOOR,camera,renderer,controls});
 
 try {
   editor = installEditor({ THREE, renderer, camera, controls, root, api, state, FACES, FLOOR, syncPanel });
