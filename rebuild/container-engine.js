@@ -5,6 +5,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CATALOG, CATALOG_BY_CODE } from './container-catalog.js';
 import { createObjectModel, makeFinishMaterial } from './container-object-models.js';
 import { installEditor } from './container-editor-ui.js';
+import { installElectricalUI } from './electrical-module.js';
 import { createDisposalContext, disposeHierarchy, disposeMaterial, disposeTexture } from './resource-disposal.js';
 import {
   interiorClearance, validateObjectInsideContainer, validatePartitionInsideContainer,
@@ -1815,6 +1816,7 @@ $('xray').onchange = e => api.setSeeInside(e.target.checked);
 
 api.setType('maritimo', { samples: false });
 syncPanel();
+const refreshElectrical = installElectricalUI({scene,state,FLOOR});
 
 try {
   editor = installEditor({ THREE, renderer, camera, controls, root, api, state, FACES, FLOOR, syncPanel });
@@ -1825,6 +1827,7 @@ try {
 
 (function loop() {
   requestAnimationFrame(loop);
+  refreshElectrical();
   controls.update();
   if (state.seeInside && cameraMoved) {
     applyXray();
