@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BAT-CUBIKEITOR V2 | Editor modular 3D</title>
+<title>BAT-CUBIKEITOR V4.10 | Editor modular 3D</title>
 <style>
 html, body{margin:0;height:100%;background:#dfe3e8;font-family:system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden}
 #view{position:fixed;inset:0}
@@ -76,6 +76,81 @@ html,body{overflow:auto;height:auto;min-height:100%}
 #panel{position:relative;top:auto;right:auto;width:auto;max-height:none;margin:8px;display:grid}
 #scene-hint{position:absolute;left:50%;top:450px;bottom:auto;max-width:calc(100% - 30px)}
 }
+
+/* V4.10 · Inspector contextual: edición sin recorrer la barra lateral */
+#selection-inspector{position:fixed;top:12px;right:12px;bottom:12px;width:min(825px,calc(100vw - 335px));z-index:7;display:flex;flex-direction:column;box-sizing:border-box;border:1px solid #cbd7e6;border-radius:16px;background:#fbfcfe;color:#183047;box-shadow:0 16px 52px rgba(13,30,49,.27);overflow:hidden}
+#selection-inspector[data-layout="assembly"]{width:min(620px,calc(100vw - 335px))}
+#selection-inspector[data-layout="basic"]{width:min(485px,calc(100vw - 335px))}
+.inspector-header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 17px 11px;border-bottom:1px solid #dee6ef;background:linear-gradient(115deg,#edf4fd,#fff)}
+.inspector-heading{min-width:0}
+.inspector-eyebrow{display:block;font-size:10px;font-weight:800;letter-spacing:.09em;color:#517394}
+#properties-title{font-size:19px;line-height:1.24;font-weight:750;color:#152c46;margin:3px 0}
+#inspector-subtitle{font-size:11px;color:#587084}
+#selection-inspector button{width:auto}
+#selection-inspector .inspector-close{width:auto;min-width:86px;padding:7px 12px;background:#e9eff6;color:#24384f;white-space:nowrap;font-size:12px}
+.inspector-close span{font-size:17px;margin-left:4px}
+#inspector-body{min-height:0;flex:1;overflow-y:auto;overflow-x:hidden;padding:12px 13px;scrollbar-gutter:stable}
+#props-form{display:grid;grid-template-columns:1.06fr 1fr 1fr;grid-template-areas:"geometry materials options" "geometry materials junction";align-items:stretch;align-content:start;gap:9px}
+#props-form[hidden]{display:none!important}
+#inspector-geometry{grid-area:geometry}
+#partition-finishes-box{grid-area:materials}
+#inspector-options{grid-area:options}
+#partition-junction-box{grid-area:junction}
+.inspector-card{align-self:start;box-sizing:border-box;min-width:0;background:white;border:1px solid #dde6ef;border-radius:11px;padding:11px;display:grid;align-content:start;gap:8px;box-shadow:0 1px 2px rgba(16,33,50,.03)}
+.inspector-card h3,.inspector-card h4{font-size:12px;font-weight:750;color:#234665;padding:0 0 5px;margin:0 0 2px;border-bottom:1px solid #e8eef5}
+.inspector-card h3{letter-spacing:.01em}
+.inspector-card label{font-size:10.5px;line-height:1.3;color:#475d71}
+.inspector-card .row{gap:6px;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.inspector-card input,.inspector-card select{min-width:0;max-width:100%;padding:6px 7px;font-size:12px}
+.inspector-card button{width:100%;padding:7px 9px;font-size:11.5px;line-height:1.25}
+.inspector-card .chk{display:flex;align-items:flex-start;gap:7px;line-height:1.35;font-size:11px}
+.inspector-card .chk input{flex:none;margin:2px 0 0}
+#inspector-opening-bars-label{margin-top:9px}
+#inspector-partition-doors{display:grid;gap:3px}
+#inspector-partition-doors button{background:#f0f5fa;border:1px solid #d2e0ed;color:#294b68;text-align:left}
+#inspector-geometry #prop-name{font-size:11px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;background:#f2f6fa}
+#inspector-geometry .row{grid-template-columns:repeat(2,minmax(0,1fr))}
+#inspector-footer{border-top:1px solid #dce5ef;padding:8px 13px;background:#f5f8fc;display:flex;align-items:center;justify-content:space-between;gap:12px}
+#inspector-actions .property-buttons{display:flex;gap:7px}
+#inspector-actions .property-buttons button{padding:8px 13px;width:auto;min-width:85px;font-size:12px}
+#inspector-actions #prop-delete{background:#fff0ef;color:#a33534;border:1px solid #e8c2c2}
+#inspector-actions #prop-delete:hover{background:#ffe4e2}
+#inspector-feedback{font-size:11px;line-height:1.35;color:#537080;flex:1}
+#inspector-feedback.error{color:#a43d37}
+#open-inspector{background:#d9eafb;color:#1f4e78;border:1px solid #b8d5ed;font-weight:650}
+#selection-inspector[data-layout="assembly"] #props-form{grid-template-columns:1fr 1fr;grid-template-areas:"geometry options"}
+#selection-inspector[data-layout="basic"] #props-form{grid-template-columns:1fr;grid-template-areas:"geometry"}
+@media(max-height:650px){
+  .inspector-header{padding:6px 12px}
+  .inspector-eyebrow,#inspector-subtitle{display:none}
+  #properties-title{font-size:15px}
+  #inspector-body{padding:7px}
+  #props-form{gap:6px}
+  .inspector-card{gap:4px;padding:7px 8px}
+  .inspector-card h3,.inspector-card h4{margin:0;padding-bottom:3px}
+  .inspector-card label{font-size:10px}
+  .inspector-card input,.inspector-card select{padding:4px 5px;font-size:11px}
+  .inspector-card button{padding:5px 6px}
+  #selection-inspector .inspector-card .tiny{display:none}
+  #inspector-footer{padding:5px 9px}
+}
+@media(max-width:1100px){
+  #selection-inspector{width:min(625px,calc(100vw - 270px))}
+  #props-form{grid-template-columns:1fr 1fr;grid-template-areas:"geometry materials" "options junction"}
+}
+@media(max-width:750px){
+  #selection-inspector,#selection-inspector[data-layout="basic"],#selection-inspector[data-layout="assembly"]{width:calc(100vw - 16px);right:8px;top:8px;bottom:8px}
+  #props-form{grid-template-columns:1fr 1fr;grid-template-areas:"geometry options" "materials junction"}
+  #selection-inspector[data-layout="basic"] #props-form{grid-template-columns:1fr;grid-template-areas:"geometry"}
+  #selection-inspector[data-layout="assembly"] #props-form{grid-template-columns:1fr 1fr;grid-template-areas:"geometry options"}
+  #inspector-feedback{font-size:10px}
+}
+@media(max-width:480px){
+  #props-form,#selection-inspector[data-layout="assembly"] #props-form{grid-template-columns:1fr;grid-template-areas:"geometry" "options" "materials" "junction"}
+  .inspector-header{padding:9px 11px}
+  .inspector-eyebrow{font-size:9px}
+  #properties-title{font-size:15px}
+}
 </style>
 <script type="importmap">
 {
@@ -90,7 +165,7 @@ html,body{overflow:auto;height:auto;min-height:100%}
 <div id="view"></div>
 <aside id="catalog-panel" aria-label="Catálogo técnico 3D">
   <div class="catalog-heading">
-    <strong>BAT-CUBIKEITOR <span style="color:#d78d12">V2</span></strong>
+    <strong>BAT-CUBIKEITOR <span style="color:#d78d12">V4.10</span></strong>
     <p>Catálogo de 60 partidas · selecciona un elemento y haz clic en el contenedor</p>
   </div>
   <div class="catalog-fields">
@@ -116,8 +191,10 @@ html,body{overflow:auto;height:auto;min-height:100%}
 <div id="scene-hint" role="status" aria-live="polite">Selecciona un objeto a la izquierda para empezar</div>
 <div id="panel">
   <section id="properties">
+    <strong class="creation-section-title">Diseño y elementos</strong>
     <div id="properties-title">Propiedades del elemento</div>
-    <p id="properties-empty" class="tiny">Selecciona un objeto o una abertura del modelo para editarlo.</p>
+    <p id="properties-empty" class="tiny">Selecciona un elemento del modelo o del listado para abrir todas sus características en un panel amplio.</p>
+    <button id="open-inspector" type="button" class="inspector-reopen alt" hidden>Editar elemento seleccionado</button>
     <div id="props-form" hidden>
       <label>Elemento<input id="prop-name" readonly></label>
       <div class="row">
@@ -313,6 +390,25 @@ html,body{overflow:auto;height:auto;min-height:100%}
   <label class="chk"><input id="xray" type="checkbox"> Ver interior (ocultar paredes cercanas y sus ventanas/puertas)</label>
   <small style="color:#55606e">Arrastra para girar · rueda para acercar</small>
 </div>
+<aside id="selection-inspector" aria-label="Editor contextual del elemento" aria-labelledby="properties-title" hidden>
+  <header class="inspector-header">
+    <div class="inspector-heading">
+      <span class="inspector-eyebrow">EDITAR ELEMENTO SELECCIONADO</span>
+      <div id="inspector-heading-target"></div>
+      <div id="inspector-subtitle">Posición, dimensiones y características técnicas</div>
+    </div>
+    <button id="close-inspector" type="button" class="inspector-close alt" aria-label="Ocultar ficha de edición">Ocultar <span aria-hidden="true">×</span></button>
+  </header>
+  <div id="inspector-body">
+    <div id="inspector-opening-bars-label" class="inspector-card" hidden>
+      <label class="chk"><input id="inspector-opening-bars" type="checkbox"> Ventana con barrotes</label>
+    </div>
+  </div>
+  <footer id="inspector-footer">
+    <div id="inspector-feedback" role="status" aria-live="polite">Los cambios se validan antes de guardarse.</div>
+    <div id="inspector-actions"></div>
+  </footer>
+</aside>
 <script type="module" src="./container-engine.js"></script>
 </body>
 </html>

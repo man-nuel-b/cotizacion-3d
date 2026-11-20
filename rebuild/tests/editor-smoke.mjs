@@ -843,3 +843,70 @@ test('V4.9.3 UI: clic en tabique ocupado se rechaza, y Esc cancela modo de creac
     assert.deepEqual(errors, [], errors.join('\n'));
   } finally { if (fixture) await close(fixture); }
 });
+
+test('V4.10: seleccionar tabique abre ficha contextual con geometría, capas, uniones y acciones', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    await page.setViewportSize({ width: 1522, height: 455 });
+    const added = await page.evaluate(() => window.Container3D.addPartition({
+      axis: 'z', autoSpan: true, thickness: .1, height: 2.3
+    }));
+    assert.equal(added.ok, true, JSON.stringify(added));
+    assert.equal(await page.locator('#selection-inspector').isVisible(), true);
+    for (const id of ['inspector-geometry', 'partition-finishes-box', 'inspector-options',
+      'partition-junction-box', 'prop-apply', 'part-face-a', 'part-face-b',
+      'part-insulation', 'btn-junction-t', 'btn-junction-l', 'btn-rotate-partition', 'prop-delete']) {
+      assert.equal(await page.locator('#' + id).isVisible(), true, id + ' debe verse en inspector');
+    }
+    const layout = await page.evaluate(() => {
+      const drawer = document.querySelector('#selection-inspector').getBoundingClientRect();
+      const body = document.querySelector('#inspector-body');
+      return { right: drawer.right, width: drawer.width, scroll: body.scrollHeight - body.clientHeight };
+    });
+    assert.ok(layout.width >= 600 && layout.right <= 1522, 'Ficha contextual amplia dentro de pantalla');
+    assert.ok(layout.scroll <= 25, 'En ventana baja el editor reduce el desplazamiento vertical');
+
+    await page.locator('#part-face-a').selectOption('P30');
+    assert.equal(await page.evaluate(() => window.Container3D.getState().partitions[0].faceALining), 'P30');
+    await page.locator('#btn-add-interior-door').click();
+    const state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.interiorDoors.length, 1);
+    assert.equal(await page.locator('#inspector-partition-doors button').count(), 1);
+    await page.locator('#inspector-partition-doors button').click();
+    assert.equal(await page.locator('#selection-inspector').isVisible(), true);
+    assert.match(await page.locator('#properties-title').innerText(), /puerta/i);
+
+    await page.locator('#close-inspector').click();
+    assert.equal(await page.locator('#selection-inspector').isVisible(), false);
+    assert.equal(await page.locator('#open-inspector').isVisible(), true);
+    await page.locator('#open-inspector').click();
+    assert.equal(await page.locator('#selection-inspector').isVisible(), true);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('#selection-inspector').isVisible(), false);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
+
+test('V4.10: selección de ventana muestra barrotes y conserva un único formulario editable', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    const made = await page.evaluate(() => {
+      const api = window.Container3D;
+      const r = api.addOpening({ type: 'window', face: 'A', u: 2, v: .85, w: 1.2, h: .9, bars: false });
+      if (r.ok) api.selectEntity('opening', r.id);
+      return r;
+    });
+    assert.equal(made.ok, true, JSON.stringify(made));
+    assert.equal(await page.locator('#selection-inspector').isVisible(), true);
+    assert.equal(await page.locator('#inspector-opening-bars-label').isVisible(), true);
+    assert.equal(await page.locator('#prop-w').count(), 1, 'No debe duplicar inputs de propiedades');
+    await page.locator('#inspector-opening-bars').check();
+    const changed = await page.evaluate(() => window.Container3D.getState().openings[0].bars);
+    assert.equal(changed, true);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
