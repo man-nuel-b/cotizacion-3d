@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BAT-CUBIKEITOR V4.13 | Editor modular 3D</title>
+<title>BAT-CUBIKEITOR V4.14 | Editor modular 3D</title>
 <style>
 html, body{margin:0;height:100%;background:#dfe3e8;font-family:system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden}
 #view{position:fixed;inset:0}
@@ -240,6 +240,7 @@ body.inspector-docked #scene-hint{left:calc((100% - min(486px,40vw))/2);max-widt
 #electric-cost{font-size:11px;line-height:1.5;color:#244967}
 #electric-notice{line-height:1.4}
 
+.electric-manual-list{display:grid;gap:4px}.electric-manual-list .entry{display:flex;align-items:center;gap:4px;font-size:10px;padding:5px;border:1px solid #dbe4ea;border-radius:6px;background:white}.electric-manual-list .entry span{flex:1}.electric-manual-list .entry button{width:auto;font-size:10px;padding:5px 7px}
 </style>
 <script type="importmap">
 {
@@ -254,7 +255,7 @@ body.inspector-docked #scene-hint{left:calc((100% - min(486px,40vw))/2);max-widt
 <div id="view"></div>
 <aside id="catalog-panel" aria-label="Catálogo técnico 3D">
   <div class="catalog-heading">
-    <strong>BAT-CUBIKEITOR <span style="color:#d78d12">V4.13</span></strong>
+    <strong>BAT-CUBIKEITOR <span style="color:#d78d12">V4.14</span></strong>
     <p>Catálogo de 60 partidas · selecciona un elemento y haz clic en el contenedor</p>
   </div>
   <div class="catalog-fields">
@@ -444,6 +445,20 @@ body.inspector-docked #scene-hint{left:calc((100% - min(486px,40vw))/2);max-widt
   <details id="electrical-tools" class="electrical-tools">
     <summary>Instalación eléctrica · BOM / APU</summary>
     <div class="electric-fields">
+      <label>Herramienta manual
+        <select id="electric-manual-type">
+          <option value="outlet">Enchufe</option>
+          <option value="switch">Interruptor</option>
+          <option value="light">Luminaria mural</option>
+          <option value="board">Tablero</option>
+        </select>
+      </label>
+      <button id="electric-place" type="button">Ubicar punto en muro 3D</button>
+      <button id="electric-cancel" type="button" class="alt" hidden>Cancelar ubicación</button>
+      <small id="electric-placement-status" class="tiny" role="status">Selecciona el elemento y luego una pared en el visor.</small>
+      <div id="electric-manual-list" class="electric-manual-list"></div>
+      <button id="electric-clear-manual" type="button" class="alt">Quitar puntos manuales</button>
+      <small class="tiny">Los puntos manuales son adicionales a la estimación automática. Pulsa «Mover» para reubicarlos o «Quitar» para eliminarlos.</small>
       <label>Especificación
         <select id="electric-profile">
           <option value="basico">Básico</option>
