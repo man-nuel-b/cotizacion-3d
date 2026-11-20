@@ -261,7 +261,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       ['Uniones de tabiques en T / L:', `${t.partitionTJunctionsCount} / ${t.partitionLJunctionsCount} un`],
       ['Descuento por vanos:', `-${t.totalOpeningsAreaM2.toFixed(2)} m²`],
       ['Descuento muros compartidos:', `-${t.sharedDeductionM2.toFixed(2)} m²`],
-      ['Piso total / Cielo:', `${t.floorAreaM2.toFixed(2)} m²`],
+      ['Piso total / Cielo:', `${t.floorAreaM2.toFixed(2)} m² (${(state.floorDirection || 'length') === 'width' ? 'a lo ancho' : 'a lo largo'})`],
       ['Piso baño:', `${t.bathFloorAreaM2.toFixed(2)} m²${t.bathFloor ? ' · ' + t.bathFloor.code : ''}`],
       ['Piso general restante:', `${t.remainingFloorAreaM2.toFixed(2)} m²`],
       ...Object.entries(t.floorByCodeM2).sort().map(([code, area]) =>
@@ -428,7 +428,23 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     }
   }
 
-  function refresh() { refreshProperties(); refreshPlaced(); refreshTakeoff(); }
+  function refresh() {
+    refreshProperties(); refreshPlaced(); refreshTakeoff();
+    const dirSelect = $('floor-direction');
+    if (dirSelect) dirSelect.value = state.floorDirection || 'length';
+  }
+
+  $('floor-direction')?.addEventListener('change', event => {
+    const result = api.setFloorDirection(event.target.value);
+    if (!result.ok) {
+      event.target.value = state.floorDirection || 'length';
+      hint(result.error, true);
+      return;
+    }
+    hint(result.direction === 'width'
+      ? 'Piso orientado a lo ancho del contenedor.'
+      : 'Piso orientado a lo largo del contenedor.');
+  });
 
   $('catalog-search').addEventListener('input', renderCatalog);
   $('catalog-family').addEventListener('change', renderCatalog);

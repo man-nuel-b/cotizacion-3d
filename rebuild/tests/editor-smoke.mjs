@@ -675,3 +675,45 @@ test('V4.8: reserva anterior sin posición se puede importar y colocar manualmen
     assert.deepEqual(errors,[],errors.join('\n'));
   } finally { if (fixture) await close(fixture); }
 });
+
+
+test('V4.9 piso longitudinal/transversal rota la textura real sin cambiar áreas ni romper JSON', { timeout: 180000 }, async () => {
+  let f;
+  try {
+    f = await prepare();
+    const { page, errors } = f;
+    assert.equal(await page.locator('#floor-direction').inputValue(), 'length');
+    await page.locator('.catalog-item[data-code="P01"]').click();
+    // El catálogo aplica la terminación al pulsar el suelo, nunca coloca un objeto nuevo.
+    await page.locator('#view canvas').click({ position: { x: 720, y: 450 } });
+    await page.waitForFunction(() => window.Container3D.getState().finishes.floor === 'P01');
+    const initial = await page.evaluate(() => ({
+      state: window.Container3D.getState(),
+      floor: window.Container3D.getFloorSurfaceInfo(),
+      area: window.Container3D.getConstructionTakeoff().floorAreaM2
+    }));
+    assert.equal(initial.floor.general.hasTexture, true);
+    assert.equal(initial.floor.general.rotationRadians, 0);
+    await page.locator('#floor-direction').selectOption('width');
+    const turned = await page.evaluate(() => ({
+      state: window.Container3D.getState(),
+      floor: window.Container3D.getFloorSurfaceInfo(),
+      area: window.Container3D.getConstructionTakeoff().floorAreaM2
+    }));
+    assert.equal(turned.state.floorDirection, 'width');
+    assert.ok(Math.abs(turned.floor.general.rotationRadians - Math.PI / 2) < 1e-7);
+    assert.equal(turned.area, initial.area);
+    assert.match(await page.locator('#takeoff-summary').innerText(), /a lo ancho/);
+    // El importador restablece el selector y vuelve a girar la textura.
+    const restore = await page.evaluate(() => {
+      const data = window.Container3D.getState();
+      window.Container3D.setFloorDirection('length');
+      return window.Container3D.setState(data);
+    });
+    assert.equal(restore.ok, true);
+    assert.equal(await page.locator('#floor-direction').inputValue(), 'width');
+    const angle = await page.evaluate(() => window.Container3D.getFloorSurfaceInfo().general.rotationRadians);
+    assert.ok(Math.abs(angle - Math.PI / 2) < 1e-7);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (f) await close(f); }
+});

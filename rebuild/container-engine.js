@@ -261,7 +261,7 @@ const state = {
   L: 12.03, W: 2.35, H: 2.39, color: '#7d8388',
   openings: [], partitions: [], interiorDoors: [], objects: [], services: [], sharedWalls: [],
   finishes: { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null } },
-  bathFloor: null,
+  bathFloor: null, floorDirection: 'length',
   seeInside: false, nextId: 1,
 };
 
@@ -471,6 +471,16 @@ function rebuildObjects() {
   editor?.refresh();
 }
 
+/* ============ Orientación de texturas de piso ============ */
+function orientFloorMaterial(material, direction) {
+  if (!material?.map) return;
+  // El techo, los muros y los objetos nunca comparten estas instancias de mapa.
+  // En la cara superior de BoxGeometry, U corresponde al largo (X) y V al ancho (Z).
+  material.map.center.set(0.5, 0.5);
+  material.map.rotation = direction === 'width' ? Math.PI / 2 : 0;
+  material.map.needsUpdate = true;
+}
+
 /* ============ Construcción completa del contenedor ============ */
 function build() {
   clearRoot();
@@ -514,11 +524,23 @@ function build() {
   m.wood.map.needsUpdate = true; m.wood.map.repeat.set(L / 2, 1);
   ownedTextures.push(m.wood.map);
 
-  const floorMat = state.finishes.floor ?
-    makeFinishMaterial(THREE, state.finishes.floor, matObj => owned.push(matObj), t => ownedTextures.push(t), Math.max(1, L / 2), Math.max(1, W)) :
-    cfg.floor === 'wood' ? m.wood : cfg.floor === 'alu' ? m.floorAlu : m.floorVinyl;
-
-  box(L - 2 * WALL - 0.02, 0.05, W - 2 * WALL - 0.02, floorMat, 0, FLOOR - 0.025, 0, root);
+  let floorMat;
+  if (state.finishes.floor) {
+    floorMat = makeFinishMaterial(THREE, state.finishes.floor,
+      matObj => owned.push(matObj), t => ownedTextures.push(t), Math.max(1, L / 2), Math.max(1, W));
+  } else if (cfg.floor === 'wood') {
+    // Copia independiente: la textura original también se usa en puertas/otros objetos.
+    floorMat = m.wood.clone();
+    owned.push(floorMat);
+    floorMat.map = m.wood.map.clone();
+    ownedTextures.push(floorMat.map);
+  } else {
+    floorMat = cfg.floor === 'alu' ? m.floorAlu : m.floorVinyl;
+  }
+  orientFloorMaterial(floorMat, state.floorDirection);
+  const floorMesh = box(L - 2 * WALL - 0.02, 0.05, W - 2 * WALL - 0.02,
+    floorMat, 0, FLOOR - 0.025, 0, root);
+  floorMesh.userData.isGeneralFloor = true;
 
   // V4.8: draw the selected bathroom finish at its ACTUAL saved plan location.
   // A legacy bathFloor without cx/cz is an area-only reservation and remains
@@ -528,6 +550,7 @@ function build() {
     const bathMaterial = makeFinishMaterial(THREE, bath.code,
       material => owned.push(material), texture => ownedTextures.push(texture),
       Math.max(1, bath.length / 0.6), Math.max(1, bath.width / 0.6));
+    orientFloorMaterial(bathMaterial, state.floorDirection);
     const finish = box(bath.length, 0.006, bath.width, bathMaterial,
       bath.cx, FLOOR + 0.004, bath.cz, root);
     finish.castShadow = false;
@@ -929,6 +952,20 @@ const api = {
       minY: bounds.min.y, maxY: bounds.max.y };
   },
   // Diagnóstico geométrico: permite verificar la posición real en coordenadas globales.
+  getFloorSurfaceInfo() {
+    // Información de diagnóstico y pruebas WebGL; no modifica el modelo.
+    const info = mesh => {
+      if (!mesh) return null;
+      const texture = mesh.material?.map;
+      return { code: mesh.userData.bathFloorCode || state.finishes.floor || null,
+        hasTexture: !!texture, rotationRadians: texture?.rotation ?? null };
+    };
+    return {
+      direction: state.floorDirection,
+      general: info(root.children.find(c => c.userData.isGeneralFloor)),
+      bathroom: info(root.children.find(c => c.userData.isBathFloor))
+    };
+  },
   getRoofBounds() {
     const roof = walls.find(w => w.roof);
     if (!roof) return null;
@@ -960,6 +997,7 @@ const api = {
     state.objects = [];
     state.finishes = { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null } };
     state.bathFloor = null;
+    state.floorDirection = 'length';
     state.nextId = 1; selectedEntity = null;
     if (samples) for (const x of SAMPLES[key]) {
       const sample = withOpeningReinforcement({ id: state.nextId, bars: false, ...x });
@@ -1407,6 +1445,16 @@ const api = {
   getSelected() { return selectedEntity ? { ...selectedEntity } : null; },
   getEntityMeshes() { return objectGroups.slice(); },
 
+  setFloorDirection(direction) {
+    if (direction !== 'length' && direction !== 'width') {
+      return { ok: false, error: 'Orientación del piso inválida (usa length o width)' };
+    }
+    if (state.floorDirection === direction) return { ok: true, direction };
+    state.floorDirection = direction;
+    build();
+    return { ok: true, direction };
+  },
+
   setColor(hex) {
     if (typeof hex !== 'string' || !/^#[a-f0-9]{6}$/i.test(hex)) return { ok: false, error: 'Color inválido' };
     state.color = hex; return markChanged(false);
@@ -1423,6 +1471,11 @@ const api = {
         throw Error('Archivo con datos de contenedor inválidos');
       }
       if (!Array.isArray(s.openings) || !Array.isArray(s.partitions)) throw Error('Estructura de proyecto incompleta');
+      // Los proyectos anteriores no incluyen floorDirection: conservar longitud por defecto.
+      const floorDirection = s.floorDirection === undefined ? 'length' : s.floorDirection;
+      if (floorDirection !== 'length' && floorDirection !== 'width') {
+        throw Error('Orientación del piso inválida en el archivo JSON');
+      }
       for (const key of ['openings', 'partitions', 'interiorDoors', 'objects', 'services', 'sharedWalls']) {
         if (s[key] !== undefined && (!Array.isArray(s[key]) || s[key].length > 200)) {
           throw Error('Lista de ' + key + ' inválida o demasiado extensa');
@@ -1553,7 +1606,7 @@ const api = {
         type: s.type, L: Number(s.L), W: Number(s.W), H: Number(s.H), color: s.color,
         openings: [], partitions: cleanPartitions, interiorDoors: cleanInteriorDoors,
         objects: cleanObjects, services: cleanServices, sharedWalls: cleanSharedWalls,
-        bathFloor: cleanBathFloor,
+        bathFloor: cleanBathFloor, floorDirection,
         finishes: {
           floor: finishes.floor || null, ceiling: finishes.ceiling || null, skirting: finishes.skirting || null,
           walls: {
@@ -1626,6 +1679,7 @@ function syncPanel() {
   $('oBars').checked = state.type === 'modular';
   $('xray').checked = state.seeInside;
   $('msg').textContent = '';
+  if ($('floor-direction')) $('floor-direction').value = state.floorDirection || 'length';
 }
 
 document.querySelectorAll('#seg button').forEach(b => {
