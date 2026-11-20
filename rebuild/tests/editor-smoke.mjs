@@ -607,3 +607,71 @@ test('UI: piso de baño, área restante, rechazo de dimensiones y borrado', { ti
     assert.deepEqual(errors, [], errors.join('\n'));
   } finally { if (fixture) await close(fixture); }
 });
+
+test('V4.8: clic sobre recinto rectangular aplica P06 visible en el piso 3D, sin doble cubicación', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const {page,errors} = fixture;
+    const made = await page.evaluate(() => window.Container3D.addPartition({
+      axis:'z',cx:2,cz:0,height:2.3,thickness:.1,autoSpan:true
+    }));
+    assert.equal(made.ok,true,made.error);
+    await page.locator('#bath-floor-config summary').click();
+    await page.locator('#bath-floor-code').selectOption('P06');
+    await page.locator('#bath-floor-select-room').click();
+    assert.match(await page.locator('#scene-hint').innerText(),/clic dentro del baño/i);
+    const screen = await page.evaluate(() => window.Container3D.getScreenPoint(0,.148,0));
+    assert.equal(screen.visible,true);
+    await page.mouse.click(screen.x,screen.y);
+    await page.waitForFunction(() => window.Container3D.getState().bathFloor?.cx !== undefined);
+    let actual = await page.evaluate(() => ({
+      state:window.Container3D.getState(),bounds:window.Container3D.getBathFloorBounds(),
+      quantities:window.Container3D.getConstructionTakeoff()
+    }));
+    assert.equal(actual.state.bathFloor.code,'P06');
+    assert.ok(actual.bounds && actual.bounds.maxY > .14);
+    assert.equal(actual.bounds.code,'P06');
+    assert.ok(Math.abs((actual.bounds.maxX-actual.bounds.minX)-actual.state.bathFloor.length)<1e-6);
+    assert.ok(Math.abs((actual.bounds.maxZ-actual.bounds.minZ)-actual.state.bathFloor.width)<1e-6);
+    assert.ok(Math.abs(actual.quantities.bathFloorAreaM2+actual.quantities.remainingFloorAreaM2-
+      actual.quantities.floorAreaM2)<1e-8);
+    // A new general finish must not erase the localized bath tiles.
+    const general = await page.evaluate(() => window.Container3D.setFinish('P01'));
+    assert.equal(general.ok,true,general.error);
+    actual = await page.evaluate(() => ({
+      state:window.Container3D.getState(),bounds:window.Container3D.getBathFloorBounds()
+    }));
+    assert.equal(actual.state.finishes.floor,'P01');
+    assert.equal(actual.bounds.code,'P06');
+    await page.locator('#bath-floor-clear').click();
+    assert.equal(await page.evaluate(() => window.Container3D.getBathFloorBounds()),null);
+    assert.equal(await page.evaluate(() => window.Container3D.getState().bathFloor),null);
+    assert.deepEqual(errors,[],errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
+
+test('V4.8: reserva anterior sin posición se puede importar y colocar manualmente mediante clic', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture=await prepare();const {page,errors}=fixture;
+    const legacy=await page.evaluate(() => window.Container3D.setBathFloor({code:'P05',length:1.5,width:1.1}));
+    assert.equal(legacy.ok,true,legacy.error);
+    assert.equal(await page.evaluate(() => window.Container3D.getBathFloorBounds()),null);
+    await page.locator('#bath-floor-config summary').click();
+    await page.locator('#bath-floor-length').fill('1.5');
+    await page.locator('#bath-floor-width').fill('1.1');
+    await page.locator('#bath-floor-place-rect').click();
+    const screen=await page.evaluate(() => window.Container3D.getScreenPoint(0,.148,0));
+    await page.mouse.click(screen.x,screen.y);
+    await page.waitForFunction(()=>window.Container3D.getState().bathFloor?.cx!==undefined);
+    const actual=await page.evaluate(() => ({
+      b:window.Container3D.getBathFloorBounds(),state:window.Container3D.getState()
+    }));
+    assert.ok(actual.b);
+    assert.equal(actual.b.code,'P05');
+    assert.ok(Math.abs(actual.state.bathFloor.length-1.5)<1e-8);
+    assert.ok(Math.abs(actual.state.bathFloor.width-1.1)<1e-8);
+    assert.deepEqual(errors,[],errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});

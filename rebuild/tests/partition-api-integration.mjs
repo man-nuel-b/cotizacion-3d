@@ -9,7 +9,7 @@ import {
   validatePartitionInsideContainer, checkPartitionCollisions,
   validateInteriorDoor, validatePartitionSpecification, computeWallTakeoff,
   validateSharedWallRegion, classifyPartitionJunction, computePartitionJunctions,
-  checkJunctionAgainstDoors, resolveMagneticPartitionMove, validateBathFloor
+  checkJunctionAgainstDoors, resolveMagneticPartitionMove, validateBathFloor, detectRectangularRoomAt
 } from '../construction-integrity.js';
 import { CATALOG, CATALOG_BY_CODE } from '../container-catalog.js';
 
@@ -63,7 +63,7 @@ function fixture() {
     markChanged() { buildCount++; return { ok: true }; },
     CATALOG, CATALOG_BY_CODE, interiorClearance, resolvePartitionGeometry,
     resolveRotatedPartition, validateInteriorDoor, validatePartitionSpecification,
-    computeWallTakeoff, validateSharedWallRegion, validateBathFloor, classifyPartitionJunction,
+    computeWallTakeoff, validateSharedWallRegion, validateBathFloor, detectRectangularRoomAt, classifyPartitionJunction,
     computePartitionJunctions, checkJunctionAgainstDoors, resolveMagneticPartitionMove,
     SAMPLES: { maritimo: [], reefer: [], modular: [] },
     console
@@ -434,4 +434,53 @@ test('API real: importar piso de baño inválido restaura el estado y los materi
     assert.equal(api.setState(bad).ok, false);
     assert.deepEqual(api.getState(), before);
   }
+});
+
+test('API V4.8: asigna piso P06 al recinto por clic 3D y guarda coordenadas', () => {
+  const {api,state,ctx}=fixture();
+  const p=api.addPartition({axis:'z',cx:1,cz:0,height:2.3,thickness:.1,autoSpan:true});
+  good(p);
+  const result=api.applyBathFloorAt({code:'P06',x:2,z:0,mode:'room'});
+  good(result);
+  assert.equal(result.bathFloor.code,'P06');
+  assert.ok(result.bathFloor.cx>1);
+  assert.ok(result.bathFloor.length>1);
+  assert.ok(ctx.buildCount>1);
+  const t=api.getConstructionTakeoff();
+  assert.equal(t.bathFloor.positioned,true);
+  assert.ok(t.floorByCodeM2.P06>0);
+  assert.ok(Math.abs(t.bathFloorAreaM2+t.remainingFloorAreaM2-14.4)<1e-8);
+  assert.deepEqual(api.getState().bathFloor,state.bathFloor);
+});
+
+test('API V4.8: rechaza una zona manual que atraviesa un tabique y no altera estado', () => {
+  const {api}=fixture();
+  good(api.addPartition({axis:'z',cx:1,cz:0,height:2.3,thickness:.1,autoSpan:true}));
+  const prior=api.getState();
+  const invalid=api.applyBathFloorAt({code:'P06',x:1,z:0,mode:'manual',length:1,width:1});
+  assert.equal(invalid.ok,false);
+  assert.match(invalid.error,/tabique/);
+  assert.deepEqual(api.getState(),prior);
+});
+
+test('API V4.8: un piso localizado sobrevive JSON v3 y al quitarlo desaparece', () => {
+  const {api}=fixture();
+  good(api.addPartition({axis:'z',cx:1,cz:0,height:2.3,thickness:.1,autoSpan:true}));
+  good(api.applyBathFloorAt({code:'P05',x:2,z:0,mode:'room'}));
+  const snapshot=api.getState();
+  const copy=fixture();
+  good(copy.api.setState(snapshot));
+  assert.deepEqual(JSON.parse(JSON.stringify(copy.api.getState().bathFloor)),JSON.parse(JSON.stringify(snapshot.bathFloor)));
+  good(copy.api.clearBathFloor());
+  assert.equal(copy.api.getState().bathFloor,null);
+});
+
+test('API V4.8: zona manual funciona sin tabiques, pero el recinto automático exige cierre', () => {
+  const {api}=fixture();
+  assert.match(api.applyBathFloorAt({code:'P06',x:0,z:0,mode:'room'}).error,/tabiques/);
+  const placed=api.applyBathFloorAt({code:'P06',x:0,z:0,mode:'manual',length:1.6,width:1.2});
+  good(placed);
+  assert.equal(placed.bathFloor.cx,0);
+  assert.equal(placed.bathFloor.cz,0);
+  assert.equal(placed.bathFloor.length,1.6);
 });

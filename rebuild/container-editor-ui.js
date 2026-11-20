@@ -3,7 +3,7 @@ import { CATALOG, CATALOG_BY_CODE, FAMILIES, findCatalog } from './container-cat
 export function installEditor({ THREE, renderer, camera, controls, root, api, state, FACES, FLOOR, syncPanel }) {
   const $ = id => document.getElementById(id);
   const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
-  let pendingCode = null, drag = null, pointerOrigin = null;
+  let pendingCode = null, drag = null, pointerOrigin = null, bathPlacementMode = null;
 
   const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
   const number = id => Number(String($(id).value).replace(',', '.'));
@@ -52,6 +52,8 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   }
 
   function arm(code) {
+    bathPlacementMode = null;
+    renderer.domElement.style.cursor = '';
     const item = CATALOG_BY_CODE[code]; if (!item) return;
     if (item.mode === 'service') {
       const result = api.addService(code); if (!result.ok) { hint(result.error, true); return; }
@@ -79,7 +81,8 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   }
 
   function clearPending() {
-    pendingCode = null; renderCatalog(); $('wall-finish-controls').hidden = true;
+    pendingCode = null; bathPlacementMode = null; renderer.domElement.style.cursor = '';
+    renderCatalog(); $('wall-finish-controls').hidden = true;
     hint('Selecciona una partida del catálogo o un objeto del modelo para modificarlo.');
   }
 
@@ -430,7 +433,23 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   $('catalog-search').addEventListener('input', renderCatalog);
   $('catalog-family').addEventListener('change', renderCatalog);
   $('cancel-placement').addEventListener('click', clearPending);
+  function armBathFloorPlacement(mode) {
+    if (!['room','manual'].includes(mode)) return;
+    clearPending();
+    bathPlacementMode = mode;
+    if (!state.seeInside) { api.setSeeInside(true); $('xray').checked = true; }
+    $('bath-floor-config').open = true;
+    renderer.domElement.style.cursor = 'crosshair';
+    const message = mode === 'room'
+      ? 'Haz clic dentro del baño delimitado por tabiques. El piso se ajustará al recinto detectado.'
+      : 'Haz clic en el CENTRO del baño para colocar el rectángulo con el largo y ancho ingresados.';
+    hint(message);
+    $('bath-floor-message').textContent = message;
+  }
+  $('bath-floor-select-room').addEventListener('click', () => armBathFloorPlacement('room'));
+  $('bath-floor-place-rect').addEventListener('click', () => armBathFloorPlacement('manual'));
   $('bath-floor-apply').addEventListener('click', () => {
+    clearPending();
     const result = api.setBathFloor({
       code: $('bath-floor-code').value,
       length: number('bath-floor-length'),
@@ -440,6 +459,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     if (!result.ok) hint(result.error, true);
   });
   $('bath-floor-clear').addEventListener('click', () => {
+    clearPending();
     const result = api.clearBathFloor();
     $('bath-floor-message').textContent = result.alert;
   });
@@ -675,7 +695,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   canvas.addEventListener('pointerdown', event => {
     if (event.button !== 0 || !event.isPrimary) return;
     pointerOrigin = { x: event.clientX, y: event.clientY };
-    if (pendingCode) return;
+    if (bathPlacementMode || pendingCode) return;
     const ray = rayFor(event); if (!ray) return;
     const hit = objectRayPick(ray); if (!hit) return;
     api.selectEntity(hit.kind, hit.id);
@@ -774,7 +794,31 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     if (!pointerOrigin) return;
     const moved = Math.hypot(event.clientX - pointerOrigin.x, event.clientY - pointerOrigin.y) > 7;
     pointerOrigin = null;
-    if (moved || !pendingCode) return;
+    if (moved) return;
+    if (bathPlacementMode) {
+      const ray = rayFor(event);
+      const point = ray && planeAt(ray, FLOOR + 0.008);
+      if (!point || Math.abs(point.x) > state.L / 2 || Math.abs(point.z) > state.W / 2) {
+        hint('Selecciona el piso interior del contenedor desde arriba.', true);
+        return;
+      }
+      const mode = bathPlacementMode;
+      const result = api.applyBathFloorAt({
+        code: $('bath-floor-code').value, x: point.x, z: point.z, mode,
+        length: number('bath-floor-length'), width: number('bath-floor-width')
+      });
+      if (!result.ok) {
+        hint('Piso no aplicado: ' + result.error, true);
+        $('bath-floor-message').textContent = result.error;
+        return; // Keep mode armed: user may retry on a different floor region.
+      }
+      bathPlacementMode = null;
+      canvas.style.cursor = '';
+      $('bath-floor-message').textContent = result.alert;
+      hint('Piso aplicado en el modelo 3D. ' + result.alert);
+      return;
+    }
+    if (!pendingCode) return;
     const ray = rayFor(event); if (ray) placement(pendingCode, ray);
   });
 
@@ -782,6 +826,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
 
   window.addEventListener('keydown', event => {
     if (event.key === 'Escape' && drag) { endDrag(true); return; }
+    if (event.key === 'Escape' && bathPlacementMode) { clearPending(); $('bath-floor-message').textContent = 'Selección del piso cancelada.'; return; }
     if (event.key === 'Escape' && pendingCode) { clearPending(); return; }
     if (event.key === 'Delete' &&
       !['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(document.activeElement?.tagName)) {

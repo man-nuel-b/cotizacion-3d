@@ -13,7 +13,7 @@ import {
   validateSharedWallRegion, validateOpeningAgainstSharedWalls,
   validateInteriorDoor, validatePartitionSpecification, PARTITION_LINING_THICKNESS_M,
   classifyPartitionJunction, computePartitionJunctions, checkJunctionAgainstDoors, resolveMagneticPartitionMove,
-  validateBathFloor
+  validateBathFloor, detectRectangularRoomAt
 } from './construction-integrity.js';
 
 /* ============ Tipos de contenedor ============ */
@@ -520,6 +520,22 @@ function build() {
 
   box(L - 2 * WALL - 0.02, 0.05, W - 2 * WALL - 0.02, floorMat, 0, FLOOR - 0.025, 0, root);
 
+  // V4.8: draw the selected bathroom finish at its ACTUAL saved plan location.
+  // A legacy bathFloor without cx/cz is an area-only reservation and remains
+  // invisible until the user selects a room or places the rectangle on the floor.
+  const bath = state.bathFloor;
+  if (bath && Number.isFinite(bath.cx) && Number.isFinite(bath.cz)) {
+    const bathMaterial = makeFinishMaterial(THREE, bath.code,
+      material => owned.push(material), texture => ownedTextures.push(texture),
+      Math.max(1, bath.length / 0.6), Math.max(1, bath.width / 0.6));
+    const finish = box(bath.length, 0.006, bath.width, bathMaterial,
+      bath.cx, FLOOR + 0.004, bath.cz, root);
+    finish.castShadow = false;
+    finish.receiveShadow = true;
+    finish.userData.isBathFloor = true;
+    finish.userData.bathFloorCode = bath.code;
+  }
+
   if (state.finishes.skirting) {
     const sk = mat({ color: 0xe4e8e8, roughness: .76, metalness: 0 });
     for (const side of [-1, 1]) {
@@ -754,9 +770,15 @@ function objectError(o, ref = state) {
 }
 
 function partitionError(p, ref = state) {
-  return validatePartitionInsideContainer(p, ref, profileThicknessFor(ref)) ||
-    checkPartitionCollisions(p, ref.partitions || state.partitions,
-      ref.objects || state.objects, ref.interiorDoors || state.interiorDoors);
+  const geometryIssue = validatePartitionInsideContainer(p, ref, profileThicknessFor(ref)) ||
+    checkPartitionCollisions(p, ref.partitions || state.partitions, ref.objects || state.objects);
+  if (geometryIssue) return geometryIssue;
+  // Keep a placed bathroom finish from being cut through by a new/moved wall.
+  if (ref.bathFloor && Number.isFinite(ref.bathFloor.cx)) {
+    const partitions = (ref.partitions || state.partitions).filter(w => w.id !== p.id).concat(p);
+    return validateBathFloor(ref.bathFloor, { ...ref, partitions }, profileThicknessFor(ref));
+  }
+  return null;
 }
 function fittedPartition(p, ref = state) {
   return resolvePartitionGeometry(p, ref, profileThicknessFor(ref));
@@ -894,6 +916,18 @@ const api = {
   getInteriorClearance() { return interiorClearance(profileThicknessFor()); },
 
   getConstructionTakeoff() { return computeWallTakeoff(state); },
+  detectBathRoomAt(x, z) {
+    return detectRectangularRoomAt({x,z}, state, profileThicknessFor());
+  },
+  getBathFloorBounds() {
+    const mesh = root.children.find(child => child.userData.isBathFloor);
+    if (!mesh) return null;
+    const bounds = new THREE.Box3().setFromObject(mesh);
+    return { code: mesh.userData.bathFloorCode,
+      minX: bounds.min.x, maxX: bounds.max.x,
+      minZ: bounds.min.z, maxZ: bounds.max.z,
+      minY: bounds.min.y, maxY: bounds.max.y };
+  },
   // Diagnóstico geométrico: permite verificar la posición real en coordenadas globales.
   getRoofBounds() {
     const roof = walls.find(w => w.roof);
@@ -964,31 +998,58 @@ const api = {
     if (projectedPartitions.some(p => partitionDoorError(p))) {
       return { ok: false, error: 'Una puerta interior no cabría después de modificar las dimensiones' };
     }
+    const projectedBathError = validateBathFloor(state.bathFloor, projectedRef, profileThicknessFor(projectedRef));
+    if (projectedBathError) return { ok: false, error: 'Piso de baño incompatible con los nuevos tabiques: ' + projectedBathError };
     state.partitions = projectedPartitions;
     [state.L, state.W, state.H] = [L, W, H];
     return markChanged(false);
   },
 
-  setBathFloor({ code, length, width } = {}) {
+  setBathFloor({ code, length, width, cx, cz } = {}) {
     if (CATALOG_BY_CODE[code]?.mode !== 'floor') {
       return { ok: false, error: 'Selecciona una partida válida de piso para el baño' };
     }
     const candidate = { code, length: Number(length), width: Number(width) };
+    // Old JSON and old API calls without coordinates remain valid but are not drawn.
+    if (cx !== undefined || cz !== undefined) {
+      candidate.cx = Number(cx);
+      candidate.cz = Number(cz);
+    }
     const issue = validateBathFloor(candidate, state, profileThicknessFor());
     if (issue) return { ok: false, error: issue };
+    const hadVisual = Boolean(state.bathFloor && Number.isFinite(state.bathFloor.cx));
     state.bathFloor = candidate;
-    // La zona no tiene posición definida en planta; no dibujar un rectángulo ficticio.
-    // El editor refresca superficies y resumen, sin reconstruir la escena WebGL.
-    editor?.refresh();
+    // Rebuild only when switching between or updating positioned finishes.
+    if (Number.isFinite(candidate.cx) || hadVisual) build();
+    else editor?.refresh();
     const bathAreaM2 = candidate.length * candidate.width;
     const remainingAreaM2 = Math.max(0, state.L * state.W - bathAreaM2);
     return { ok: true, bathFloor: { ...candidate }, bathAreaM2, remainingAreaM2,
-      alert: `Baño: ${bathAreaM2.toFixed(2)} m² (${candidate.length.toFixed(2)} × ${candidate.width.toFixed(2)} m). Quedan ${remainingAreaM2.toFixed(2)} m² disponibles para el piso general.` };
+      alert: `Baño: ${bathAreaM2.toFixed(2)} m² (${candidate.length.toFixed(2)} × ${candidate.width.toFixed(2)} m). Quedan ${remainingAreaM2.toFixed(2)} m² disponibles. ${Number.isFinite(candidate.cx) ? 'Piso visible en el visor 3D.' : 'Reserva de área sin ubicación 3D: usa Aplicar piso al recinto.'}` };
+  },
+
+  applyBathFloorAt({ code, x, z, mode = 'room', length, width } = {}) {
+    if (CATALOG_BY_CODE[code]?.mode !== 'floor') {
+      return { ok: false, error: 'Selecciona una partida válida para el piso del baño' };
+    }
+    if (![x,z].every(Number.isFinite)) return { ok: false, error: 'Selecciona una ubicación válida' };
+    let rectangle;
+    if (mode === 'room') {
+      const room = this.detectBathRoomAt(x, z);
+      if (!room.ok) return room;
+      rectangle = room;
+    } else if (mode === 'manual') {
+      rectangle = { length: Number(length), width: Number(width), cx: x, cz: z };
+    } else return { ok: false, error: 'Modo de selección de piso inválido' };
+    return this.setBathFloor({ code, length: rectangle.length, width: rectangle.width,
+      cx: rectangle.cx, cz: rectangle.cz });
   },
 
   clearBathFloor() {
+    const hadVisual = Boolean(state.bathFloor && Number.isFinite(state.bathFloor.cx));
     state.bathFloor = null;
-    editor?.refresh();
+    if (hadVisual) build();
+    else editor?.refresh();
     const remainingAreaM2 = state.L * state.W;
     return { ok: true, bathAreaM2: 0, remainingAreaM2,
       alert: `Piso de baño retirado. Quedan ${remainingAreaM2.toFixed(2)} m² disponibles para el piso general.` };
@@ -1377,6 +1438,15 @@ const api = {
         const code = String(s.bathFloor.code || '');
         if (CATALOG_BY_CODE[code]?.mode !== 'floor') throw Error('Código de piso de baño inválido');
         cleanBathFloor = { code, length: Number(s.bathFloor.length), width: Number(s.bathFloor.width) };
+        if (Object.prototype.hasOwnProperty.call(s.bathFloor, 'cx') ||
+            Object.prototype.hasOwnProperty.call(s.bathFloor, 'cz')) {
+          if (!Object.prototype.hasOwnProperty.call(s.bathFloor, 'cx') ||
+              !Object.prototype.hasOwnProperty.call(s.bathFloor, 'cz')) {
+            throw Error('Ubicación del baño incompleta: se requieren X y Z');
+          }
+          cleanBathFloor.cx = Number(s.bathFloor.cx);
+          cleanBathFloor.cz = Number(s.bathFloor.cz);
+        }
       }
       const issueBath = validateBathFloor(cleanBathFloor, s,
         (TYPES[s.type].R + TYPES[s.type].T));
