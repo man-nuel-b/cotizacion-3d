@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BAT-CUBIKEITOR V4.12 | Editor modular 3D</title>
+<title>BAT-CUBIKEITOR V4.13 | Editor modular 3D</title>
 <style>
 html, body{margin:0;height:100%;background:#dfe3e8;font-family:system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden}
 #view{position:fixed;inset:0}
@@ -227,6 +227,19 @@ body.inspector-docked #scene-hint{left:calc((100% - min(486px,40vw))/2);max-widt
 #view{box-sizing:border-box;min-width:0}
 #view canvas{display:block;touch-action:none}
 
+
+/* V4.13 · Instalación eléctrica, tabla compacta en panel lateral. */
+.electrical-tools{border:1px solid #d5e2ea;border-radius:9px;padding:9px;background:#f7fafc;display:block;min-width:0}
+.electrical-tools summary{font-size:12px;font-weight:750;cursor:pointer;color:#1d4c70}
+.electrical-tools[open]{display:grid;gap:9px}
+.electric-fields{display:grid;gap:8px;padding-top:6px}
+.electric-table-wrap{max-width:100%;overflow-x:auto}
+.electric-table{border-collapse:collapse;font-size:10px;width:100%;min-width:260px}
+.electric-table th,.electric-table td{border-bottom:1px solid #dbe5ed;padding:5px 4px;text-align:left}
+.electric-table td:last-child{text-align:right;white-space:nowrap}
+#electric-cost{font-size:11px;line-height:1.5;color:#244967}
+#electric-notice{line-height:1.4}
+
 </style>
 <script type="importmap">
 {
@@ -241,7 +254,7 @@ body.inspector-docked #scene-hint{left:calc((100% - min(486px,40vw))/2);max-widt
 <div id="view"></div>
 <aside id="catalog-panel" aria-label="Catálogo técnico 3D">
   <div class="catalog-heading">
-    <strong>BAT-CUBIKEITOR <span style="color:#d78d12">V4.12</span></strong>
+    <strong>BAT-CUBIKEITOR <span style="color:#d78d12">V4.13</span></strong>
     <p>Catálogo de 60 partidas · selecciona un elemento y haz clic en el contenedor</p>
   </div>
   <div class="catalog-fields">
@@ -427,6 +440,27 @@ body.inspector-docked #scene-hint{left:calc((100% - min(486px,40vw))/2);max-widt
     </details>
   </div>
 
+
+  <details id="electrical-tools" class="electrical-tools">
+    <summary>Instalación eléctrica · BOM / APU</summary>
+    <div class="electric-fields">
+      <label>Especificación
+        <select id="electric-profile">
+          <option value="basico">Básico</option>
+          <option value="estandar" selected>Estándar</option>
+          <option value="galpon_industrial">Galpón / taller</option>
+        </select>
+      </label>
+      <label>Recintos / zonas
+        <input id="electric-rooms" type="number" value="1" min="1" max="200" step="1">
+      </label>
+      <label class="chk"><input id="electric-show" type="checkbox" checked> Ver puntos eléctricos en el modelo 3D</label>
+    </div>
+    <div id="electric-summary" class="tiny" aria-live="polite"></div>
+    <div class="electric-table-wrap"><table class="electric-table"><thead><tr><th>Código</th><th>Partida</th><th>Cantidad</th><th>Subtotal</th></tr></thead><tbody id="electric-bom"></tbody></table></div>
+    <strong id="electric-cost" aria-live="polite"></strong>
+    <small id="electric-notice" class="tiny"></small>
+  </details>
   <b>Tipo de contenedor</b>
   <div class="seg" id="seg">
     <button data-t="maritimo" class="on">Marítimo</button>
