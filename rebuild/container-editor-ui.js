@@ -5,6 +5,82 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
   let pendingCode = null, drag = null, pointerOrigin = null, bathPlacementMode = null, newPartitionPlacement = false;
 
+  // Los controles originales se REUTILIZAN, sin clonar inputs ni listeners.
+  // La barra lateral conserva creación y proyectos; la ficha aparece al seleccionar.
+  const inspector = $('selection-inspector');
+  const form = $('props-form');
+  $('inspector-heading-target').appendChild($('properties-title'));
+  $('inspector-body').appendChild(form);
+  $('inspector-body').appendChild($('inspector-opening-bars-label'));
+  $('inspector-opening-bars').addEventListener('change', event => {
+    $('oBars').checked = event.target.checked;
+    $('oBars').dispatchEvent(new Event('change', { bubbles: true }));
+    event.target.checked = $('oBars').checked;
+  });
+
+  const makeInspectorCard = (id, heading, elements) => {
+    const card = document.createElement('section');
+    card.className = 'inspector-card';
+    card.id = id;
+    const title = document.createElement('h3');
+    title.textContent = heading;
+    card.appendChild(title);
+    for (const item of elements) if (item) card.appendChild(item);
+    return card;
+  };
+  const geometry = makeInspectorCard('inspector-geometry', 'Ubicación y dimensiones', [
+    $('prop-name').closest('label'), $('prop-x').closest('.row'), $('prop-apply')
+  ]);
+  const options = makeInspectorCard('inspector-options', 'Ajuste y orientación', [
+    $('partition-fit-label'), $('partition-fit-help'), $('partition-magnet-label'),
+    $('bFitPartitionFree'), $('partition-free-help'), $('partition-drag-help'),
+    $('btn-rotate-partition'), $('btn-rotate-fit'), $('rotation-help')
+  ]);
+  const materials = $('partition-finishes-box');
+  materials.classList.add('inspector-card');
+  const doorList = document.createElement('div');
+  doorList.id = 'inspector-partition-doors';
+  doorList.setAttribute('aria-label', 'Puertas vinculadas al tabique');
+  materials.appendChild(doorList);
+  const junctions = $('partition-junction-box');
+  junctions.classList.add('inspector-card');
+  const actionButtons = $('prop-duplicate').closest('.property-buttons');
+  $('inspector-actions').appendChild(actionButtons);
+  form.replaceChildren(geometry, materials, options, junctions);
+  $('partition-fit-label').title = $('partition-fit-help').textContent;
+  $('bFitPartitionFree').title = $('partition-free-help').textContent;
+  $('btn-rotate-fit').title = $('rotation-help').textContent;
+  $('btn-add-interior-door').title = 'Crea una puerta vinculada al tabique y descuenta su vano de la cubicación.';
+  $('btn-junction-t').title = $('junction-help').textContent;
+  $('btn-junction-l').title = $('junction-help').textContent;
+
+  let lastSelectionKey = null;
+  let inspectorDismissedKey = null;
+  function syncInspector(selection) {
+    const key = selection ? selection.kind + ':' + selection.id : null;
+    if (key !== lastSelectionKey) {
+      lastSelectionKey = key;
+      inspectorDismissedKey = null;
+      $('inspector-feedback').textContent = 'Los cambios se validan antes de guardarse.';
+      $('inspector-feedback').classList.remove('error');
+    }
+    inspector.hidden = !key || inspectorDismissedKey === key;
+    $('open-inspector').hidden = !key;
+    if (key) $('open-inspector').textContent = 'Editar elemento seleccionado · ' + selection.kind;
+  }
+  function hideInspector() {
+    const selection = api.getSelected();
+    if (selection) inspectorDismissedKey = selection.kind + ':' + selection.id;
+    inspector.hidden = true;
+  }
+  $('close-inspector').addEventListener('click', hideInspector);
+  $('open-inspector').addEventListener('click', () => {
+    if (!api.getSelected()) return;
+    inspectorDismissedKey = null;
+    inspector.hidden = false;
+    $('prop-x').focus({ preventScroll: true });
+  });
+
   const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
   const number = id => Number(String($(id).value).replace(',', '.'));
 
@@ -12,6 +88,10 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     const node = $('scene-hint');
     node.textContent = message;
     node.style.background = error ? 'rgba(140,41,38,.95)' : 'rgba(18,35,54,.92)';
+    if (!inspector.hidden) {
+      $('inspector-feedback').textContent = message;
+      $('inspector-feedback').classList.toggle('error', error);
+    }
   }
 
   function familyName(id) { return FAMILIES.find(f => f.id === id)?.name || id; }
@@ -52,6 +132,8 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   }
 
   function arm(code) {
+    // Recupera el canvas al escoger otra partida; evita interceptar el clic de colocación.
+    hideInspector();
     bathPlacementMode = null; newPartitionPlacement = false;
     renderer.domElement.style.cursor = '';
     const item = CATALOG_BY_CODE[code]; if (!item) return;
@@ -322,10 +404,27 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
 
   function refreshProperties() {
     const selection = api.getSelected(), form = $('props-form');
+    syncInspector(selection);
     $('properties-empty').hidden = !!selection; form.hidden = !selection;
     const partition = selection?.kind === 'partition';
     $('partition-finishes-box').hidden = !partition;
     $('partition-junction-box').hidden = !partition;
+    const openingWindow = selection?.kind === 'opening' &&
+      state.openings.some(x => x.id === selection.id && x.type === 'window');
+    $('inspector-opening-bars-label').hidden = !openingWindow;
+    if (openingWindow) $('inspector-opening-bars').checked =
+      state.openings.find(x => x.id === selection.id)?.bars === true;
+    const doorsList = doorList;
+    doorsList.replaceChildren();
+    if (partition) {
+      for (const door of state.interiorDoors.filter(d => d.partitionId === selection.id)) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = `${door.catalogCode} · Puerta ${door.w.toFixed(2)} × ${door.h.toFixed(2)} m · editar`;
+        btn.addEventListener('click', () => api.selectEntity('interiorDoor', door.id));
+        doorsList.appendChild(btn);
+      }
+    }
     if (!selection) { setLabel('properties-title', 'Propiedades del elemento'); return; }
 
     const opening = selection.kind === 'opening';
@@ -343,6 +442,13 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       (item?.code || '-') + ' · ' + (item?.name || (opening ? obj.type : 'Objeto'));
     const wallObject = !opening && !partition && !interiorDoor &&
       ['metal-studs', 'wood-studs', 'partition', 'wet-partition', 'closure'].includes(item?.visual);
+    options.hidden = !(partition || wallObject);
+    inspector.dataset.layout = partition ? 'partition' : wallObject ? 'assembly' : 'basic';
+    $('inspector-subtitle').textContent = partition
+      ? 'Geometría, revestimientos, aislación, puertas y uniones T/L'
+      : interiorDoor ? 'Ubicación y dimensiones de la puerta interior'
+      : opening ? 'Posición, medidas y cara del vano'
+      : 'Ubicación, dimensiones y giro del elemento';
     $('btn-rotate-partition').hidden = !(partition || wallObject);
     $('btn-rotate-fit').hidden = !(partition || wallObject) || (partition && obj.autoSpan === true);
     $('btn-rotate-fit').textContent = partition ? 'Girar y ajustar a los muros' : 'Girar y centrar ensamblaje';
@@ -435,7 +541,11 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       btn.textContent = record.code + ' · ' + label;
       btn.addEventListener('click', () => {
         if (record.kind === 'service') { if (window.confirm('¿Quitar este servicio del proyecto?')) api.removeService(record.id); }
-        else api.selectEntity(record.kind, record.id);
+        else {
+          api.selectEntity(record.kind, record.id);
+          inspectorDismissedKey = null;
+          inspector.hidden = false;
+        }
       });
       if (record.kind === 'service') btn.title = 'Quitar servicio (requiere confirmación)';
       list.appendChild(btn);
@@ -558,6 +668,8 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     } else {
       hint('Tabique creado entre paramentos. Selecciónalo para moverlo o añadir una puerta.');
     }
+    // El alta consecutiva debe seguir permitiendo usar el mismo botón sin un panel encima.
+    if (result.ok) hideInspector();
   });
 
   for (const type of ['T', 'L']) {
@@ -625,7 +737,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     const code = $('part-door-code').value;
     const result = api.addInteriorDoor({ partitionId: selected.id, catalogCode: code,
       w: code === 'P80' ? 0.7 : 0.8 });
-    hint(result.ok ? 'Puerta añadida al tabique. Edita posición y medidas a la derecha.' :
+    hint(result.ok ? 'Puerta añadida al tabique. Selecciónala para editar sus medidas en la ficha contextual.' :
       'No se pudo agregar la puerta: ' + result.error, !result.ok);
   });
 
@@ -751,6 +863,8 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     const ray = rayFor(event); if (!ray) return;
     const hit = objectRayPick(ray); if (!hit) return;
     api.selectEntity(hit.kind, hit.id);
+    inspectorDismissedKey = null;
+    inspector.hidden = false;
     if (hit.kind === 'partition') {
       const p = state.partitions.find(x => x.id === hit.id);
       // Anclar el plano de arrastre a la altura real del clic evita que un
@@ -903,6 +1017,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     if (event.key === 'Escape' && newPartitionPlacement) { clearPending(); hint('Colocación del tabique cancelada.'); return; }
     if (event.key === 'Escape' && bathPlacementMode) { clearPending(); $('bath-floor-message').textContent = 'Selección del piso cancelada.'; return; }
     if (event.key === 'Escape' && pendingCode) { clearPending(); return; }
+    if (event.key === 'Escape' && !inspector.hidden) { hideInspector(); return; }
     if (event.key === 'Delete' &&
       !['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(document.activeElement?.tagName)) {
       const selection = api.getSelected(); if (selection) {
