@@ -138,6 +138,8 @@ html,body{overflow:auto;height:auto;min-height:100%}
       <label class="chk" id="partition-magnet-label" hidden>
         <input id="partition-magnet" type="checkbox" checked> Imán: ajustar extremos a paredes y tabiques (18 cm)
       </label>
+      <button id="bFitPartitionFree" type="button" class="alt" hidden>Ajustar al espacio libre</button>
+      <small id="partition-free-help" class="tiny" hidden>Extiende el tabique solo hasta los obstáculos próximos. Mantiene la posición física de las puertas y rechaza cruces o encuentros inválidos. Desactiva autoSpan.</small>
       <small class="tiny" id="partition-drag-help" hidden>Arrastra el tabique con el mouse; los contactos en T/L se verifican antes de guardar. Con autoSpan activado solo se desplaza en el eje transversal.</small>
       <div id="partition-finishes-box" hidden>
         <h4>Capas del tabique seleccionado</h4>
@@ -206,6 +208,26 @@ html,body{overflow:auto;height:auto;min-height:100%}
       </div>
     </div>
     <button id="add-parametric-partition" type="button" class="alt">Añadir tabique paramétrico</button>
+    <details id="new-partition-click-mode">
+      <summary>Crear tabique en el punto elegido</summary>
+      <div class="row">
+        <label>Eje de tabique
+          <select id="new-partition-axis" aria-label="Eje del nuevo tabique">
+            <option value="z">Transversal (Z)</option>
+            <option value="x">Longitudinal (X)</option>
+          </select>
+        </label>
+        <label>Hacia dónde extender
+          <select id="new-partition-direction" aria-label="Dirección de crecimiento del tabique">
+            <option value="both">Ambos lados</option>
+            <option value="positive">Hacia el lado positivo</option>
+            <option value="negative">Hacia el lado negativo</option>
+          </select>
+        </label>
+      </div>
+      <button id="place-fitted-partition" type="button" class="alt">Colocar tabique ajustado (clic 3D)</button>
+      <small class="tiny">Haz clic sobre el piso interior. Se calculará el tramo continuo disponible sin atravesar otros tabiques ni muebles. Esc cancela.</small>
+    </details>
     <div id="placed-list" aria-label="Elementos incorporados"></div>
     <div class="property-buttons">
       <button id="save-project" type="button" class="alt">Exportar JSON</button>

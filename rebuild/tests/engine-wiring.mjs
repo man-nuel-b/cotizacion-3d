@@ -174,3 +174,26 @@ test('V4.9: orientación de piso conectada a motor, UI, JSON y textura', () => {
   assert.match(engine, /bathFloor: cleanBathFloor, floorDirection/);
   assert.match(engine, /floorMat = m\.wood\.clone\(\)/);
 });
+
+
+test('V4.9.2: botón de tramo libre integra geometría, API y UI sin ID inexistente',()=>{
+  assert.match(html, /id="bFitPartitionFree"/);
+  assert.match(ui, /\$\('bFitPartitionFree'\)\.addEventListener\('click'/);
+  assert.match(ui, /api\.fitPartitionToFreeSpace\(selected\.id\)/);
+  assert.match(engine, /computeFreePartitionSpan/);
+  assert.match(engine, /fitPartitionToFreeSpace\(id\)/);
+  assert.match(engine, /getPartitionFreeSpan\(idOrSpec\)/);
+});
+
+test('V4.9.3: crear tabique ajustado desde clic mantiene selección de un solo uso', () => {
+  assert.match(html,/id="place-fitted-partition"/);
+  assert.match(html,/id="new-partition-axis"/);
+  assert.match(html,/id="new-partition-direction"/);
+  assert.match(ui,/newPartitionPlacement = true/);
+  assert.match(ui,/if \(newPartitionPlacement\) \{/);
+  assert.match(ui,/api\.addPartition\(\{\s*axis: \$\('new-partition-axis'\)\.value/);
+  assert.match(ui,/autoFit: true/);
+  assert.match(ui,/fitDirection: \$\('new-partition-direction'\)\.value/);
+  assert.match(ui,/if \(event\.key === 'Escape' && newPartitionPlacement\)/);
+  assert.match(engine,/const shouldFit = autoFit === true/);
+});

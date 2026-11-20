@@ -3,7 +3,7 @@ import { CATALOG, CATALOG_BY_CODE, FAMILIES, findCatalog } from './container-cat
 export function installEditor({ THREE, renderer, camera, controls, root, api, state, FACES, FLOOR, syncPanel }) {
   const $ = id => document.getElementById(id);
   const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
-  let pendingCode = null, drag = null, pointerOrigin = null, bathPlacementMode = null;
+  let pendingCode = null, drag = null, pointerOrigin = null, bathPlacementMode = null, newPartitionPlacement = false;
 
   const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
   const number = id => Number(String($(id).value).replace(',', '.'));
@@ -52,7 +52,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   }
 
   function arm(code) {
-    bathPlacementMode = null;
+    bathPlacementMode = null; newPartitionPlacement = false;
     renderer.domElement.style.cursor = '';
     const item = CATALOG_BY_CODE[code]; if (!item) return;
     if (item.mode === 'service') {
@@ -81,7 +81,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   }
 
   function clearPending() {
-    pendingCode = null; bathPlacementMode = null; renderer.domElement.style.cursor = '';
+    pendingCode = null; bathPlacementMode = null; newPartitionPlacement = false; renderer.domElement.style.cursor = '';
     renderCatalog(); $('wall-finish-controls').hidden = true;
     hint('Selecciona una partida del catálogo o un objeto del modelo para modificarlo.');
   }
@@ -354,6 +354,8 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     $('partition-fit-help').hidden = !partition;
     $('partition-magnet-label').hidden = !partition;
     $('partition-drag-help').hidden = !partition;
+    $('bFitPartitionFree').hidden = !partition;
+    $('partition-free-help').hidden = !partition;
     $('partition-fit').checked = partition && obj.autoSpan === true;
     if (partition) {
       $('part-face-a').value = obj.faceALining || '';
@@ -528,6 +530,16 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     hint(event.target.checked ? 'Barrotes agregados a la ventana seleccionada.' : 'Barrotes retirados de la ventana seleccionada.');
   });
 
+  $('place-fitted-partition').addEventListener('click', () => {
+    clearPending();
+    newPartitionPlacement = true;
+    if (!state.seeInside) { api.setSeeInside(true); $('xray').checked = true; }
+    renderer.domElement.style.cursor = 'crosshair';
+    const axis = $('new-partition-axis').value.toUpperCase();
+    hint('Haz clic en el piso desde arriba: el tabique del eje ' + axis +
+      ' crecerá hasta los obstáculos próximos. Esc cancela.');
+  });
+
   $('add-parametric-partition').addEventListener('click', () => {
     // Inserciones consecutivas buscan otro espacio libre, no el centro ocupado.
     const result = api.addPartition({ axis: 'z', length: Math.max(0.2, state.W - 2 * api.getInteriorClearance()),
@@ -567,6 +579,18 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       }
     });
   }
+
+  $('bFitPartitionFree').addEventListener('click', () => {
+    const selected = api.getSelected();
+    if (selected?.kind !== 'partition') {
+      hint('Selecciona primero un tabique paramétrico.', true);
+      return;
+    }
+    const res = api.fitPartitionToFreeSpace(selected.id);
+    if (!res.ok) { hint('No se pudo ajustar: ' + res.error, true); return; }
+    hint(`Tabique ajustado al espacio libre: ${res.span.freeLengthM.toFixed(2)} m. ` +
+      'Se conservó la posición de las puertas y se actualizó la cubicación.');
+  });
 
   $('partition-fit').addEventListener('change', event => {
     const selected = api.getSelected();
@@ -723,7 +747,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   canvas.addEventListener('pointerdown', event => {
     if (event.button !== 0 || !event.isPrimary) return;
     pointerOrigin = { x: event.clientX, y: event.clientY };
-    if (bathPlacementMode || pendingCode) return;
+    if (bathPlacementMode || newPartitionPlacement || pendingCode) return;
     const ray = rayFor(event); if (!ray) return;
     const hit = objectRayPick(ray); if (!hit) return;
     api.selectEntity(hit.kind, hit.id);
@@ -823,6 +847,28 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     const moved = Math.hypot(event.clientX - pointerOrigin.x, event.clientY - pointerOrigin.y) > 7;
     pointerOrigin = null;
     if (moved) return;
+    if (newPartitionPlacement) {
+      const ray = rayFor(event);
+      const point = ray && planeAt(ray, FLOOR + 0.008);
+      if (!point || Math.abs(point.x) > state.L / 2 || Math.abs(point.z) > state.W / 2) {
+        hint('Selecciona una posición sobre el piso interior desde arriba.', true);
+        return;
+      }
+      const result = api.addPartition({
+        axis: $('new-partition-axis').value, cx: point.x, cz: point.z,
+        height: Math.min(2.3, state.H), thickness: 0.1,
+        autoSpan: false, autoFit: true,
+        fitDirection: $('new-partition-direction').value
+      });
+      if (!result.ok) {
+        hint('No se pudo crear el tabique: ' + result.error, true);
+        return; // Mantener selección armada para reintentar en un punto libre.
+      }
+      clearPending();
+      hint(`Tabique agregado en el espacio libre: ${result.partition.length.toFixed(2)} m ` +
+        `(eje ${result.partition.axis.toUpperCase()}). Selecciónalo para editarlo.`);
+      return;
+    }
     if (bathPlacementMode) {
       const ray = rayFor(event);
       const point = ray && planeAt(ray, FLOOR + 0.008);
@@ -854,6 +900,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
 
   window.addEventListener('keydown', event => {
     if (event.key === 'Escape' && drag) { endDrag(true); return; }
+    if (event.key === 'Escape' && newPartitionPlacement) { clearPending(); hint('Colocación del tabique cancelada.'); return; }
     if (event.key === 'Escape' && bathPlacementMode) { clearPending(); $('bath-floor-message').textContent = 'Selección del piso cancelada.'; return; }
     if (event.key === 'Escape' && pendingCode) { clearPending(); return; }
     if (event.key === 'Delete' &&

@@ -755,3 +755,91 @@ test('V4.9.1: fachada cortada no deja puerta/ventana superpuesta y se restaura a
     assert.deepEqual(errors, [], errors.join('\n'));
   } finally { if (fixture) await close(fixture); }
 });
+
+test('V4.9.2 navegador: botón ajustar al espacio libre genera encuentro T sin cruzar', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    const results = await page.evaluate(() => {
+      const api=window.Container3D;
+      api.setType('maritimo');
+      const size=api.setDimensions(6,2.4,2.5);
+      if (!size.ok) return { error:size.error };
+      const wall=api.addPartition({axis:'z',autoSpan:true,thickness:.1,height:2.3});
+      const branch=api.addPartition({axis:'x',length:1.1,cx:1,cz:0,thickness:.1,height:2.3});
+      return {wall,branch};
+    });
+    assert.equal(results.error,undefined,results.error);
+    assert.equal(results.wall.ok,true,results.wall.error);
+    assert.equal(results.branch.ok,true,results.branch.error);
+    await page.locator('#bFitPartitionFree').click();
+    const state=await page.evaluate(()=>window.Container3D.getState());
+    assert.equal(state.partitions.length,2);
+    const fitted=state.partitions.find(p=>p.id===results.branch.id);
+    assert.ok(Math.abs(fitted.length-2.87)<1e-6);
+    assert.equal(fitted.autoSpan,false);
+    assert.match(await page.locator('#scene-hint').innerText(), /ajustado al espacio libre/i);
+    assert.deepEqual(errors,[],errors.join('\n'));
+  } finally { if(fixture) await close(fixture); }
+});
+
+test('V4.9.3 UI: clic sobre el piso crea un único tabique ajustado al tramo libre',
+  { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    await page.evaluate(() => {
+      const api = window.Container3D;
+      api.setType('modular');
+      api.setSeeInside(true);
+      api.setView([0, 9, 0.03], [0, 0, 0]);
+    });
+    await page.locator('#new-partition-click-mode summary').click();
+    await page.locator('#new-partition-axis').selectOption('x');
+    await page.locator('#new-partition-direction').selectOption('both');
+    await page.locator('#place-fitted-partition').click();
+    assert.match(await page.locator('#scene-hint').innerText(), /haz clic en el piso/i);
+    const point = await page.evaluate(() => window.Container3D.getScreenPoint(0, .148, 0));
+    assert.equal(point.visible, true);
+    await page.mouse.click(point.x, point.y);
+    await page.waitForFunction(() => window.Container3D.getState().partitions.length === 1);
+    const state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.partitions[0].axis, 'x');
+    assert.equal(state.partitions[0].autoSpan, false);
+    assert.ok(state.partitions[0].length > state.L-0.3);
+    assert.match(await page.locator('#scene-hint').innerText(), /Tabique agregado.*m/i);
+    await page.mouse.click(point.x, point.y);
+    assert.equal(await page.evaluate(() => window.Container3D.getState().partitions.length),1,
+      'Modo de colocación se desarma después del primer clic válido');
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
+
+test('V4.9.3 UI: clic en tabique ocupado se rechaza, y Esc cancela modo de creación',
+  { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    const created = await page.evaluate(() => {
+      const api = window.Container3D;
+      api.setType('modular');
+      api.setSeeInside(true);
+      api.setView([0, 9, 0.03], [0, 0, 0]);
+      return api.addPartition({axis:'z',autoSpan:true,thickness:.1,height:2.3});
+    });
+    assert.equal(created.ok,true,created.error);
+    await page.locator('#new-partition-click-mode summary').click();
+    await page.locator('#new-partition-axis').selectOption('x');
+    await page.locator('#place-fitted-partition').click();
+    const occupied = await page.evaluate(() => window.Container3D.getScreenPoint(0, .148, 0));
+    await page.mouse.click(occupied.x, occupied.y);
+    assert.equal(await page.evaluate(() => window.Container3D.getState().partitions.length),1);
+    assert.match(await page.locator('#scene-hint').innerText(),/ocupado/i);
+    await page.keyboard.press('Escape');
+    assert.match(await page.locator('#scene-hint').innerText(),/cancelada/i);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});

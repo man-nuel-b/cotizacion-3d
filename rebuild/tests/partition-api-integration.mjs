@@ -9,7 +9,7 @@ import {
   validatePartitionInsideContainer, checkPartitionCollisions,
   validateInteriorDoor, validatePartitionSpecification, computeWallTakeoff,
   validateSharedWallRegion, classifyPartitionJunction, computePartitionJunctions,
-  checkJunctionAgainstDoors, resolveMagneticPartitionMove, validateBathFloor, detectRectangularRoomAt
+  checkJunctionAgainstDoors, resolveMagneticPartitionMove, computeFreePartitionSpan, validateBathFloor, detectRectangularRoomAt
 } from '../construction-integrity.js';
 import { CATALOG, CATALOG_BY_CODE } from '../container-catalog.js';
 
@@ -64,7 +64,7 @@ function fixture() {
     CATALOG, CATALOG_BY_CODE, interiorClearance, resolvePartitionGeometry,
     resolveRotatedPartition, validateInteriorDoor, validatePartitionSpecification,
     computeWallTakeoff, validateSharedWallRegion, validateBathFloor, detectRectangularRoomAt, classifyPartitionJunction,
-    computePartitionJunctions, checkJunctionAgainstDoors, resolveMagneticPartitionMove,
+    computePartitionJunctions, checkJunctionAgainstDoors, resolveMagneticPartitionMove, computeFreePartitionSpan,
     SAMPLES: { maritimo: [], reefer: [], modular: [] },
     console
   };
@@ -518,4 +518,117 @@ test('API V4.9: JSON restaura dirección; respaldos anteriores usan length; valo
   assert.equal(api.setFloorDirection('width').ok, true);
   assert.equal(api.setType('maritimo').ok, true);
   assert.equal(state.floorDirection, 'length');
+});
+
+test('API V4.9.2: ajuste libre es una acción expresa y conserva el estado JSON', () => {
+  const {api, state}=fixture();
+  const wall=api.addPartition({axis:'x',length:1.2,cx:1,cz:0,height:2.3,thickness:.1});
+  good(wall);
+  const before=api.getState();
+  const preview=api.getPartitionFreeSpan(wall.id);good(preview);
+  assert.ok(Math.abs(preview.span.freeLengthM-5.84)<1e-8);
+  assert.deepEqual(api.getState(),before);
+  const result=api.fitPartitionToFreeSpace(wall.id);good(result);
+  const after=api.getState();
+  assert.ok(Math.abs(after.partitions[0].length-5.84)<1e-8);
+  assert.equal(after.partitions[0].cx,0);
+  assert.equal(after.partitions[0].autoSpan,false);
+  assert.equal(api.getConstructionTakeoff().totalPartitionBothFacesAreaM2 > 20,true);
+});
+
+test('API V4.9.2: ajuste termina en la cara de otro tabique, sin atravesarlo',()=>{
+  const {api}=fixture();
+  good(api.addPartition({axis:'z',autoSpan:true,thickness:.1,height:2.3}));
+  const branch=api.addPartition({axis:'x',length:1.1,cx:1,cz:0,thickness:.1,height:2.3});good(branch);
+  const res=api.fitPartitionToFreeSpace(branch.id);good(res);
+  assert.ok(Math.abs(res.partition.length-2.87)<1e-8);
+  assert.ok(Math.abs(res.span.freeMin-.05)<1e-8);
+  const s=api.getState();
+  assert.equal(classifyPartitionJunction(s.partitions[0],s.partitions[1]).type,'T');
+});
+
+test('API V4.9.2: conserva posición global de la puerta cuando ajusta el tramo',()=>{
+  const {api}=fixture();
+  const wall=api.addPartition({axis:'x',length:2,cx:.5,height:2.3,thickness:.1});good(wall);
+  const door=api.addInteriorDoor({partitionId:wall.id,u:.5,w:.7,h:2,catalogCode:'P80'});good(door);
+  const original=api.getState();
+  const absolute=original.partitions[0].cx-original.partitions[0].length/2+original.interiorDoors[0].u;
+  const result=api.fitPartitionToFreeSpace(wall.id);good(result);
+  const s=api.getState();
+  const now=s.partitions[0].cx-s.partitions[0].length/2+s.interiorDoors[0].u;
+  assert.ok(Math.abs(now-absolute)<1e-8);
+  assert.ok(Math.abs(s.partitions[0].length-5.84)<1e-8);
+  assert.deepEqual(JSON.parse(JSON.stringify(s.interiorDoors)).map(d=>d.catalogCode),['P80']);
+});
+
+test('API V4.9.2: ID inexistente y especificación inválida no alteran el estado',()=>{
+  const {api}=fixture();
+  const w=api.addPartition({axis:'x',length:1,cx:0,height:2.3,thickness:.1});good(w);
+  const original=api.getState();
+  assert.equal(api.fitPartitionToFreeSpace('no-such-wall').ok,false);
+  assert.equal(api.getPartitionFreeSpan({axis:'x',cx:NaN,cz:0,thickness:.1}).ok,false);
+  assert.deepEqual(api.getState(),original);
+});
+
+test('V4.9.3 API: alta sin largo aplica tramo libre en eje Z y conserva coordenada transversal', () => {
+  const { api } = fixture();
+  const r = api.addPartition({ axis:'z', cx:1, cz:.4, thickness:.1, height:2.3 });
+  good(r);
+  assert.equal(r.autoFitted, true);
+  assert.ok(Math.abs(r.partition.length-2.24) < 1e-8);
+  assert.equal(r.partition.cx,1);
+  assert.ok(Math.abs(r.partition.cz) < 1e-8);
+  assert.equal(r.partition.autoSpan,false);
+});
+
+test('V4.9.3 API: largo manual explícito mantiene V4.9.2, salvo autoFit explícito', () => {
+  const { api } = fixture();
+  const manual = api.addPartition({axis:'x',cx:.5,cz:0,thickness:.1,height:2.3,length:1.2});
+  good(manual); assert.equal(manual.autoFitted,false);assert.equal(manual.partition.length,1.2);
+  const other = api.addPartition({axis:'x',cx:1.9,cz:.5,thickness:.1,height:2.3,length:.5,autoFit:true});
+  good(other);assert.equal(other.autoFitted,true);
+  assert.ok(other.partition.length>2);
+});
+
+test('V4.9.3 API: clic a un lado de anfitrión crea unión T válida', () => {
+  const { api } = fixture();
+  good(api.addPartition({axis:'z',autoSpan:true,thickness:.1,height:2.3}));
+  const branch = api.addPartition({axis:'x',cx:1,cz:0,autoFit:true,thickness:.1,height:2.3});
+  good(branch);
+  assert.ok(Math.abs(branch.partition.length-2.87) < 1e-8);
+  assert.equal(api.getConstructionTakeoff().partitionTJunctionsCount,1);
+});
+
+test('V4.9.3 API: clic dentro de tabique existente rechaza sin alterar estado', () => {
+  const { api } = fixture();
+  good(api.addPartition({axis:'z',autoSpan:true,thickness:.1,height:2.3}));
+  const before=api.getState();
+  const result=api.addPartition({axis:'x',cx:0,cz:0,autoFit:true,thickness:.1,height:2.3});
+  assert.equal(result.ok,false);
+  assert.match(result.error,/ocupado/);
+  assert.deepEqual(api.getState(),before);
+});
+
+test('V4.9.3 API: positivo y negativo respetan clic, no se centran por ambos lados', () => {
+  const a=fixture(),b=fixture();
+  const positive=a.api.addPartition({axis:'x',cx:1,cz:0,height:2.3,thickness:.1,autoFit:true,fitDirection:'positive'});
+  const negative=b.api.addPartition({axis:'x',cx:1,cz:0,height:2.3,thickness:.1,autoFit:true,fitDirection:'negative'});
+  good(positive);good(negative);
+  assert.ok(Math.abs(positive.partition.length-1.92) < 1e-8);
+  assert.ok(Math.abs(negative.partition.length-3.92) < 1e-8);
+  assert.ok(Math.abs((positive.partition.cx-positive.partition.length/2)-1)<1e-8);
+  assert.ok(Math.abs((negative.partition.cx+negative.partition.length/2)-1)<1e-8);
+});
+
+test('V4.9.3 API: modos incompatibles e invalidaciones no alteran estado', () => {
+  const {api}=fixture();
+  const before=api.getState();
+  for (const args of [
+    {axis:'z',autoSpan:true,autoFit:true},
+    {axis:'x',autoFit:true,autoPlace:true},
+    {axis:'x',autoFit:true,fitDirection:'up'},
+    {axis:'x',cx:100,autoFit:true},
+    {axis:'z',cz:0,autoFit:'yes'}
+  ]) assert.equal(api.addPartition(args).ok,false,JSON.stringify(args));
+  assert.deepEqual(api.getState(),before);
 });
