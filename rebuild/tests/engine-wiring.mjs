@@ -157,3 +157,20 @@ test('V4.8: zona real de baño enlazada a selección de recinto, render y JSON',
     assert.ok(ui.includes("$('"+id+"')"));
   }
 });
+
+
+test('V4.9: orientación de piso conectada a motor, UI, JSON y textura', () => {
+  assert.match(html, /id="floor-direction"/);
+  assert.match(html, /value="length"/);
+  assert.match(html, /value="width"/);
+  assert.match(ui, /api\.setFloorDirection\(event\.target\.value\)/);
+  assert.match(ui, /dirSelect\.value = state\.floorDirection/);
+  assert.match(ui, /state\.floorDirection \|\| 'length'/);
+  assert.match(engine, /setFloorDirection\(direction\)/);
+  assert.match(engine, /material\.map\.rotation = direction === 'width'/);
+  assert.match(engine, /orientFloorMaterial\(floorMat, state\.floorDirection\)/);
+  assert.match(engine, /orientFloorMaterial\(bathMaterial, state\.floorDirection\)/);
+  assert.match(engine, /floorDirection = s\.floorDirection === undefined \? 'length'/);
+  assert.match(engine, /bathFloor: cleanBathFloor, floorDirection/);
+  assert.match(engine, /floorMat = m\.wood\.clone\(\)/);
+});

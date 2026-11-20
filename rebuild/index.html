@@ -267,6 +267,13 @@ html,body{overflow:auto;height:auto;min-height:100%}
     <label>Color<input id="dC" type="color"></label>
   </div>
   <button id="bDims">Aplicar dimensiones</button>
+  <label for="floor-direction">Orientación del piso
+    <select id="floor-direction" aria-label="Orientación de instalación del piso">
+      <option value="length">A lo largo del contenedor (eje L)</option>
+      <option value="width">A lo ancho del contenedor (eje W)</option>
+    </select>
+  </label>
+  <small class="tiny">La orientación gira el dibujo de las texturas con veta o patrón. No cambia la superficie cubicada ni el material seleccionado.</small>
   <label class="chk"><input id="strict-face-lock" type="checkbox" checked> Restringir objetos a caras interiores y perfiles válidos</label>
   <h4>Puertas y ventanas</h4>
   <div class="row">

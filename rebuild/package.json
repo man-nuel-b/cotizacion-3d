@@ -1,7 +1,7 @@
 {
   "name": "bat-cubikeitor-v2-editor",
   "private": true,
-  "version": "2.8.0-bath-floor-visible.1",
+  "version": "2.9.0-floor-direction.1",
   "type": "module",
   "description": "Editor 3D modular con cubicación geométrica preliminar, sin APU ni precios.",
   "scripts": {

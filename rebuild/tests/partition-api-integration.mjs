@@ -23,7 +23,7 @@ const apiCode = source.slice(start, end + 3);
 function fixture() {
   const state = {
     type: 'maritimo', L: 6, W: 2.4, H: 2.5, color: '#999999', openings: [],
-    partitions: [], interiorDoors: [], objects: [], services: [], sharedWalls: [], bathFloor: null,
+    partitions: [], interiorDoors: [], objects: [], services: [], sharedWalls: [], bathFloor: null, floorDirection: 'length',
     finishes: { floor: null, ceiling: null, skirting: null,
       walls: { A: null, B: null, C: null, D: null } },
     seeInside: true, nextId: 1
@@ -483,4 +483,39 @@ test('API V4.8: zona manual funciona sin tabiques, pero el recinto automático e
   assert.equal(placed.bathFloor.cx,0);
   assert.equal(placed.bathFloor.cz,0);
   assert.equal(placed.bathFloor.length,1.6);
+});
+
+
+test('API V4.9: cambiar orientación es seguro y mantiene estado y cubicación', () => {
+  const { api, state } = fixture();
+  const initial = api.getConstructionTakeoff().floorAreaM2;
+  const invalid = api.setFloorDirection('diagonal');
+  assert.equal(invalid.ok, false);
+  assert.equal(state.floorDirection, 'length');
+  assert.equal(api.setFloorDirection('width').ok, true);
+  assert.equal(state.floorDirection, 'width');
+  assert.equal(api.getConstructionTakeoff().floorAreaM2, initial);
+  assert.equal(api.setFloorDirection('length').ok, true);
+  assert.equal(api.getState().floorDirection, 'length');
+});
+
+test('API V4.9: JSON restaura dirección; respaldos anteriores usan length; valores inválidos se rechazan sin cambios', () => {
+  const { api, state } = fixture();
+  assert.equal(api.setFloorDirection('width').ok, true);
+  const saved = api.getState();
+  assert.equal(api.setState(saved).ok, true);
+  assert.equal(api.getState().floorDirection, 'width');
+  const legacy = structuredClone(saved);
+  delete legacy.floorDirection;
+  assert.equal(api.setState(legacy).ok, true);
+  assert.equal(state.floorDirection, 'length');
+  const bad = structuredClone(saved);
+  bad.floorDirection = 'other';
+  const result = api.setState(bad);
+  assert.equal(result.ok, false);
+  assert.match(result.error, /Orientación del piso/);
+  assert.equal(state.floorDirection, 'length');
+  assert.equal(api.setFloorDirection('width').ok, true);
+  assert.equal(api.setType('maritimo').ok, true);
+  assert.equal(state.floorDirection, 'length');
 });
