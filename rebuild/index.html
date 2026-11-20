@@ -221,16 +221,19 @@ html,body{overflow:auto;height:auto;min-height:100%}
     <span class="tiny">Cubicación geométrica preliminar sin precios ni APU.</span>
     <details id="bath-floor-config">
       <summary>Asignar piso de baño y superficie restante</summary>
-      <p class="tiny">Reserva cuantitativa: define largo, ancho y partida de piso. No posiciona una habitación en la escena 3D.</p>
+      <p class="tiny">Elige el material y pulsa <strong>Aplicar piso al recinto</strong>. Después haz clic dentro del baño en el visor 3D: detectaremos sus límites rectangulares entre tabiques y veremos el piso terminado.</p>
       <div class="row">
         <label>Partida de piso<select id="bath-floor-code" aria-label="Piso del baño"></select></label>
         <label>Largo baño (m)<input id="bath-floor-length" type="number" value="2.00" min="0.01" step="0.05"></label>
         <label>Ancho baño (m)<input id="bath-floor-width" type="number" value="1.20" min="0.01" step="0.05"></label>
       </div>
+      <button id="bath-floor-select-room" type="button">Aplicar piso al recinto (clic 3D)</button>
+      <button id="bath-floor-place-rect" type="button" class="alt">Ubicar zona de estas medidas (clic 3D)</button>
       <div class="property-buttons">
-        <button id="bath-floor-apply" type="button">Aplicar piso baño</button>
+        <button id="bath-floor-apply" type="button" class="alt">Reservar solo m²</button>
         <button id="bath-floor-clear" type="button" class="alt">Quitar piso baño</button>
       </div>
+      <small class="tiny">El reconocimiento automático exige un recinto rectangular delimitado por tabiques. En un baño abierto o irregular, usa «Ubicar zona» y haz clic en el centro del rectángulo. Esc cancela la selección.</small>
       <small id="bath-floor-message" class="tiny" role="status"></small>
     </details>
     <details id="shared-wall-config">

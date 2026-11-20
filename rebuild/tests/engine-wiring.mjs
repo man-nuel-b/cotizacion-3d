@@ -131,7 +131,7 @@ test('BAT V4.6: vista previa de arrastre, imán y conexión T/L están conectada
 
 
 test('Piso baño: conectores API, panel y JSON legado están presentes', () => {
-  assert.match(engine, /setBathFloor\(\{ code, length, width \}/);
+  assert.match(engine, /setBathFloor\(\{ code, length, width/);
   assert.match(engine, /clearBathFloor\(\)/);
   assert.match(engine, /bathFloor: cleanBathFloor/);
   assert.match(engine, /validateBathFloor\(state\.bathFloor, nextRef/);
@@ -140,5 +140,20 @@ test('Piso baño: conectores API, panel y JSON legado están presentes', () => {
   for (const name of ['bath-floor-code', 'bath-floor-length', 'bath-floor-width', 'bath-floor-apply', 'bath-floor-clear']) {
     assert.ok(html.includes('id="' + name + '"'));
     assert.ok(ui.includes("$('" + name + "')"));
+  }
+});
+
+
+test('V4.8: zona real de baño enlazada a selección de recinto, render y JSON', () => {
+  assert.match(engine,/detectRectangularRoomAt/);
+  assert.match(engine,/applyBathFloorAt\(/);
+  assert.match(engine,/finish\.userData\.isBathFloor = true/);
+  assert.match(engine,/getBathFloorBounds\(/);
+  assert.match(engine,/cleanBathFloor\.cx =/);
+  assert.match(ui,/armBathFloorPlacement\(/);
+  assert.match(ui,/api\.applyBathFloorAt\(/);
+  for(const id of ['bath-floor-select-room','bath-floor-place-rect']) {
+    assert.ok(html.includes('id="'+id+'"'));
+    assert.ok(ui.includes("$('"+id+"')"));
   }
 });

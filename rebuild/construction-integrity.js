@@ -550,6 +550,114 @@ export function validateBathFloor(bathFloor, containerDims, panelThickness = nul
   if (length * width > containerDims.L * containerDims.W + 1e-8) {
     return 'La superficie del baño supera el piso total';
   }
+  return validateBathPlacement(bathFloor, containerDims, panelThickness);
+}
+
+/**
+ * Detect a *rectangular* enclosure in plan view from the actual axis-aligned
+ * footprints of interior partitions. A partition is considered a room boundary
+ * even when it has a door: doors separate named rooms for finish selection.
+ * Partial/open and nonrectangular regions are intentionally rejected.
+ * The visible region is inside structural-clearance limits, not L×W gross.
+ */
+export function detectRectangularRoomAt(point, ref, panelThickness) {
+  const failed = error => ({ ok: false, error });
+  if (!point || ![point.x, point.z, ref?.L, ref?.W].every(finite)) {
+    return failed('Haz clic en una posición válida del piso');
+  }
+  if (!Array.isArray(ref.partitions) || ref.partitions.length === 0) {
+    return failed('Primero crea tabiques que delimiten el baño; también puedes ubicar una zona por clic');
+  }
+  const margin = interiorClearance(panelThickness);
+  const minX = -ref.L / 2 + margin, maxX = ref.L / 2 - margin;
+  const minZ = -ref.W / 2 + margin, maxZ = ref.W / 2 - margin;
+  if (point.x <= minX || point.x >= maxX || point.z <= minZ || point.z >= maxZ) {
+    return failed('Selecciona un punto dentro del piso útil del contenedor');
+  }
+  const xs = [minX, maxX], zs = [minZ, maxZ];
+  const blockers = [];
+  for (const p of ref.partitions) {
+    if (!['x', 'z'].includes(p.axis) ||
+        ![p.cx, p.cz, p.length, p.thickness].every(finite) ||
+        p.length <= 0 || p.thickness <= 0) {
+      return failed('Existe un tabique sin geometría válida para detectar recintos');
+    }
+    const b = partitionAABB(p);
+    const x0 = Math.max(minX, b.x - b.rx), x1 = Math.min(maxX, b.x + b.rx);
+    const z0 = Math.max(minZ, b.z - b.rz), z1 = Math.min(maxZ, b.z + b.rz);
+    if (x1 <= x0 || z1 <= z0) continue;
+    blockers.push({ x0, x1, z0, z1 });
+    xs.push(x0, x1); zs.push(z0, z1);
+  }
+  const unique = values => values.sort((a,b)=>a-b).filter((v,i,arr)=>i===0||v-arr[i-1]>1e-7);
+  const xEdges = unique(xs), zEdges = unique(zs);
+  const nx = xEdges.length - 1, nz = zEdges.length - 1;
+  if (nx < 1 || nz < 1 || nx * nz > 300000) {
+    return failed('El plano es demasiado complejo para detectar automáticamente un recinto');
+  }
+  const locate = (value, edges) => {
+    let lo=0, hi=edges.length-1;
+    while (lo+1<hi) { const mid=(lo+hi)>>1; if (value < edges[mid]) hi=mid; else lo=mid; }
+    return lo;
+  };
+  const blocked = new Uint8Array(nx*nz);
+  for (let j=0;j<nz;j++) for(let i=0;i<nx;i++) {
+    const x=(xEdges[i]+xEdges[i+1])/2, z=(zEdges[j]+zEdges[j+1])/2;
+    if (blockers.some(b=> x>b.x0+1e-9 && x<b.x1-1e-9 && z>b.z0+1e-9 && z<b.z1-1e-9)) {
+      blocked[j*nx+i]=1;
+    }
+  }
+  const startI=locate(point.x,xEdges), startJ=locate(point.z,zEdges);
+  const start=startJ*nx+startI;
+  if (blocked[start]) return failed('Haz clic sobre el piso libre, no encima de un tabique');
+  const visited=new Uint8Array(nx*nz), queue=[start];
+  visited[start]=1;
+  let minI=startI,maxI=startI,minJ=startJ,maxJ=startJ,area=0;
+  for(let index=0;index<queue.length;index++) {
+    const cell=queue[index],i=cell%nx,j=Math.floor(cell/nx);
+    area+=(xEdges[i+1]-xEdges[i])*(zEdges[j+1]-zEdges[j]);
+    minI=Math.min(minI,i);maxI=Math.max(maxI,i);
+    minJ=Math.min(minJ,j);maxJ=Math.max(maxJ,j);
+    for(const n of [i>0?cell-1:-1, i<nx-1?cell+1:-1,
+                    j>0?cell-nx:-1,j<nz-1?cell+nx:-1]) {
+      if(n>=0 && !blocked[n] && !visited[n]) {visited[n]=1;queue.push(n);}
+    }
+  }
+  const x0=xEdges[minI], x1=xEdges[maxI+1], z0=zEdges[minJ], z1=zEdges[maxJ+1];
+  const length=x1-x0,width=z1-z0,rectangleArea=length*width;
+  if(length<0.4 || width<0.4) return failed('El recinto detectado es demasiado pequeño');
+  if(Math.abs(rectangleArea-area)>Math.max(1e-5,rectangleArea*1e-5)) {
+    return failed('El espacio tiene una forma abierta o irregular; delimita un recinto rectangular con tabiques o usa zona manual');
+  }
+  // Reject the entire container interior: that means the partitions do not
+  // divide the area into closed rooms. Do not silently tile the whole module.
+  if(Math.abs(rectangleArea-(maxX-minX)*(maxZ-minZ))<1e-5) {
+    return failed('No se encontró un recinto separado: cierra el baño con tabiques antes de seleccionarlo');
+  }
+  return {ok:true, length, width, cx:(x0+x1)/2, cz:(z0+z1)/2, areaM2:rectangleArea};
+}
+
+/** Validate optional placement coordinates while preserving older area-only JSON. */
+export function validateBathPlacement(bathFloor, ref, panelThickness) {
+  if (bathFloor == null) return null;
+  const hasX=Object.prototype.hasOwnProperty.call(bathFloor,'cx');
+  const hasZ=Object.prototype.hasOwnProperty.call(bathFloor,'cz');
+  if (hasX!==hasZ) return 'La ubicación del piso del baño necesita Centro X y Centro Z';
+  if(!hasX) return null; // Legacy quantitative allocation, not drawn.
+  if (![bathFloor.cx,bathFloor.cz].every(finite)) return 'Coordenadas del piso de baño inválidas';
+  const margin = panelThickness == null ? 0 : interiorClearance(panelThickness);
+  const lx=ref.L/2-margin, lz=ref.W/2-margin;
+  const hx=bathFloor.length/2, hz=bathFloor.width/2;
+  if(Math.abs(bathFloor.cx)+hx>lx+1e-8 || Math.abs(bathFloor.cz)+hz>lz+1e-8) {
+    return 'El piso del baño invade perfiles o excede los límites interiores';
+  }
+  for(const p of ref.partitions||[]) {
+    const b=partitionAABB(p);
+    if(Math.abs(bathFloor.cx-b.x)<hx+b.rx-1e-8 &&
+       Math.abs(bathFloor.cz-b.z)<hz+b.rz-1e-8) {
+      return 'El piso del baño se superpone con un tabique; vuelve a seleccionar el recinto';
+    }
+  }
   return null;
 }
 
@@ -680,6 +788,8 @@ export function computeWallTakeoff(state) {
   const remainingFloorAreaM2 = Math.max(0, floorAreaM2 - bathFloorAreaM2);
   const bathFloor = rawBath ? {
     code: rawBath.code, lengthM: rawBath.length, widthM: rawBath.width,
+    positioned: Number.isFinite(rawBath.cx) && Number.isFinite(rawBath.cz),
+    cx: rawBath.cx ?? null, cz: rawBath.cz ?? null,
     areaM2: bathFloorAreaM2
   } : null;
   const generalFloorCode = state.finishes?.floor || null;
