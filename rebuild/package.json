@@ -1,11 +1,11 @@
 {
   "name": "bat-cubikeitor-v2-editor",
   "private": true,
-  "version": "2.10.0-contextual-inspector.1",
+  "version": "2.11.0-live-docked-inspector.1",
   "type": "module",
   "description": "Editor 3D modular con cubicación geométrica preliminar, sin APU ni precios.",
   "scripts": {
-    "test:geometry": "node --test tests/editor-placement-once.mjs tests/construction-integrity.mjs tests/bath-floor-3d.mjs tests/partition-layers-doors.mjs tests/partition-api-integration.mjs tests/engine-wiring.mjs tests/resource-disposal.mjs tests/roof-alignment.mjs tests/wall-cutaway.mjs tests/free-partition-span.mjs tests/click-fit-partition.mjs tests/inspector-wiring.mjs",
+    "test:geometry": "node --test tests/editor-placement-once.mjs tests/construction-integrity.mjs tests/bath-floor-3d.mjs tests/partition-layers-doors.mjs tests/partition-api-integration.mjs tests/engine-wiring.mjs tests/resource-disposal.mjs tests/roof-alignment.mjs tests/wall-cutaway.mjs tests/free-partition-span.mjs tests/click-fit-partition.mjs tests/inspector-wiring.mjs tests/live-inspector-wiring.mjs",
     "test:catalog": "node --test tests/catalog-geometry.mjs",
     "test:e2e": "node --test tests/editor-smoke.mjs",
     "test": "npm run test:geometry && npm run test:catalog && npm run test:e2e"

@@ -50,6 +50,16 @@ async function close({ server, browser }) {
   if (server) await new Promise(resolve => server.close(resolve));
 }
 
+async function revealMainPanel(page) {
+  if (await page.locator('#selection-inspector').isVisible()) {
+    await page.locator('#close-inspector').click();
+  }
+}
+async function clickVisibleModelCenter(page) {
+  const screen = await page.evaluate(() => window.Container3D.getScreenPoint(0, .148, 0));
+  await page.mouse.click(screen.x, screen.y);
+}
+
 test('BAT V2: catálogo 60 partidas, selección de objetos, edición y exportación', { timeout: 180000 }, async () => {
   let fixture;
   try {
@@ -142,6 +152,7 @@ test('BAT V2 reforzado: esquineros, zona compartida, cubicación por cara y JSON
       type: 'window', face: 'A', w: 1.2, h: 1, u: 1.0, v: 0.9, bars: false
     }));
     assert.equal(valid.ok, true);
+    await revealMainPanel(page);
     await page.locator('#shared-wall-config summary').click();
     await page.locator('#shared-face').selectOption('A');
     await page.locator('#shared-u').fill('3');
@@ -399,7 +410,7 @@ test('BAT V4.4.1: catálogo se desarma tras un solo objeto o ensamble', { timeou
     await canvas.click({ position: { x: 720, y: 450 } });
     await page.waitForFunction(() => window.Container3D.getState().objects.length === 1);
     assert.doesNotMatch(await page.locator('.catalog-item[data-code="P60"]').getAttribute('class'), /active/, 'Catálogo debe quedar desarmado');
-    await canvas.click({ position: { x: 720, y: 450 } });
+    await clickVisibleModelCenter(page);
     assert.equal((await page.evaluate(() => window.Container3D.getState())).objects.length, 1, 'El segundo clic no debe duplicar P60');
 
     await page.evaluate(() => {
@@ -410,7 +421,7 @@ test('BAT V4.4.1: catálogo se desarma tras un solo objeto o ensamble', { timeou
     await canvas.click({ position: { x: 720, y: 450 } });
     await page.waitForFunction(() => window.Container3D.getState().objects.some(o => o.code === 'P12'));
     assert.doesNotMatch(await page.locator('.catalog-item[data-code="P12"]').getAttribute('class'), /active/);
-    await canvas.click({ position: { x: 720, y: 450 } });
+    await clickVisibleModelCenter(page);
     const added = await page.evaluate(() => window.Container3D.getState().objects.filter(o => o.code === 'P12').length);
     assert.equal(added, 1, 'El segundo clic no debe duplicar el ensamble P12');
     assert.deepEqual(errors, [], errors.join('\n'));
@@ -584,6 +595,7 @@ test('UI: piso de baño, área restante, rechazo de dimensiones y borrado', { ti
   try {
     fixture = await prepare();
     const { page, errors } = fixture;
+    await revealMainPanel(page);
     await page.locator('#bath-floor-config summary').click();
     await page.locator('#bath-floor-code').selectOption('P05');
     await page.locator('#bath-floor-length').fill('2');
@@ -617,6 +629,7 @@ test('V4.8: clic sobre recinto rectangular aplica P06 visible en el piso 3D, sin
       axis:'z',cx:2,cz:0,height:2.3,thickness:.1,autoSpan:true
     }));
     assert.equal(made.ok,true,made.error);
+    await revealMainPanel(page);
     await page.locator('#bath-floor-config summary').click();
     await page.locator('#bath-floor-code').selectOption('P06');
     await page.locator('#bath-floor-select-room').click();
@@ -658,6 +671,7 @@ test('V4.8: reserva anterior sin posición se puede importar y colocar manualmen
     const legacy=await page.evaluate(() => window.Container3D.setBathFloor({code:'P05',length:1.5,width:1.1}));
     assert.equal(legacy.ok,true,legacy.error);
     assert.equal(await page.evaluate(() => window.Container3D.getBathFloorBounds()),null);
+    await revealMainPanel(page);
     await page.locator('#bath-floor-config summary').click();
     await page.locator('#bath-floor-length').fill('1.5');
     await page.locator('#bath-floor-width').fill('1.1');
@@ -862,11 +876,16 @@ test('V4.10: seleccionar tabique abre ficha contextual con geometría, capas, un
     }
     const layout = await page.evaluate(() => {
       const drawer = document.querySelector('#selection-inspector').getBoundingClientRect();
+      const stage = document.querySelector('#view').getBoundingClientRect();
       const body = document.querySelector('#inspector-body');
-      return { right: drawer.right, width: drawer.width, scroll: body.scrollHeight - body.clientHeight };
+      return { right: drawer.right, left: drawer.left, width: drawer.width,
+        stageWidth: stage.width, stageRight: stage.right,
+        scroll: body.scrollHeight - body.clientHeight };
     });
-    assert.ok(layout.width >= 600 && layout.right <= 1522, 'Ficha contextual amplia dentro de pantalla');
-    assert.ok(layout.scroll <= 25, 'En ventana baja el editor reduce el desplazamiento vertical');
+    assert.ok(layout.width >= 420 && layout.right <= 1522, 'Inspector acoplado dentro de pantalla');
+    assert.ok(layout.stageWidth >= 550 && layout.stageRight <= layout.left - 8,
+      'Visor 3D sin superposición con el inspector');
+    assert.ok(layout.scroll <= 190, 'En ventana baja puede desplazar la ficha sin cubrir la escena');
 
     await page.locator('#part-face-a').selectOption('P30');
     assert.equal(await page.evaluate(() => window.Container3D.getState().partitions[0].faceALining), 'P30');
@@ -910,6 +929,51 @@ test('V4.10: selección de ventana muestra barrotes y conserva un único formula
     await page.locator('#inspector-opening-bars').check();
     const changed = await page.evaluate(() => window.Container3D.getState().openings[0].bars);
     assert.equal(changed, true);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
+
+
+test('V4.11: inspector acoplado permite ver el modelo y editar medidas en vivo con deshacer',
+  { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    const added = await page.evaluate(() => window.Container3D.addPartition({
+      axis: 'z', autoSpan: true, thickness: .1, height: 2.3
+    }));
+    assert.equal(added.ok, true, JSON.stringify(added));
+    const boxes = await page.evaluate(() => {
+      const view = document.querySelector('#view').getBoundingClientRect();
+      const inspector = document.querySelector('#selection-inspector').getBoundingClientRect();
+      const canvas = document.querySelector('#view canvas').getBoundingClientRect();
+      return { left: inspector.left, viewRight: view.right, viewWidth: view.width,
+        canvasWidth: canvas.width, catalogVisible: getComputedStyle(document.querySelector('#catalog-panel')).display !== 'none' };
+    });
+    assert.ok(boxes.viewWidth > 450, 'Modelo conserva un área amplia para ver cambios');
+    assert.ok(boxes.viewRight <= boxes.left - 6, 'Inspector nunca cubre el visor 3D');
+    assert.equal(boxes.canvasWidth, boxes.viewWidth, 'WebGL adapta su tamaño al área de trabajo');
+    assert.equal(boxes.catalogVisible, true);
+
+    await page.locator('#prop-x').fill('1.2');
+    await page.waitForFunction(() => Math.abs(window.Container3D.getState().partitions[0].cx - 1.2) < 1e-9);
+    assert.equal(await page.locator('#inspector-undo').isEnabled(), true);
+    await page.locator('#prop-x').fill('100');
+    await page.waitForFunction(() => document.querySelector('#prop-x').getAttribute('aria-invalid') === 'true');
+    assert.equal((await page.evaluate(() => window.Container3D.getState())).partitions[0].cx, 1.2,
+      'Posición fuera de los límites no puede cambiar la escena');
+    await page.locator('#inspector-undo').click();
+    await page.waitForFunction(() => Math.abs(window.Container3D.getState().partitions[0].cx) < 1e-9);
+    assert.equal(await page.locator('#inspector-undo').isDisabled(), true);
+
+    await page.locator('#toggle-catalog-inspector').click();
+    assert.equal(await page.locator('#catalog-panel').isVisible(), false);
+    const expanded = await page.locator('#view').boundingBox();
+    assert.ok(expanded.width > boxes.viewWidth + 200);
+    await page.locator('#close-inspector').click();
+    assert.equal(await page.locator('#selection-inspector').isVisible(), false);
+    assert.equal(await page.locator('#catalog-panel').isVisible(), true);
     assert.deepEqual(errors, [], errors.join('\n'));
   } finally { if (fixture) await close(fixture); }
 });
