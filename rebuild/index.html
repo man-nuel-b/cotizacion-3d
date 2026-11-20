@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BAT-CUBIKEITOR V4.10 | Editor modular 3D</title>
+<title>BAT-CUBIKEITOR V4.11 | Editor modular 3D</title>
 <style>
 html, body{margin:0;height:100%;background:#dfe3e8;font-family:system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden}
 #view{position:fixed;inset:0}
@@ -153,6 +153,61 @@ html,body{overflow:auto;height:auto;min-height:100%}
   .inspector-eyebrow{font-size:9px}
   #properties-title{font-size:15px}
 }
+
+/* V4.11: espacio de trabajo real, sin paneles superpuestos al modelo. */
+body.inspector-docked #panel{display:none!important}
+body.inspector-docked #view{right:min(486px,40vw);left:324px;transition:none}
+body.inspector-docked.catalog-collapsed #catalog-panel{display:none!important}
+body.inspector-docked.catalog-collapsed #view{left:0}
+#selection-inspector,
+#selection-inspector[data-layout="assembly"],
+#selection-inspector[data-layout="basic"]{
+  top:12px;right:12px;left:auto;bottom:12px;
+  width:min(460px,calc(40vw - 24px));max-width:none;
+  border-radius:14px;box-shadow:0 4px 20px rgba(13,30,49,.15)
+}
+#props-form, #selection-inspector[data-layout="assembly"] #props-form{
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  grid-template-areas:"geometry materials" "options junction";
+  align-content:start;
+}
+#selection-inspector[data-layout="basic"] #props-form{grid-template-columns:1fr;grid-template-areas:"geometry"}
+#selection-inspector[data-layout="assembly"] #props-form{grid-template-areas:"geometry options"}
+#selection-inspector .inspector-card .tiny{display:none}
+#inspector-feedback{font-size:11px}
+.inspector-header{justify-content:flex-start}
+.inspector-heading{flex:1}
+#toggle-catalog-inspector{min-width:104px;font-size:10.5px}
+#inspector-live-metrics{font-size:10.5px;color:#45667f;white-space:nowrap;flex:none}
+@media(max-width:1150px){#inspector-live-metrics{display:none}}
+#inspector-undo{width:auto;flex:none;background:#e3edf8;color:#24486c;border:1px solid #c9dcec;border-radius:7px;padding:8px 10px;font-size:11px}
+#inspector-undo:disabled{opacity:.42}
+#inspector-live-note{margin:0;display:flex;align-items:center;gap:6px;color:#2b5b72;font-size:10.5px;line-height:1.35}
+#inspector-live-note::before{content:"●";color:#16a36b;font-size:11px}
+body.inspector-docked #scene-hint{left:calc((100% - min(486px,40vw))/2);max-width:calc(100% - min(486px,40vw) - 30px)}
+@media(max-width:1120px){
+  body.inspector-docked #view{right:min(488px,44vw);left:0}
+  body.inspector-docked #catalog-panel{display:none!important}
+  #selection-inspector,#selection-inspector[data-layout="assembly"],#selection-inspector[data-layout="basic"]{width:min(466px,calc(44vw - 22px));right:10px}
+  body.inspector-docked #scene-hint{left:calc((100% - min(488px,44vw))/2);max-width:calc(100% - min(488px,44vw) - 20px)}
+}
+@media(max-width:780px){
+  body.inspector-docked{overflow:auto;height:auto;min-height:100vh}
+  body.inspector-docked #catalog-panel{display:none!important}
+  body.inspector-docked #view{position:relative;inset:auto;height:43vh;min-height:280px;margin:0;right:auto;left:auto;width:100%}
+  body.inspector-docked #selection-inspector,
+  body.inspector-docked #selection-inspector[data-layout="assembly"],
+  body.inspector-docked #selection-inspector[data-layout="basic"]{
+    position:relative;inset:auto;width:calc(100% - 16px);max-width:none;
+    height:auto;min-height:390px;margin:8px;overflow:visible
+  }
+  body.inspector-docked #inspector-body{overflow:visible;max-height:none}
+  body.inspector-docked #scene-hint{position:absolute;left:50%;top:calc(43vh - 35px);bottom:auto;max-width:calc(100% - 20px)}
+}
+@media(max-width:480px){
+  #props-form,#selection-inspector[data-layout="assembly"] #props-form{grid-template-columns:1fr;grid-template-areas:"geometry" "materials" "options" "junction"}
+  #inspector-footer{flex-wrap:wrap;gap:5px}
+}
 </style>
 <script type="importmap">
 {
@@ -167,7 +222,7 @@ html,body{overflow:auto;height:auto;min-height:100%}
 <div id="view"></div>
 <aside id="catalog-panel" aria-label="Catálogo técnico 3D">
   <div class="catalog-heading">
-    <strong>BAT-CUBIKEITOR <span style="color:#d78d12">V4.10</span></strong>
+    <strong>BAT-CUBIKEITOR <span style="color:#d78d12">V4.11</span></strong>
     <p>Catálogo de 60 partidas · selecciona un elemento y haz clic en el contenedor</p>
   </div>
   <div class="catalog-fields">
@@ -398,7 +453,9 @@ html,body{overflow:auto;height:auto;min-height:100%}
       <span class="inspector-eyebrow">EDITAR ELEMENTO SELECCIONADO</span>
       <div id="inspector-heading-target"></div>
       <div id="inspector-subtitle">Posición, dimensiones y características técnicas</div>
+      <p id="inspector-live-note">Los cambios válidos se muestran en el modelo mientras editas.</p>
     </div>
+    <button id="toggle-catalog-inspector" type="button" class="inspector-close alt">Ocultar catálogo</button>
     <button id="close-inspector" type="button" class="inspector-close alt" aria-label="Ocultar ficha de edición">Ocultar <span aria-hidden="true">×</span></button>
   </header>
   <div id="inspector-body">
@@ -407,7 +464,9 @@ html,body{overflow:auto;height:auto;min-height:100%}
     </div>
   </div>
   <footer id="inspector-footer">
-    <div id="inspector-feedback" role="status" aria-live="polite">Los cambios se validan antes de guardarse.</div>
+    <div id="inspector-feedback" role="status" aria-live="polite">Edición en vivo habilitada.</div>
+    <span id="inspector-live-metrics" class="inspector-metrics" aria-live="polite"></span>
+    <button id="inspector-undo" type="button" class="alt" disabled>Deshacer último cambio</button>
     <div id="inspector-actions"></div>
   </footer>
 </aside>

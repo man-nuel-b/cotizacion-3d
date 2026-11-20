@@ -69,7 +69,7 @@ function setProfile(c) {
 const view = document.getElementById('view');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
+renderer.setSize(Math.max(1, view.clientWidth || innerWidth), Math.max(1, view.clientHeight || innerHeight));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -107,7 +107,7 @@ ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
 
-const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 400);
+const camera = new THREE.PerspectiveCamera(40, Math.max(1, view.clientWidth || innerWidth) / Math.max(1, view.clientHeight || innerHeight), 0.1, 400);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.maxPolarAngle = Math.PI / 2 - 0.02;
@@ -128,11 +128,17 @@ function frameCamera() {
   cameraMoved = true;
 }
 
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
+function resizeSceneToViewport() {
+  const width = Math.max(1, view.clientWidth || innerWidth);
+  const height = Math.max(1, view.clientHeight || innerHeight);
+  camera.aspect = width / height;
   camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
+  renderer.setSize(width, height);
+}
+addEventListener('resize', resizeSceneToViewport);
+// Cambiar del modo libre a inspector acoplado modifica el viewport sin cambiar
+// el tamaño de la ventana. ResizeObserver mantiene cámara y canvas sincronizados.
+if (typeof ResizeObserver !== 'undefined') new ResizeObserver(resizeSceneToViewport).observe(view);
 
 /* ============ Texturas procedurales ============ */
 function canvasTex(size, draw, srgb = true) {

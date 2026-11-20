@@ -56,15 +56,29 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
 
   let lastSelectionKey = null;
   let inspectorDismissedKey = null;
+  let liveTimer = null;
+  let liveApplying = false;
+  let lastLiveUndo = null;
+  function syncStageLayout() {
+    const docked = !inspector.hidden;
+    const changed = document.body.classList.contains('inspector-docked') !== docked;
+    document.body.classList.toggle('inspector-docked', docked);
+    if (changed) requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+  }
   function syncInspector(selection) {
     const key = selection ? selection.kind + ':' + selection.id : null;
     if (key !== lastSelectionKey) {
       lastSelectionKey = key;
       inspectorDismissedKey = null;
+      if (liveTimer) clearTimeout(liveTimer);
+      liveTimer = null;
+      lastLiveUndo = null;
+      $('inspector-undo').disabled = true;
       $('inspector-feedback').textContent = 'Los cambios se validan antes de guardarse.';
       $('inspector-feedback').classList.remove('error');
     }
     inspector.hidden = !key || inspectorDismissedKey === key;
+    syncStageLayout();
     $('open-inspector').hidden = !key;
     if (key) $('open-inspector').textContent = 'Editar elemento seleccionado · ' + selection.kind;
   }
@@ -72,12 +86,19 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     const selection = api.getSelected();
     if (selection) inspectorDismissedKey = selection.kind + ':' + selection.id;
     inspector.hidden = true;
+    syncStageLayout();
   }
+  $('toggle-catalog-inspector').addEventListener('click', () => {
+    const collapsed = document.body.classList.toggle('catalog-collapsed');
+    $('toggle-catalog-inspector').textContent = collapsed ? 'Mostrar catálogo' : 'Ocultar catálogo';
+    requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
+  });
   $('close-inspector').addEventListener('click', hideInspector);
   $('open-inspector').addEventListener('click', () => {
     if (!api.getSelected()) return;
     inspectorDismissedKey = null;
     inspector.hidden = false;
+    syncStageLayout();
     $('prop-x').focus({ preventScroll: true });
   });
 
@@ -375,6 +396,9 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       ])
     ];
 
+    const metrics = $('inspector-live-metrics');
+    if (metrics) metrics.textContent = `Tabiques ${t.totalPartitionBothFacesAreaM2.toFixed(2)} m² · Placas ${t.totalPartitionLiningAreaM2.toFixed(2)} m²`;
+
     for (const [label, val] of rows) {
       const spanL = document.createElement('span'); spanL.textContent = label;
       const spanV = document.createElement('strong'); spanV.textContent = val;
@@ -477,6 +501,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
         'T: rama perpendicular al centro. L: rama perpendicular en el extremo indicado. Ambas llegan a otro muro o al perímetro sin invadirlo.';
     }
     $('prop-apply').hidden = false;
+    $('prop-apply').textContent = 'Validar medidas (opcional)';
     $('prop-duplicate').hidden = partition || interiorDoor;
     $('prop-delete').hidden = false;
     for (const k of ['prop-w', 'prop-h']) $(k).closest('label').hidden = false;
@@ -545,6 +570,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
           api.selectEntity(record.kind, record.id);
           inspectorDismissedKey = null;
           inspector.hidden = false;
+          syncStageLayout();
         }
       });
       if (record.kind === 'service') btn.title = 'Quitar servicio (requiere confirmación)';
@@ -553,7 +579,16 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   }
 
   function refresh() {
+    // El motor reconstruye la escena en cada cambio válido. No sobrescribir
+    // el texto que el usuario está escribiendo (p.ej. "2." o "0,1").
+    const focused = liveApplying && document.activeElement?.matches?.('#inspector-body input[type="number"]')
+      ? { node: document.activeElement, value: document.activeElement.value,
+          selection: api.getSelected()?.kind + ':' + api.getSelected()?.id } : null;
     refreshProperties(); refreshPlaced(); refreshTakeoff();
+    if (focused && focused.node.isConnected &&
+        focused.selection === api.getSelected()?.kind + ':' + api.getSelected()?.id) {
+      focused.node.value = focused.value;
+    }
     const dirSelect = $('floor-direction');
     if (dirSelect) dirSelect.value = state.floorDirection || 'length';
   }
@@ -777,6 +812,89 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       hint(result.ok ? 'Ensamblaje girado 90° y centrado. Se conservaron sus medidas.' :
         'No se puede centrar y girar: ' + result.error, !result.ok);
     }
+  });
+
+  // V4.11 — cambio directo del campo hacia API validada; solo cambia UNA propiedad
+  // por evento. No se guardan posiciones inválidas ni se eluden colisiones.
+  function selectionRecord(selection) {
+    if (!selection) return null;
+    const collection = selection.kind === 'partition' ? state.partitions :
+      selection.kind === 'opening' ? state.openings :
+      selection.kind === 'interiorDoor' ? state.interiorDoors : state.objects;
+    return collection.find(record => record.id === selection.id) || null;
+  }
+  function apiUpdateForSelection(selection, delta) {
+    return selection.kind === 'partition' ? api.updatePartition(selection.id, delta) :
+      selection.kind === 'opening' ? api.updateOpening(selection.id, delta) :
+      selection.kind === 'interiorDoor' ? api.updateInteriorDoor(selection.id, delta) :
+      api.updateObject(selection.id, delta);
+  }
+  function livePropertyName(kind, control) {
+    const byKind = {
+      partition: { 'prop-x':'cx', 'prop-z':'cz', 'prop-w':'length', 'prop-h':'height', 'prop-d':'thickness' },
+      opening: { 'prop-x':'u', 'prop-y':'v', 'prop-w':'w', 'prop-h':'h', 'prop-face':'face' },
+      interiorDoor: { 'prop-x':'u', 'prop-w':'w', 'prop-h':'h' },
+      object: { 'prop-x':'x', 'prop-y':'y', 'prop-z':'z', 'prop-rot':'rot', 'prop-w':'w', 'prop-h':'h', 'prop-d':'d' }
+    };
+    return byKind[kind]?.[control] || null;
+  }
+  function applyLiveControl(el) {
+    if (!el || !inspector.contains(el) || el.readOnly || el.disabled) return;
+    const selected = api.getSelected(), record = selectionRecord(selected);
+    if (!record) return;
+    const prop = livePropertyName(selected.kind, el.id);
+    if (!prop) return;
+    const raw = el.value.trim();
+    if (raw === '' || el.validity?.badInput) return;
+    const value = prop === 'face' ? raw : Number(raw.replace(',', '.'));
+    if (prop !== 'face' && !Number.isFinite(value)) return;
+    if (Object.is(record[prop], value)) return;
+    const before = record[prop];
+    liveApplying = true;
+    let result;
+    try { result = apiUpdateForSelection(selected, { [prop]: value }); }
+    finally { liveApplying = false; }
+    if (!result.ok) {
+      el.setAttribute('aria-invalid', 'true');
+      hint('No se puede aplicar: ' + result.error, true);
+      return;
+    }
+    el.removeAttribute('aria-invalid');
+    lastLiveUndo = { kind:selected.kind, id:selected.id, prop, value:before };
+    $('inspector-undo').disabled = false;
+    hint('Vista 3D actualizada · ' + prop + ': ' + (typeof value === 'number' ? Number(value.toFixed(3)) : value));
+  }
+  // Intervalo breve para evitar reconstruir toda la escena mientras se teclea.
+  // El cambio ocurre sin pulsar "Aplicar modificaciones" y conserva el foco.
+  const liveControls = ['prop-x','prop-y','prop-z','prop-rot','prop-w','prop-h','prop-d'];
+  for (const id of liveControls) {
+    const input = $(id);
+    input.addEventListener('input', () => {
+      if (liveTimer) clearTimeout(liveTimer);
+      const key = api.getSelected()?.kind + ':' + api.getSelected()?.id;
+      liveTimer = setTimeout(() => {
+        liveTimer = null;
+        if (key !== api.getSelected()?.kind + ':' + api.getSelected()?.id) return;
+        applyLiveControl(input);
+      }, 170);
+    });
+    input.addEventListener('change', () => {
+      if (liveTimer) clearTimeout(liveTimer);
+      liveTimer = null;
+      applyLiveControl(input);
+    });
+  }
+  $('prop-face').addEventListener('change', event => applyLiveControl(event.target));
+  $('inspector-undo').addEventListener('click', () => {
+    if (!lastLiveUndo) return;
+    const snapshot = lastLiveUndo;
+    const selected = api.getSelected();
+    if (!selected || selected.id !== snapshot.id || selected.kind !== snapshot.kind) return;
+    const result = apiUpdateForSelection(selected, { [snapshot.prop]: snapshot.value });
+    if (!result.ok) { hint('No se pudo deshacer: ' + result.error, true); return; }
+    lastLiveUndo = null;
+    $('inspector-undo').disabled = true;
+    hint('Último cambio de geometría deshecho.');
   });
 
   $('prop-apply').addEventListener('click', () => {
