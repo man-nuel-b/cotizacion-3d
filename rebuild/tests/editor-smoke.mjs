@@ -717,3 +717,41 @@ test('V4.9 piso longitudinal/transversal rota la textura real sin cambiar áreas
     assert.deepEqual(errors, [], errors.join('\n'));
   } finally { if (f) await close(f); }
 });
+
+
+test('V4.9.1: fachada cortada no deja puerta/ventana superpuesta y se restaura al salir', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    const before = await page.evaluate(() => {
+      const api = window.Container3D;
+      const created = api.addOpening({ type: 'window', face: 'A', w: 1.5, h: 1.0, u: 5, v: 1.1 });
+      if (!created.ok) throw Error(created.error);
+      api.setView([3, 3, 8], [0, 0, 0]);
+      return api.getCutawayWallState();
+    });
+    const faceA = before.find(w => w.face === 'A');
+    assert.equal(faceA.visible, true);
+    assert.ok(faceA.openings > 0);
+    assert.ok(faceA.visibleOpenings > 0);
+    const cut = await page.evaluate(() => {
+      window.Container3D.setSeeInside(true);
+      return window.Container3D.getCutawayWallState();
+    });
+    const near = cut.find(w => w.face === 'A');
+    assert.equal(near.hidden, true);
+    assert.equal(near.visible, false);
+    assert.ok(near.openings > 0);
+    assert.equal(near.visibleOpenings, 0,
+      'No pueden quedar aberturas visibles en una fachada retirada');
+    assert.ok(cut.some(w => w.visible), 'Paredes lejanas permanecen visibles');
+    const restored = await page.evaluate(() => {
+      window.Container3D.setSeeInside(false);
+      return window.Container3D.getCutawayWallState();
+    });
+    assert.equal(restored.every(w => w.visible && !w.hidden), true);
+    assert.ok(restored.find(w => w.face === 'A').visibleOpenings > 0);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
