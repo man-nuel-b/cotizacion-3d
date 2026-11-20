@@ -94,10 +94,21 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     raycaster.setFromCamera(mouse, camera); return raycaster;
   }
 
+  // Three.js Raycaster también puede interceptar mallas ocultas por un grupo
+  // padre invisible: excluir TODA la cadena evita seleccionar fachadas retiradas
+  // y colocar ventanas/ensamblajes en muros que el usuario no está viendo.
+  function isSceneVisible(node) {
+    for (let current = node; current; current = current.parent) {
+      if (current.visible === false) return false;
+    }
+    return true;
+  }
+
   function wallHit(ray) {
     const panels = [];
     root.traverse(node => {
-      if (node.isMesh && node.userData.isPanel && !node.userData.isRoof && FACES[node.userData.wallFace]) {
+      if (node.isMesh && node.userData.isPanel && !node.userData.isRoof &&
+          FACES[node.userData.wallFace] && isSceneVisible(node)) {
         panels.push(node);
       }
     });
@@ -127,6 +138,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     const hits = ray.intersectObjects(root.children, true);
     for (const hit of hits) {
       const node = hit.object;
+      if (!isSceneVisible(node)) continue;
       if (node.userData.interiorDoorId) return { kind: 'interiorDoor', id: node.userData.interiorDoorId };
       if (node.userData.partitionId) return { kind: 'partition', id: node.userData.partitionId, hitY: hit.point.y };
       if (node.userData.objectId) return { kind: 'object', id: node.userData.objectId };

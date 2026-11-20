@@ -735,19 +735,25 @@ function build() {
 function setWallHidden(w, hide) {
   if (w.hidden === hide) return;
   w.hidden = hide;
-  // La cubierta debe desaparecer en modo interior, no desplazarse ni generar sombra.
-  // Ocultarla por visibilidad elimina también el fantasma translúcido (opacidad .07).
-  if (w.roof) {
-    w.group.visible = !hide;
-    return;
-  }
-  w.mat.transparent = hide;
-  w.mat.opacity = hide ? 0.07 : 1;
-  w.mat.depthWrite = !hide;
-  w.mat.needsUpdate = true;
-  w.group.traverse(o => {
-    if (o.userData.isPanel) o.castShadow = !hide;
-    if (o.userData.seam) o.visible = !hide;
+  // CORTE REAL: una pared retirada debe ocultar su geometría COMPLETA,
+  // incluidos los marcos, las ventanas, las puertas y las molduras que son
+  // hijos del grupo. Antes solo se cambiaba la opacidad del revestimiento:
+  // las aberturas seguían opacas y parecían tabiques superpuestos.
+  // Este cambio no altera posiciones, colisiones ni vanos en el estado JSON.
+  w.group.visible = !hide;
+}
+
+/** Diagnóstico para pruebas visuales y control del modo de corte. */
+function getCutawayWallState() {
+  return walls.filter(w => !w.roof).map(w => {
+    let openings = 0, visibleOpenings = 0;
+    w.group.traverse(node => {
+      if (!node.isMesh || !node.userData.openingId) return;
+      openings++;
+      if (w.group.visible && node.visible) visibleOpenings++;
+    });
+    return { face: w.face, hidden: w.hidden === true, visible: w.group.visible,
+      openings, visibleOpenings };
   });
 }
 
@@ -966,6 +972,7 @@ const api = {
       bathroom: info(root.children.find(c => c.userData.isBathFloor))
     };
   },
+  getCutawayWallState() { return getCutawayWallState(); },
   getRoofBounds() {
     const roof = walls.find(w => w.roof);
     if (!roof) return null;

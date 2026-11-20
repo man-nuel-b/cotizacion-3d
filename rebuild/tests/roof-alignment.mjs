@@ -21,6 +21,7 @@ test('Cubierta: rotación horizontal y desplazamiento hacia Z negativo para cent
 });
 
 test('Modo interior: techo invisible, restauración al salir, sin mover geometrías', () => {
-  assert.match(source, /if\s*\(w\.roof\)\s*\{\s*w\.group\.visible\s*=\s*!hide/);
+  assert.match(source, /function setWallHidden\(w, hide\)/);
+  assert.match(source, /w\.group\.visible\s*=\s*!hide/);
   assert.match(source, /getRoofBounds\(\)/);
 });
