@@ -515,6 +515,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       const span=face==='A'||face==='C'?state.L:state.W;
       surfaceSize.textContent=roof?'Superficie bruta de referencia: '+(state.L*state.W).toFixed(2)+' m²':'Superficie bruta de referencia: '+(span*state.H).toFixed(2)+' m², antes de descontar vanos.';
       surfaceSkirtingLabel.hidden=!roof;
+      surfaceSkirtingSelect.value=state.finishes.skirting||'';
       $('inspector-actions').hidden=true;
       $('properties-empty').hidden=true;form.hidden=true;
       $('partition-finishes-box').hidden=true;
