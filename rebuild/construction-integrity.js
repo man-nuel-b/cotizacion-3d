@@ -447,6 +447,141 @@ export function resolveMagneticPartitionMove(p, position, ref, panelThickness, o
     { ok: true, candidate: base, snappedTo: null };
 }
 
+/**
+ * V4.9.2 - Intervalo continuo disponible alrededor del centro indicado.
+ * Eje X avanza en X (cota transversal Z); eje Z avanza en Z (cota transversal X).
+ * Un encuentro perpendicular termina EXACTAMENTE a ras de la cara de otro
+ * tabique. Los objetos y tramos paralelos mantienen holgura de montaje.
+ * Esta función no altera el estado ni realiza cubicación o cálculo estructural.
+ */
+export function computeFreePartitionSpan(
+  { axis = 'x', cx = 0, cz = 0, thickness = 0.09, partitionId = null } = {},
+  containerDims, partitions = [], objects = [], doors = [],
+  panelThickness = null, clearanceMargin = 0.015, options = {}
+) {
+  if (!['x', 'z'].includes(axis)) throw Error('Eje de tabique inválido para calcular espacio libre');
+  const direction = options?.direction ?? 'both';
+  if (!['both', 'positive', 'negative'].includes(direction)) {
+    throw Error('Dirección inválida: usa both, positive o negative');
+  }
+  if (!containerDims || ![containerDims.L, containerDims.W].every(n => finite(n) && n > 0) ||
+      ![cx, cz, thickness].every(finite) || thickness <= 0 ||
+      !finite(clearanceMargin) || clearanceMargin < 0 || clearanceMargin > 0.5 ||
+      !Array.isArray(partitions) || !Array.isArray(objects) || !Array.isArray(doors)) {
+    throw Error('Dimensiones u obstáculos inválidos para calcular el tramo libre');
+  }
+  const margin = panelThickness == null ? 0.04 : interiorClearance(panelThickness);
+  const axialExtent = axis === 'x' ? containerDims.L : containerDims.W;
+  const crossExtent = axis === 'x' ? containerDims.W : containerDims.L;
+  const seed = axis === 'x' ? cx : cz;
+  const anchor = axis === 'x' ? cz : cx;
+  const halfThick = thickness / 2;
+  const minBound = -axialExtent / 2 + margin;
+  const maxBound = axialExtent / 2 - margin;
+  const maxCross = crossExtent / 2 - margin - halfThick;
+  if (minBound >= maxBound || maxCross < 0 ||
+      Math.abs(anchor) > maxCross + 1e-8 ||
+      seed < minBound - 1e-8 || seed > maxBound + 1e-8) {
+    throw Error('El centro o espesor del tabique está fuera del interior útil');
+  }
+
+  const blockers = [];
+  function pushBlock(lo, hi, type) {
+    if (![lo, hi].every(finite) || lo > hi) throw Error('Obstáculo con geometría inválida');
+    if (hi > minBound && lo < maxBound) blockers.push({ lo, hi, type });
+  }
+  for (const p of partitions) {
+    if (!p || !['x', 'z'].includes(p.axis) ||
+        ![p.cx, p.cz, p.length, p.thickness].every(finite) ||
+        p.length <= 0 || p.thickness <= 0) throw Error('Tabique existente inválido');
+    if (partitionId !== null && p.id === partitionId) continue;
+    const otherAlong = axis === 'x' ? p.cx : p.cz;
+    const otherCross = axis === 'x' ? p.cz : p.cx;
+    if (p.axis === axis) {
+      if (Math.abs(otherCross - anchor) < halfThick + p.thickness / 2 + clearanceMargin - 1e-9) {
+        pushBlock(otherAlong - p.length / 2 - clearanceMargin,
+          otherAlong + p.length / 2 + clearanceMargin, 'tabique paralelo');
+      }
+    } else {
+      // La testa de la rama puede tocar la cara perpendicular sin solaparla.
+      // Un contacto en el extremo del anfitrión exige alma transversal real.
+      const contact = Math.min(anchor + halfThick, otherCross + p.length / 2) -
+        Math.max(anchor - halfThick, otherCross - p.length / 2);
+      if (contact >= Math.min(halfThick, 0.03) - 1e-8) {
+        pushBlock(otherAlong - p.thickness / 2,
+          otherAlong + p.thickness / 2, 'tabique perpendicular');
+      }
+    }
+  }
+
+  for (const o of objects) {
+    if (!o || ![o.x, o.z, o.w, o.d, o.rot].every(finite) || o.w <= 0 || o.d <= 0) {
+      throw Error('Objeto existente inválido');
+    }
+    // OBB girada en grados, igual que el render de Three.js (rotation.y).
+    // Se recorta el cuadrilátero por la franja del tabique, evitando tratar
+    // muebles girados como si todos ocuparan su AABB completa.
+    const angle = o.rot * Math.PI / 180;
+    const c = Math.cos(angle), s = Math.sin(angle);
+    let polygon = [[-o.w/2, -o.d/2], [o.w/2, -o.d/2],
+      [o.w/2, o.d/2], [-o.w/2, o.d/2]].map(([x,z]) => ({
+        x: o.x + c*x + s*z, z: o.z - s*x + c*z
+      }));
+    const crossKey = axis === 'x' ? 'z' : 'x';
+    function clip(points, threshold, positive) {
+      const inside = v => positive ? v >= threshold - 1e-10 : v <= threshold + 1e-10;
+      const result = [];
+      for (let i = 0; i < points.length; i++) {
+        const a = points[i], b = points[(i+1) % points.length];
+        const av = a[crossKey], bv = b[crossKey];
+        if (inside(av)) result.push(a);
+        if (inside(av) !== inside(bv) && Math.abs(bv-av) > 1e-12) {
+          const t = (threshold-av) / (bv-av);
+          result.push({ x: a.x + (b.x-a.x)*t, z: a.z + (b.z-a.z)*t });
+        }
+      }
+      return result;
+    }
+    polygon = clip(polygon, anchor-halfThick-clearanceMargin, true);
+    if (!polygon.length) continue;
+    polygon = clip(polygon, anchor+halfThick+clearanceMargin, false);
+    if (!polygon.length) continue;
+    const longKey = axis === 'x' ? 'x' : 'z';
+    const values = polygon.map(pt => pt[longKey]);
+    pushBlock(Math.min(...values)-clearanceMargin, Math.max(...values)+clearanceMargin,
+      'objeto ' + (o.id || 'sin ID'));
+  }
+
+  let freeMin = minBound, freeMax = maxBound, blockedBy = null;
+  for (const b of blockers) {
+    if (b.lo < seed - 1e-8 && b.hi > seed + 1e-8) {
+      blockedBy = b.type;
+      freeMin = freeMax = seed;
+      break;
+    }
+    if (b.hi <= seed + 1e-8) freeMin = Math.max(freeMin, b.hi);
+    if (b.lo >= seed - 1e-8) freeMax = Math.min(freeMax, b.lo);
+  }
+  if (freeMin > freeMax) {
+    freeMin = freeMax = seed;
+    blockedBy ||= 'intersección de obstáculos';
+  }
+  // Un tabique nuevo puede partir desde el punto seleccionado y crecer solo
+  // en una dirección. El modo por defecto preserva el cálculo de V4.9.2.
+  if (!blockedBy && direction === 'positive') freeMin = Math.max(freeMin, seed);
+  if (!blockedBy && direction === 'negative') freeMax = Math.min(freeMax, seed);
+  const freeLengthM = Math.max(0, freeMax - freeMin);
+  const ownDoors = doors.filter(d => partitionId != null && d.partitionId === partitionId);
+  const maxDoorWidth = ownDoors.reduce((max, d) => Math.max(max, finite(d.w) ? d.w : 0), 0);
+  const requiredMinDoorLengthM = maxDoorWidth ? maxDoorWidth + 0.16 : 0;
+  return {
+    axis, direction, freeMin, freeMax, freeLengthM,
+    recommendedCenter: freeLengthM > 0 ? (freeMin + freeMax) / 2 : seed,
+    fitsDoors: freeLengthM + 1e-8 >= requiredMinDoorLengthM,
+    requiredMinDoorLengthM, blockedBy
+  };
+}
+
 export function reinforcementCodeFor(type) {
   return OPENING_REINFORCEMENT[type] || null;
 }

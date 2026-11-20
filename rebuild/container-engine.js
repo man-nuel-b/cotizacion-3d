@@ -12,7 +12,7 @@ import {
   withOpeningReinforcement, computeWallTakeoff, validateOpeningCornerClearance,
   validateSharedWallRegion, validateOpeningAgainstSharedWalls,
   validateInteriorDoor, validatePartitionSpecification, PARTITION_LINING_THICKNESS_M,
-  classifyPartitionJunction, computePartitionJunctions, checkJunctionAgainstDoors, resolveMagneticPartitionMove,
+  classifyPartitionJunction, computePartitionJunctions, checkJunctionAgainstDoors, resolveMagneticPartitionMove, computeFreePartitionSpan,
   validateBathFloor, detectRectangularRoomAt
 } from './construction-integrity.js';
 
@@ -1267,9 +1267,35 @@ const api = {
 
   addPartition({ length = undefined, height, thickness = .1, axis = 'x', cx = 0, cz = 0, autoSpan = false,
     faceALining = null, faceBLining = null, hasInsulation = false, insulationCode = null,
-    autoPlace = false }) {
-    let candidate;
+    autoPlace = false, autoFit = undefined, fitDirection = 'both' }) {
+    let candidate, span = null;
+    if (autoFit !== undefined && typeof autoFit !== 'boolean') {
+      return { ok: false, error: 'Modo de ajuste al crear el tabique inválido' };
+    }
+    if (!['both', 'positive', 'negative'].includes(fitDirection)) {
+      return { ok: false, error: 'Dirección de crecimiento del tabique inválida' };
+    }
+    // No reinterpretar tabiques históricos ni el botón de inserción sucesiva.
+    // Un largo manual explícito prevalece, excepto al solicitar autoFit:true.
+    const shouldFit = autoFit === true || (autoFit !== false && length === undefined &&
+      autoSpan === false && autoPlace === false);
+    if (shouldFit && (autoSpan || autoPlace)) {
+      return { ok: false, error: 'autoFit no se puede combinar con autoSpan ni autoPlace' };
+    }
     try {
+      if (shouldFit) {
+        span = computeFreePartitionSpan({ axis, cx, cz, thickness }, state,
+          state.partitions, state.objects, state.interiorDoors,
+          profileThicknessFor(), 0.015, { direction: fitDirection });
+        if (span.blockedBy || span.freeLengthM < 0.25 - 1e-8) {
+          return { ok: false, error: span.blockedBy
+            ? 'No se puede colocar aquí: el punto está ocupado por ' + span.blockedBy
+            : 'No hay tramo libre suficiente en ese punto (mín. 0,25 m)' };
+        }
+        length = span.freeLengthM;
+        if (axis === 'x') cx = span.recommendedCenter;
+        else cz = span.recommendedCenter;
+      }
       candidate = fittedPartition({ id: 'partition-' + state.nextId, length, height, thickness, axis, cx, cz, autoSpan,
         faceALining, faceBLining, hasInsulation, insulationCode: hasInsulation ? (insulationCode || 'P20') : insulationCode });
     } catch (error) { return { ok: false, error: String(error.message || error) }; }
@@ -1299,7 +1325,9 @@ const api = {
     selectedEntity = { kind: 'partition', id: candidate.id };
     build();
     return { ok: true, id: candidate.id, cx: candidate.cx, cz: candidate.cz,
-      axis: candidate.axis, autoPlaced: automaticallyPositioned };
+      axis: candidate.axis, length: candidate.length,
+      partition: { ...candidate }, span, autoFitted: Boolean(span),
+      autoPlaced: automaticallyPositioned };
   },
 
   addPartitionJunction({ hostId, type = 'T', side = 1, endpoint = 1 } = {}) {
@@ -1315,6 +1343,68 @@ const api = {
 
   // Mismo solucionador para la vista previa y el desplazamiento definitivo.
   // No se edita el estado hasta verificar colisiones, puertas y perfil interior.
+  /** Analiza el intervalo libre alrededor del centro del tabique sin mutar el proyecto. */
+  getPartitionFreeSpan(idOrSpec) {
+    const p = typeof idOrSpec === 'string'
+      ? state.partitions.find(item => item.id === idOrSpec)
+      : idOrSpec;
+    if (!p) return { ok: false, error: 'Tabique no encontrado' };
+    try {
+      const span = computeFreePartitionSpan({
+        axis: p.axis, cx: p.cx, cz: p.cz, thickness: p.thickness,
+        partitionId: p.id ?? null
+      }, state, state.partitions, state.objects, state.interiorDoors,
+      profileThicknessFor());
+      return { ok: true, span };
+    } catch (error) {
+      return { ok: false, error: String(error.message || error) };
+    }
+  },
+
+  /** Acción explícita, transaccional: si hay colisión o puertas inválidas, no modifica nada. */
+  fitPartitionToFreeSpace(id) {
+    const p = state.partitions.find(item => item.id === id);
+    if (!p) return { ok: false, error: 'Tabique no encontrado' };
+    const result = this.getPartitionFreeSpan(id);
+    if (!result.ok) return result;
+    const { freeLengthM, recommendedCenter, fitsDoors,
+      requiredMinDoorLengthM, blockedBy } = result.span;
+    if (blockedBy || freeLengthM < 0.2 - 1e-8) {
+      return { ok: false, error: blockedBy
+        ? 'El centro del tabique está ocupado por ' + blockedBy + '. Muévelo a un vano libre.'
+        : 'No hay espacio libre suficiente (mín. 0,20 m) en esa posición.' };
+    }
+    if (!fitsDoors) return { ok: false,
+      error: `Tramo libre de ${freeLengthM.toFixed(2)} m insuficiente para una puerta (mín. ${requiredMinDoorLengthM.toFixed(2)} m).` };
+
+    const key = p.axis === 'x' ? 'cx' : 'cz';
+    const oldStart = p[key] - p.length / 2;
+    const newStart = recommendedCenter - freeLengthM / 2;
+    const next = { ...p, length: freeLengthM, autoSpan: false, [key]: recommendedCenter };
+    // Las puertas usan coordenada u desde el inicio de cada tabique.
+    // Conservar la posición real del vano en el contenedor, no moverlo al
+    // recalcular automáticamente la longitud y su centro.
+    const proposedDoors = state.interiorDoors.map(d => d.partitionId === id
+      ? { ...d, u: d.u + oldStart - newStart } : { ...d });
+    const failure = partitionSpecificationError(next) || partitionError(next) ||
+      partitionDoorError(next, proposedDoors);
+    if (failure) return { ok: false, error: failure };
+    try {
+      computePartitionJunctions(state.partitions.map(q => q.id === id ? next : q), proposedDoors);
+    } catch (error) {
+      return { ok: false, error: String(error.message || error) };
+    }
+    Object.assign(p, next);
+    for (let i = 0; i < state.interiorDoors.length; i++) {
+      if (state.interiorDoors[i].partitionId === id) {
+        state.interiorDoors[i].u = proposedDoors[i].u;
+      }
+    }
+    selectedEntity = { kind: 'partition', id };
+    const done = markChanged(false);
+    return { ...done, partition: { ...p }, span: result.span };
+  },
+
   previewPartitionMove(id, { cx, cz, snap = true } = {}) {
     const current = state.partitions.find(p => p.id === id);
     if (!current) return { ok: false, error: 'Tabique no encontrado' };
