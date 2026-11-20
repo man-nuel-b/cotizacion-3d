@@ -1260,6 +1260,17 @@ const api = {
     build(); return { ok: true, code, face };
   },
 
+  clearSurfaceFinish(kind, face = 'A') {
+    if (kind === 'roof') state.finishes.ceiling = null;
+    else if (kind === 'wall') {
+      if (!FACES[face]) return { ok: false, error: 'Cara de muro inválida' };
+      state.finishes.walls[face] = null;
+    } else if (kind === 'skirting') state.finishes.skirting = null;
+    else return { ok: false, error: 'Superficie inválida' };
+    build();
+    return { ok: true };
+  },
+
   clearFloorFinish() {
     state.finishes.floor = null;
     build();
@@ -1541,6 +1552,8 @@ const api = {
   },
 
   selectEntity(kind, id) {
+    if (kind === 'roof' && id !== 'main') return { ok: false, error: 'Techo inexistente' };
+    if (kind === 'wall' && !FACES[id]) return { ok: false, error: 'Muro inexistente' };
     if (kind === 'floor' && id !== 'general') return { ok: false, error: 'Piso inexistente' };
     if (kind === 'object' && !state.objects.some(o => o.id === id)) return { ok: false, error: 'Objeto inexistente' };
     if (kind === 'opening' && !state.openings.some(o => o.id === id)) return { ok: false, error: 'Abertura inexistente' };
