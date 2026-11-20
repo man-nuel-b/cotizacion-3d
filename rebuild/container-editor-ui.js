@@ -126,6 +126,8 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   }
 
   function arm(code) {
+    // Recupera el canvas al escoger otra partida; evita interceptar el clic de colocación.
+    hideInspector();
     bathPlacementMode = null; newPartitionPlacement = false;
     renderer.domElement.style.cursor = '';
     const item = CATALOG_BY_CODE[code]; if (!item) return;
@@ -660,6 +662,8 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     } else {
       hint('Tabique creado entre paramentos. Selecciónalo para moverlo o añadir una puerta.');
     }
+    // El alta consecutiva debe seguir permitiendo usar el mismo botón sin un panel encima.
+    if (result.ok) hideInspector();
   });
 
   for (const type of ['T', 'L']) {
