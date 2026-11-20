@@ -78,9 +78,9 @@ html,body{overflow:auto;height:auto;min-height:100%}
 }
 
 /* V4.10 · Inspector contextual: edición sin recorrer la barra lateral */
-#selection-inspector{position:fixed;top:12px;right:12px;bottom:12px;width:min(825px,calc(100vw - 335px));z-index:7;display:flex;flex-direction:column;box-sizing:border-box;border:1px solid #cbd7e6;border-radius:16px;background:#fbfcfe;color:#183047;box-shadow:0 16px 52px rgba(13,30,49,.27);overflow:hidden}
-#selection-inspector[data-layout="assembly"]{width:min(620px,calc(100vw - 335px))}
-#selection-inspector[data-layout="basic"]{width:min(485px,calc(100vw - 335px))}
+#selection-inspector{position:fixed;top:12px;right:318px;bottom:12px;width:min(730px,calc(100vw - 650px));z-index:7;display:flex;flex-direction:column;box-sizing:border-box;border:1px solid #cbd7e6;border-radius:16px;background:#fbfcfe;color:#183047;box-shadow:0 16px 52px rgba(13,30,49,.27);overflow:hidden}
+#selection-inspector[data-layout="assembly"]{width:min(600px,calc(100vw - 650px))}
+#selection-inspector[data-layout="basic"]{width:min(450px,calc(100vw - 650px))}
 .inspector-header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 17px 11px;border-bottom:1px solid #dee6ef;background:linear-gradient(115deg,#edf4fd,#fff)}
 .inspector-heading{min-width:0}
 .inspector-eyebrow{display:block;font-size:10px;font-weight:800;letter-spacing:.09em;color:#517394}
@@ -99,6 +99,8 @@ html,body{overflow:auto;height:auto;min-height:100%}
 .inspector-card{align-self:start;box-sizing:border-box;min-width:0;background:white;border:1px solid #dde6ef;border-radius:11px;padding:11px;display:grid;align-content:start;gap:8px;box-shadow:0 1px 2px rgba(16,33,50,.03)}
 .inspector-card h3,.inspector-card h4{font-size:12px;font-weight:750;color:#234665;padding:0 0 5px;margin:0 0 2px;border-bottom:1px solid #e8eef5}
 .inspector-card h3{letter-spacing:.01em}
+/* Ayuda detallada accesible con el cursor, sin desplazar las opciones editables. */
+#selection-inspector .inspector-card .tiny{display:none}
 .inspector-card label{font-size:10.5px;line-height:1.3;color:#475d71}
 .inspector-card .row{gap:6px;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 .inspector-card input,.inspector-card select{min-width:0;max-width:100%;padding:6px 7px;font-size:12px}
@@ -124,18 +126,18 @@ html,body{overflow:auto;height:auto;min-height:100%}
   .inspector-header{padding:6px 12px}
   .inspector-eyebrow,#inspector-subtitle{display:none}
   #properties-title{font-size:15px}
-  #inspector-body{padding:7px}
+  #inspector-body{padding:5px}
   #props-form{gap:6px}
-  .inspector-card{gap:4px;padding:7px 8px}
+  .inspector-card{gap:3px;padding:6px 8px}
   .inspector-card h3,.inspector-card h4{margin:0;padding-bottom:3px}
   .inspector-card label{font-size:10px}
   .inspector-card input,.inspector-card select{padding:4px 5px;font-size:11px}
   .inspector-card button{padding:5px 6px}
   #selection-inspector .inspector-card .tiny{display:none}
-  #inspector-footer{padding:5px 9px}
+  #inspector-footer{padding:4px 9px}
 }
 @media(max-width:1100px){
-  #selection-inspector{width:min(625px,calc(100vw - 270px))}
+  #selection-inspector,#selection-inspector[data-layout="assembly"],#selection-inspector[data-layout="basic"]{right:265px;width:min(535px,calc(100vw - 535px))}
   #props-form{grid-template-columns:1fr 1fr;grid-template-areas:"geometry materials" "options junction"}
 }
 @media(max-width:750px){

@@ -47,6 +47,12 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   const actionButtons = $('prop-duplicate').closest('.property-buttons');
   $('inspector-actions').appendChild(actionButtons);
   form.replaceChildren(geometry, materials, options, junctions);
+  $('partition-fit-label').title = $('partition-fit-help').textContent;
+  $('bFitPartitionFree').title = $('partition-free-help').textContent;
+  $('btn-rotate-fit').title = $('rotation-help').textContent;
+  $('btn-add-interior-door').title = 'Crea una puerta vinculada al tabique y descuenta su vano de la cubicación.';
+  $('btn-junction-t').title = $('junction-help').textContent;
+  $('btn-junction-l').title = $('junction-help').textContent;
 
   let lastSelectionKey = null;
   let inspectorDismissedKey = null;
