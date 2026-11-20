@@ -55,7 +55,9 @@ export function buildElectrical3DGroup(params) {
   const group=new THREE.Group();group.name='electrical_layer';
   const clearance=.10;
   const board=new THREE.Mesh(new THREE.BoxGeometry(.35,.45,.06),new THREE.MeshStandardMaterial({color:0xd97706}));
-  board.position.set(-length/2+clearance,floor+1.5,-width/2+clearance);
+  // Tablero automático adosado a la cara C, alejado del esquinero ISO.
+  // La mitad del ancho (0.175 m) ya no atraviesa el extremo x=-L/2.
+  board.position.set(-length/2+0.48,floor+Math.min(1.5,height-0.35),-width/2+Math.max(clearance,0.08));
   group.add(board);
   const lightCount=rooms*p.lightsPerRoom;
   const lights=instances(new THREE.BoxGeometry(.38,.045,.18),new THREE.MeshStandardMaterial({color:0xffe8a5,emissive:0xffbb33,emissiveIntensity:.22}),
