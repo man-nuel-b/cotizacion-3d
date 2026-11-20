@@ -59,6 +59,39 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     hint('Orientación del piso actualizada.');
   });
 
+  // Inspector contextual para cubierta y las cuatro caras de muro.
+  const surfaceCard=document.createElement('section');
+  surfaceCard.id='surface-inspector-card';surfaceCard.className='inspector-card';
+  const surfaceTitle=document.createElement('h3');surfaceTitle.textContent='Revestimiento de superficie';
+  const surfaceMaterialLabel=document.createElement('label');surfaceMaterialLabel.textContent='Terminación';
+  const surfaceMaterialSelect=document.createElement('select');
+  surfaceMaterialSelect.add(new Option('Sin revestimiento adicional',''));
+  surfaceMaterialLabel.append(surfaceMaterialSelect);
+  const surfaceSize=document.createElement('p');surfaceSize.className='tiny';
+  const surfaceRemove=document.createElement('button');surfaceRemove.type='button';surfaceRemove.className='alt';
+  surfaceRemove.textContent='Retirar revestimiento';
+  const surfaceSkirtingLabel=document.createElement('label');surfaceSkirtingLabel.textContent='Zócalo perimetral';
+  const surfaceSkirtingSelect=document.createElement('select');
+  surfaceSkirtingSelect.add(new Option('Sin zócalo adicional',''));
+  CATALOG.filter(item=>item.mode==='skirting').forEach(item=>surfaceSkirtingSelect.add(new Option(item.code+' · '+item.name,item.code)));
+  surfaceSkirtingLabel.append(surfaceSkirtingSelect);
+  surfaceCard.append(surfaceTitle,surfaceMaterialLabel,surfaceSize,surfaceSkirtingLabel,surfaceRemove);
+  $('inspector-body').appendChild(surfaceCard);
+  function editSurfaceFinish(code){
+    const selected=api.getSelected();
+    if(!selected||!['roof','wall'].includes(selected.kind))return;
+    const result=code?api.setFinish(code,selected.kind==='wall'?selected.id:'A'):api.clearSurfaceFinish(selected.kind,selected.id);
+    if(!result.ok){hint(result.error,true);return;}
+    hint('Revestimiento actualizado en el modelo 3D.');
+  }
+  surfaceMaterialSelect.addEventListener('change',e=>editSurfaceFinish(e.target.value));
+  surfaceRemove.addEventListener('click',()=>editSurfaceFinish(''));
+  surfaceSkirtingSelect.addEventListener('change',e=>{
+    const result=e.target.value?api.setFinish(e.target.value):api.clearSurfaceFinish('skirting');
+    if(!result.ok){hint(result.error,true);return;}
+    hint('Zócalo perimetral actualizado.');
+  });
+
   const geometry = makeInspectorCard('inspector-geometry', 'Ubicación y dimensiones', [
     $('prop-name').closest('label'), $('prop-x').closest('.row'), $('prop-apply')
   ]);
@@ -131,6 +164,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     inspector.hidden = false;
     syncStageLayout();
     if(api.getSelected()?.kind==='floor')floorMaterialSelect.focus({preventScroll:true});
+    else if(['wall','roof'].includes(api.getSelected()?.kind))surfaceMaterialSelect.focus({preventScroll:true});
     else $('prop-x').focus({ preventScroll: true });
   });
 
@@ -279,6 +313,8 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       if (node.userData.objectId) return { kind: 'object', id: node.userData.objectId };
       if (node.userData.openingId !== undefined) return { kind: 'opening', id: node.userData.openingId };
       if (node.userData.isGeneralFloor || node.userData.isBathFloor) return { kind: 'floor', id: 'general' };
+      if (node.userData.isRoof) return { kind: 'roof', id: 'main' };
+      if (node.userData.isPanel && FACES[node.userData.wallFace]) return { kind: 'wall', id: node.userData.wallFace };
     }
     return null;
   }
@@ -462,6 +498,30 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   function refreshProperties() {
     const selection = api.getSelected(), form = $('props-form');
     syncInspector(selection);
+    const surfaceSelected=selection?.kind==='wall'||selection?.kind==='roof';
+    surfaceCard.hidden=!surfaceSelected;
+    if(surfaceSelected){
+      const roof=selection.kind==='roof';
+      const face=selection.id;
+      const key=roof?'ceiling':'wall-finish';
+      const selectedCode=roof?state.finishes.ceiling:state.finishes.walls[face];
+      const options=CATALOG.filter(item=>item.mode===key);
+      surfaceMaterialSelect.replaceChildren(new Option('Sin revestimiento adicional',''));
+      options.forEach(item=>surfaceMaterialSelect.add(new Option(item.code+' · '+item.name,item.code)));
+      surfaceMaterialSelect.value=selectedCode||'';
+      $('properties-title').textContent=roof?'Modificar techo / cielo':'Modificar muro · cara '+face;
+      $('inspector-subtitle').textContent='Selecciona una terminación y observa el cambio en el 3D';
+      inspector.dataset.layout='basic';
+      const span=face==='A'||face==='C'?state.L:state.W;
+      surfaceSize.textContent=roof?'Superficie bruta de referencia: '+(state.L*state.W).toFixed(2)+' m²':'Superficie bruta de referencia: '+(span*state.H).toFixed(2)+' m², antes de descontar vanos.';
+      surfaceSkirtingLabel.hidden=!roof;
+      $('inspector-actions').hidden=true;
+      $('properties-empty').hidden=true;form.hidden=true;
+      $('partition-finishes-box').hidden=true;
+      $('partition-junction-box').hidden=true;
+      $('inspector-opening-bars-label').hidden=true;
+      return;
+    }
     const floorSelected=selection?.kind==='floor';
     floorCard.hidden=!floorSelected;
     if(floorSelected){
