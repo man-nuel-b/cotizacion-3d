@@ -873,6 +873,9 @@ test('V4.10: seleccionar tabique abre ficha contextual con geometría, capas, un
     await page.locator('#btn-add-interior-door').click();
     const state = await page.evaluate(() => window.Container3D.getState());
     assert.equal(state.interiorDoors.length, 1);
+    // El motor selecciona automáticamente la nueva puerta. Al volver al tabique
+    // aparecen todas sus puertas vinculadas para editarlas desde la ficha.
+    await page.evaluate(id => window.Container3D.selectEntity('partition', id), added.id);
     assert.equal(await page.locator('#inspector-partition-doors button').count(), 1);
     await page.locator('#inspector-partition-doors button').click();
     assert.equal(await page.locator('#selection-inspector').isVisible(), true);
