@@ -944,6 +944,11 @@ test('V4.11: inspector acoplado permite ver el modelo y editar medidas en vivo c
       axis: 'z', autoSpan: true, thickness: .1, height: 2.3
     }));
     assert.equal(added.ok, true, JSON.stringify(added));
+    await page.waitForFunction(() => {
+      const stage = document.querySelector('#view').getBoundingClientRect();
+      const canvas = document.querySelector('#view canvas').getBoundingClientRect();
+      return Math.abs(stage.width - canvas.width) < 2;
+    });
     const boxes = await page.evaluate(() => {
       const view = document.querySelector('#view').getBoundingClientRect();
       const inspector = document.querySelector('#selection-inspector').getBoundingClientRect();
