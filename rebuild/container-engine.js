@@ -1260,6 +1260,12 @@ const api = {
     build(); return { ok: true, code, face };
   },
 
+  clearFloorFinish() {
+    state.finishes.floor = null;
+    build();
+    return { ok: true };
+  },
+
   addService(code) {
     const entry = CATALOG_BY_CODE[code];
     if (entry?.mode !== 'service') return { ok: false, error: 'Partida no administrativa' };
@@ -1535,6 +1541,7 @@ const api = {
   },
 
   selectEntity(kind, id) {
+    if (kind === 'floor' && id !== 'general') return { ok: false, error: 'Piso inexistente' };
     if (kind === 'object' && !state.objects.some(o => o.id === id)) return { ok: false, error: 'Objeto inexistente' };
     if (kind === 'opening' && !state.openings.some(o => o.id === id)) return { ok: false, error: 'Abertura inexistente' };
     if (kind === 'partition' && !state.partitions.some(p => p.id === id)) return { ok: false, error: 'Tabique inexistente' };
