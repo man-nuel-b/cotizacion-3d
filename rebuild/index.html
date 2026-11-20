@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BAT-CUBIKEITOR V4.11 | Editor modular 3D</title>
+<title>BAT-CUBIKEITOR V4.12 | Editor modular 3D</title>
 <style>
 html, body{margin:0;height:100%;background:#dfe3e8;font-family:system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden}
 #view{position:fixed;inset:0}
@@ -208,6 +208,25 @@ body.inspector-docked #scene-hint{left:calc((100% - min(486px,40vw))/2);max-widt
   #props-form,#selection-inspector[data-layout="assembly"] #props-form{grid-template-columns:1fr;grid-template-areas:"geometry" "materials" "options" "junction"}
   #inspector-footer{flex-wrap:wrap;gap:5px}
 }
+
+/* V4.12: visor 3D siempre despejado; controles fuera del lienzo. */
+@media(min-width:1121px){
+  body:not(.inspector-docked) #view{left:324px;right:318px;width:auto}
+  body:not(.inspector-docked) #scene-hint{left:calc(50% + 3px);max-width:calc(100% - 670px)}
+}
+@media(min-width:781px) and (max-width:1120px){
+  body:not(.inspector-docked) #view{left:258px;right:263px;width:auto}
+  body:not(.inspector-docked) #scene-hint{left:50%;max-width:calc(100% - 545px)}
+}
+@media(min-width:681px) and (max-width:780px){
+  body:not(.inspector-docked) #catalog-panel{width:210px}
+  body:not(.inspector-docked) #panel{width:210px}
+  body:not(.inspector-docked) #view{left:220px;right:220px;width:auto}
+  body:not(.inspector-docked) #scene-hint{display:none}
+}
+#view{box-sizing:border-box;min-width:0}
+#view canvas{display:block;touch-action:none}
+
 </style>
 <script type="importmap">
 {
@@ -222,7 +241,7 @@ body.inspector-docked #scene-hint{left:calc((100% - min(486px,40vw))/2);max-widt
 <div id="view"></div>
 <aside id="catalog-panel" aria-label="Catálogo técnico 3D">
   <div class="catalog-heading">
-    <strong>BAT-CUBIKEITOR <span style="color:#d78d12">V4.11</span></strong>
+    <strong>BAT-CUBIKEITOR <span style="color:#d78d12">V4.12</span></strong>
     <p>Catálogo de 60 partidas · selecciona un elemento y haz clic en el contenedor</p>
   </div>
   <div class="catalog-fields">
