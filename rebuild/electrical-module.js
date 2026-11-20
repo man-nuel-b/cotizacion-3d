@@ -230,11 +230,11 @@ export function installElectricalUI({scene,state,FLOOR,camera,renderer,controls}
     const laborHours=Number((data.apu.laborHours+manualPoints*(ELECTRICAL_PROFILES[profile.value]||ELECTRICAL_PROFILES.estandar).laborHoursPerPoint+manualCounts.board*2.5).toFixed(1));
     const laborPrice=DEFAULT_ELECTRICAL_PRICES.labor_hour;
     const laborNet=Math.round(laborHours*laborPrice);
-    summary.textContent=\`\${data.summary.outlets+manualCounts.outlet} enchufes · \${data.summary.lights+manualCounts.light} luces · \${data.summary.switches+manualCounts.switch} interruptores · \${data.summary.circuits} circuitos estimados (\${points.length} puntos manuales)\`;
-    cost.textContent=\`Materiales: $\${formatter.format(materialsNet)} · Mano de obra: $\${formatter.format(laborNet)} · Total neto estimado: $\${formatter.format(materialsNet+laborNet)} CLP\`;
+    summary.textContent=`${data.summary.outlets+manualCounts.outlet} enchufes · ${data.summary.lights+manualCounts.light} luces · ${data.summary.switches+manualCounts.switch} interruptores · ${data.summary.circuits} circuitos estimados (${points.length} puntos manuales)`;
+    cost.textContent=`Materiales: $${formatter.format(materialsNet)} · Mano de obra: $${formatter.format(laborNet)} · Total neto estimado: $${formatter.format(materialsNet+laborNet)} CLP`;
     bom.replaceChildren(...data.bom.map(item=>{
       const tr=document.createElement('tr');
-      [item.code,item.name,\`\${item.qty} \${item.unit}\`,\`$\${formatter.format(item.subtotal)}\`].forEach(t=>{const td=document.createElement('td');td.textContent=t;tr.appendChild(td);});
+      [item.code,item.name,`${item.qty} ${item.unit}`,`$${formatter.format(item.subtotal)}`].forEach(t=>{const td=document.createElement('td');td.textContent=t;tr.appendChild(td);});
       return tr;
     }));
     notice.textContent=data.warning+' Los puntos manuales se suman a la base automática; su posición no modifica todavía el metrado de conductores ni canalizaciones.';
