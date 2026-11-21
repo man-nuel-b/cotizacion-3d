@@ -32,9 +32,9 @@ jobs:
           node --experimental-default-type=module --input-type=module -e "
           import { CATALOG, CATALOG_BY_CODE, FAMILIES } from './rebuild/container-catalog.js';
           import assert from 'node:assert/strict';
-          assert.equal(CATALOG.length, 60);
-          assert.equal(new Set(CATALOG.map(x => x.code)).size, 60);
-          assert.equal(FAMILIES.length, 8);
+          assert.equal(CATALOG.length, 70);
+          assert.equal(new Set(CATALOG.map(x => x.code)).size, 70);
+          assert.equal(FAMILIES.length, 9);
           for (const c of CATALOG) assert.equal(CATALOG_BY_CODE[c.code], c);
           "
       - name: Install isolated test dependencies
