@@ -75,7 +75,24 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   surfaceSkirtingSelect.add(new Option('Sin zócalo adicional',''));
   CATALOG.filter(item=>item.mode==='skirting').forEach(item=>surfaceSkirtingSelect.add(new Option(item.code+' · '+item.name,item.code)));
   surfaceSkirtingLabel.append(surfaceSkirtingSelect);
-  surfaceCard.append(surfaceTitle,surfaceMaterialLabel,surfaceSize,surfaceSkirtingLabel,surfaceRemove);
+  // Selector exterior primero; el interior se gestiona aparte y se despliega bajo demanda.
+  const interiorDetails=document.createElement('details');
+  interiorDetails.id='wall-interior-finish-options';
+  const interiorSummary=document.createElement('summary');
+  interiorSummary.textContent='Revestimiento interior (opcional)';
+  const interiorMaterialLabel=document.createElement('label');
+  interiorMaterialLabel.textContent='Terminación de cara interior';
+  const interiorMaterialSelect=document.createElement('select');
+  interiorMaterialSelect.id='wall-interior-finish-select';
+  interiorMaterialLabel.appendChild(interiorMaterialSelect);
+  const interiorRemove=document.createElement('button');
+  interiorRemove.type='button';interiorRemove.className='alt';
+  interiorRemove.textContent='Retirar revestimiento interior';
+  const interiorNote=document.createElement('p');
+  interiorNote.className='tiny';
+  interiorNote.textContent='Los acabados interiores se aplican por separado; no sustituyen la fachada exterior.';
+  interiorDetails.append(interiorSummary,interiorMaterialLabel,interiorRemove,interiorNote);
+  surfaceCard.append(surfaceTitle,surfaceMaterialLabel,surfaceSize,interiorDetails,surfaceSkirtingLabel,surfaceRemove);
   $('inspector-body').appendChild(surfaceCard);
   function editSurfaceFinish(code){
     const selected=api.getSelected();
@@ -85,6 +102,15 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     hint('Revestimiento actualizado en el modelo 3D.');
   }
   surfaceMaterialSelect.addEventListener('change',e=>editSurfaceFinish(e.target.value));
+  function editInteriorFinish(code) {
+    const selected=api.getSelected();
+    if (selected?.kind!=='wall') return;
+    const result=code?api.setInteriorWallFinish(selected.id,code):api.clearInteriorWallFinish(selected.id);
+    if (!result.ok) { hint(result.error,true); return; }
+    hint(code?'Revestimiento interior aplicado a la cara '+selected.id+'.':'Revestimiento interior retirado.');
+  }
+  interiorMaterialSelect.addEventListener('change',e=>editInteriorFinish(e.target.value));
+  interiorRemove.addEventListener('click',()=>editInteriorFinish(''));
   surfaceRemove.addEventListener('click',()=>editSurfaceFinish(''));
   surfaceSkirtingSelect.addEventListener('change',e=>{
     const result=e.target.value?api.setFinish(e.target.value):api.clearSurfaceFinish('skirting');
@@ -204,7 +230,9 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   function modeLabel(item) {
     return ({
       object: 'Modelo 3D', 'wall-object': 'Ensamble 3D', opening: 'Abertura real',
-      floor: 'Aplicar al piso', 'wall-finish': 'Aplicar a pared',
+      floor: 'Aplicar al piso',
+      'wall-exterior-finish': 'Revestimiento exterior',
+      'wall-interior-finish': 'Revestimiento interior',
       ceiling: 'Aplicar al cielo', skirting: 'Zócalo perimetral', service: 'Gestión sin geometría'
     })[item.mode] || item.mode;
   }
@@ -233,7 +261,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   }
 
   function isWallApplication(item) {
-    return item?.mode === 'wall-finish' ||
+    return ['wall-exterior-finish', 'wall-interior-finish'].includes(item?.mode) ||
       (item?.mode === 'wall-object' && ['wall-lining', 'wet-lining'].includes(item.visual));
   }
 
@@ -251,10 +279,12 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     }
     pendingCode = code; renderCatalog();
     $('wall-finish-controls').hidden = !isWallApplication(item);
-    $('apply-wall-finish').textContent = item.mode === 'wall-finish'
-      ? 'Aplicar revestimiento a esta cara' : 'Instalar trasdosado en esta cara';
-    $('wall-control-explain').textContent = item.mode === 'wall-finish'
-      ? 'La terminación cubre la superficie del muro seleccionado.'
+    const isFinish = ['wall-exterior-finish','wall-interior-finish'].includes(item.mode);
+    $('apply-wall-finish').textContent = isFinish
+      ? (item.mode === 'wall-exterior-finish' ? 'Aplicar fachada exterior en esta cara' : 'Aplicar revestimiento interior en esta cara')
+      : 'Instalar trasdosado en esta cara';
+    $('wall-control-explain').textContent = isFinish
+      ? (item.mode === 'wall-exterior-finish' ? 'La fachada se verá por fuera del contenedor.' : 'El acabado quedará en el paramento interior.')
       : 'P14/P17 se instalará como un panel 3D de 1,60 m en la cara indicada.';
 
     const msg = item.mode === 'floor' || item.mode === 'ceiling' || item.mode === 'skirting' ?
@@ -353,12 +383,13 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       return;
     }
 
-    if (item.mode === 'wall-finish' || item.mode === 'opening') {
+    if (['wall-exterior-finish', 'wall-interior-finish', 'opening'].includes(item.mode)) {
       const hit = wallHit(ray);
       if (!hit) { hint('Gira el contenedor y haz clic directamente sobre una pared.', true); return; }
       const { face, point } = hit;
-      if (item.mode === 'wall-finish') {
-        const result = api.setFinish(code, face);
+      if (['wall-exterior-finish', 'wall-interior-finish'].includes(item.mode)) {
+        const result = item.mode === 'wall-exterior-finish'
+          ? api.setFinish(code, face) : api.setInteriorWallFinish(face, code);
         if (!result.ok) { hint(result.error, true); return; }
         clearPending(); hint(code + ' aplicado en la cara ' + face + '.'); return;
       }
@@ -522,14 +553,23 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     if(surfaceSelected){
       const roof=selection.kind==='roof';
       const face=selection.id;
-      const key=roof?'ceiling':'wall-finish';
+      const key=roof?'ceiling':'wall-exterior-finish';
       const selectedCode=roof?state.finishes.ceiling:state.finishes.walls[face];
       const options=CATALOG.filter(item=>item.mode===key);
-      surfaceMaterialSelect.replaceChildren(new Option('Sin revestimiento adicional',''));
+      surfaceMaterialSelect.replaceChildren(new Option(roof?'Sin revestimiento adicional':'Sin terminación exterior',''));
       options.forEach(item=>surfaceMaterialSelect.add(new Option(item.code+' · '+item.name,item.code)));
       surfaceMaterialSelect.value=selectedCode||'';
-      $('properties-title').textContent=roof?'Modificar techo / cielo':'Modificar muro · cara '+face;
-      $('inspector-subtitle').textContent='Selecciona una terminación y observa el cambio en el 3D';
+      surfaceTitle.textContent=roof?'Revestimiento de cielo':'Revestimientos exteriores · fachada';
+      surfaceMaterialLabel.textContent=roof?'Terminación de cielo':'Revestimiento exterior de cara '+face;
+      interiorDetails.hidden=roof;
+      if (!roof) {
+        interiorMaterialSelect.replaceChildren(new Option('Sin revestimiento interior',''));
+        CATALOG.filter(item=>item.mode==='wall-interior-finish')
+          .forEach(item=>interiorMaterialSelect.add(new Option(item.code+' · '+item.name,item.code)));
+        interiorMaterialSelect.value=state.finishes.interiorWalls?.[face]||'';
+      }
+      $('properties-title').textContent=roof?'Modificar techo / cielo':'Modificar muro exterior · cara '+face;
+      $('inspector-subtitle').textContent=roof?'Selecciona la terminación del cielo.':'El exterior y el interior se modifican de forma independiente en el modelo 3D.';
       inspector.dataset.layout='basic';
       const span=face==='A'||face==='C'?state.L:state.W;
       surfaceSize.textContent=roof?'Superficie bruta de referencia: '+(state.L*state.W).toFixed(2)+' m²':'Superficie bruta de referencia: '+(span*state.H).toFixed(2)+' m², antes de descontar vanos.';
@@ -788,7 +828,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     const result = api.setWallLining(face, item.code);
     if (!result.ok) { hint(result.error, true); return; }
     clearPending();
-    hint(item.code + (item.mode === 'wall-finish' ? ' aplicado' : ' instalado') + ' correctamente en la cara ' + face + '.');
+    hint(item.code + (['wall-exterior-finish','wall-interior-finish'].includes(item.mode) ? ' aplicado' : ' instalado') + ' correctamente en la cara ' + face + '.');
   });
 
   $('oBars').addEventListener('change', event => {
