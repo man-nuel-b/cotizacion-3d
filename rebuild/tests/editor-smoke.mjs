@@ -60,12 +60,12 @@ async function clickVisibleModelCenter(page) {
   await page.mouse.click(screen.x, screen.y);
 }
 
-test('BAT V2: catálogo 60 partidas, selección de objetos, edición y exportación', { timeout: 180000 }, async () => {
+test('BAT V2: catálogo 70 partidas, selección de objetos, edición y exportación', { timeout: 180000 }, async () => {
   let fixture;
   try {
     fixture = await prepare(); const { page, errors } = fixture;
-    assert.equal(await page.locator('.catalog-item').count(), 60);
-    assert.equal(await page.locator('#catalog-family option').count(), 9);
+    assert.equal(await page.locator('.catalog-item').count(), 70);
+    assert.equal(await page.locator('#catalog-family option').count(), 10);
     await page.locator('#catalog-search').fill('inodoro');
     assert.equal(await page.locator('.catalog-item').count(), 1);
     await page.locator('#catalog-search').fill('');
@@ -122,7 +122,7 @@ test('BAT V2: selector HTML aplica revestimientos y trasdosados sin raycast', { 
     await page.locator('#wall-finish-face').selectOption('B');
     await page.locator('#apply-wall-finish').click();
     let state = await page.evaluate(() => window.Container3D.getState());
-    assert.equal(state.finishes.walls.B, 'P34', 'La cara B debe recibir el revestimiento');
+    assert.equal(state.finishes.interiorWalls.B, 'P34', 'La cara interior B debe recibir el revestimiento');
     assert.equal(state.finishes.walls.A, null);
 
     await page.locator('.catalog-item[data-code="P17"]').click();
@@ -979,6 +979,42 @@ test('V4.11: inspector acoplado permite ver el modelo y editar medidas en vivo c
     await page.locator('#close-inspector').click();
     assert.equal(await page.locator('#selection-inspector').isVisible(), false);
     assert.equal(await page.locator('#catalog-panel').isVisible(), true);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  } finally { if (fixture) await close(fixture); }
+});
+
+test('BAT V4.17: inspector muestra solo fachadas en selector exterior y conserva interiores separados', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture = await prepare();
+    const { page, errors } = fixture;
+    await page.evaluate(() => window.Container3D.selectEntity('wall', 'A'));
+    const exterior = page.locator('#surface-inspector-card select').first();
+    await exterior.waitFor({ state: 'visible' });
+    const codes = await exterior.locator('option').evaluateAll(options => options.map(x => x.value));
+    assert.ok(codes.includes('P54'), 'La fachada WPC debe aparecer');
+    assert.ok(codes.includes('P58'), 'La fachada de piedra debe aparecer');
+    assert.ok(!codes.includes('P35'), 'El PVC interior no puede aparecer en fachada');
+    await exterior.selectOption('P54');
+    let state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.finishes.walls.A, 'P54');
+
+    const inside = page.locator('#wall-interior-finish-select');
+    await inside.selectOption('P35');
+    state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.finishes.interiorWalls.A, 'P35');
+    assert.equal(state.finishes.walls.A, 'P54', 'El revestimiento exterior debe mantenerse');
+
+    const legacy = await page.evaluate(() => {
+      const old = window.Container3D.getState();
+      delete old.finishes.interiorWalls;
+      old.finishes.walls.B = 'P34';
+      return window.Container3D.setState(old);
+    });
+    assert.equal(legacy.ok, true, legacy.error);
+    state = await page.evaluate(() => window.Container3D.getState());
+    assert.equal(state.finishes.walls.B, null);
+    assert.equal(state.finishes.interiorWalls.B, 'P34');
     assert.deepEqual(errors, [], errors.join('\n'));
   } finally { if (fixture) await close(fixture); }
 });
