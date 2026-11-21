@@ -45,6 +45,7 @@ function fixture() {
   let buildCount = 0;
   const ctx = {
     state, TYPES: T, profileCfg: { WALL: panel }, owned: [], objectGroups: [],
+    FACES: { A: { long: true }, B: { long: false }, C: { long: true }, D: { long: false } },
     editor: { refresh() {} }, selectedEntity: null,
     build() { buildCount++; },
     frameCamera() {}, syncPanel() {}, applyXray() {},
@@ -634,4 +635,20 @@ test('V4.9.3 API: modos incompatibles e invalidaciones no alteran estado', () =>
     {axis:'z',cz:0,autoFit:'yes'}
   ]) assert.equal(api.addPartition(args).ok,false,JSON.stringify(args));
   assert.deepEqual(api.getState(),before);
+});
+
+test('API V4.17.2: setFinish acepta revestimientos exteriores e interiores en capas diferentes', () => {
+  const { api, state } = fixture();
+  good(api.setFinish('P54', 'A'));
+  assert.equal(state.finishes.walls.A, 'P54');
+  good(api.setFinish('P35', 'A'));
+  assert.equal(state.finishes.interiorWalls.A, 'P35');
+  assert.equal(state.finishes.walls.A, 'P54', 'El cambio interior no borra la fachada');
+  good(api.setWallLining('B', 'P52'));
+  assert.equal(state.finishes.walls.B, 'P52');
+  good(api.setWallLining('B', 'P30'));
+  assert.equal(state.finishes.interiorWalls.B, 'P30');
+  assert.equal(state.finishes.walls.B, 'P52');
+  const wrong = api.setFinish('P70', 'B');
+  assert.equal(wrong.ok, false, 'Una luminaria no debe aceptarse como acabado');
 });
