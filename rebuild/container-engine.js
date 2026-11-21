@@ -1675,7 +1675,7 @@ const api = {
         throw Error('Códigos de acabados incompatibles');
       }
       const exteriorWalls = {}, interiorWalls = {};
-      for (const face of Object.keys(FACES)) {
+      for (const face of ['A', 'B', 'C', 'D']) {
         const prevCode = finishes.walls[face] || null;
         const innerCode = finishes.interiorWalls?.[face] || null;
         if (!validFinish(innerCode, ['wall-interior-finish'])) {
