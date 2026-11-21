@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { CATALOG, CATALOG_BY_CODE } from './container-catalog.js';
-import { createObjectModel, makeFinishMaterial } from './container-object-models.js';
-import { installEditor } from './container-editor-ui.js';
+import { CATALOG, CATALOG_BY_CODE } from './container-catalog.js?v=4.17.2';
+import { createObjectModel, makeFinishMaterial } from './container-object-models.js?v=4.17.2';
+import { installEditor } from './container-editor-ui.js?v=4.17.2';
 import { installElectricalUI, defaultElectricalConfig, sanitizeElectricalConfig } from './electrical-module.js';
 import { createDisposalContext, disposeHierarchy, disposeMaterial, disposeTexture } from './resource-disposal.js';
 import {
@@ -15,7 +15,7 @@ import {
   validateInteriorDoor, validatePartitionSpecification, PARTITION_LINING_THICKNESS_M,
   classifyPartitionJunction, computePartitionJunctions, checkJunctionAgainstDoors, resolveMagneticPartitionMove, computeFreePartitionSpan,
   validateBathFloor, detectRectangularRoomAt
-} from './construction-integrity.js';
+} from './construction-integrity.js?v=4.17.2';
 
 /* ============ Tipos de contenedor ============ */
 const TYPES = {
@@ -1273,6 +1273,9 @@ const api = {
   },
   setFinish(code, face = 'A') {
     const entry = CATALOG_BY_CODE[code]; if (!entry) return { ok: false, error: 'Código inexistente' };
+    // Las terminaciones interiores se enrutan a la capa correcta en lugar de
+    // rechazarlas cuando un control antiguo llama setFinish directamente.
+    if (entry.mode === 'wall-interior-finish') return this.setInteriorWallFinish(face, code);
     if (entry.mode === 'floor') state.finishes.floor = code;
     else if (entry.mode === 'skirting') state.finishes.skirting = code;
     else if (entry.mode === 'ceiling') state.finishes.ceiling = code;
