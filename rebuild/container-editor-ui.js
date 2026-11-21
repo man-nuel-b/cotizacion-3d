@@ -1,4 +1,4 @@
-import { CATALOG, CATALOG_BY_CODE, FAMILIES, findCatalog } from './container-catalog.js';
+import { CATALOG, CATALOG_BY_CODE, FAMILIES, findCatalog } from './container-catalog.js?v=4.17.2';
 
 export function installEditor({ THREE, renderer, camera, controls, root, api, state, FACES, FLOOR, syncPanel }) {
   const $ = id => document.getElementById(id);
@@ -97,7 +97,9 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   function editSurfaceFinish(code){
     const selected=api.getSelected();
     if(!selected||!['roof','wall'].includes(selected.kind))return;
-    const result=code?api.setFinish(code,selected.kind==='wall'?selected.id:'A'):api.clearSurfaceFinish(selected.kind,selected.id);
+    const result=code
+      ? (selected.kind==='wall' ? api.setWallLining(selected.id,code) : api.setFinish(code))
+      : api.clearSurfaceFinish(selected.kind,selected.id);
     if(!result.ok){hint(result.error,true);return;}
     hint('Revestimiento actualizado en el modelo 3D.');
   }
@@ -388,8 +390,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       if (!hit) { hint('Gira el contenedor y haz clic directamente sobre una pared.', true); return; }
       const { face, point } = hit;
       if (['wall-exterior-finish', 'wall-interior-finish'].includes(item.mode)) {
-        const result = item.mode === 'wall-exterior-finish'
-          ? api.setFinish(code, face) : api.setInteriorWallFinish(face, code);
+        const result = api.setWallLining(face, code);
         if (!result.ok) { hint(result.error, true); return; }
         clearPending(); hint(code + ' aplicado en la cara ' + face + '.'); return;
       }
