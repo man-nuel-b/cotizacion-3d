@@ -157,6 +157,25 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     $('toggle-catalog-inspector').textContent = collapsed ? 'Mostrar catálogo' : 'Ocultar catálogo';
     requestAnimationFrame(() => window.dispatchEvent(new Event('resize')));
   });
+  // V4.17: accesos seguros a superficies sin depender de un raycast visible.
+  document.querySelectorAll('[data-edit-surface]').forEach(button => {
+    button.addEventListener('click', () => {
+      const [kind, id] = button.dataset.editSurface.split(':');
+      if (!['floor', 'roof', 'wall'].includes(kind)) return;
+      clearPending();
+      const result = api.selectEntity(kind, id);
+      if (!result.ok) { hint(result.error, true); return; }
+      inspectorDismissedKey = null;
+      inspector.hidden = false;
+      syncStageLayout();
+      refreshProperties();
+      if (kind === 'floor') floorMaterialSelect.focus({ preventScroll: true });
+      else surfaceMaterialSelect.focus({ preventScroll: true });
+      hint(kind === 'floor' ? 'Piso seleccionado: cambia acabado u orientación.' :
+        kind === 'roof' ? 'Techo seleccionado: cambia su terminación.' :
+        'Muro ' + id + ' seleccionado: cambia su revestimiento.');
+    });
+  });
   $('close-inspector').addEventListener('click', hideInspector);
   $('open-inspector').addEventListener('click', () => {
     if (!api.getSelected()) return;
