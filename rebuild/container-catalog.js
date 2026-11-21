@@ -1,4 +1,4 @@
-/* Catálogo técnico V2: 60 partidas proporcionadas por el usuario.
+/* Catálogo técnico V4.17: 60 partidas base y 10 revestimientos exteriores.
  * Dimensiones por defecto ilustrativas/editables cuando la partida no las fija.
  * Sin precios, APU, BOM ni conexión a Supabase.
  */
@@ -6,7 +6,8 @@
 export const FAMILIES = Object.freeze([
   ['pisos', 'Pisos y zócalos'],
   ['estructura', 'Estructuras y aislaciones'],
-  ['revestimientos', 'Revestimientos'],
+  ['interiores', 'Revestimientos interiores'],
+  ['exteriores', 'Revestimientos exteriores'],
   ['contenedor', 'Estructura del contenedor'],
   ['sistemas', 'Tabiques, muros y cielos'],
   ['sanitarios', 'Sanitarios y kitchenette'],
@@ -31,20 +32,20 @@ const records = [
   ['P22', 'estructura', 'wall-object', 'Aislación poliestireno expandido (EPS) 50 mm', [1.2, 1.4, .05], 'eps'],
   ['P23', 'estructura', 'wall-object', 'Aislación lana de vidrio panel 50 mm con barrera de vapor', [1.2, 1.4, .05], 'glass-panel'],
 
-  ['P30', 'revestimientos', 'wall-finish', 'Revestimiento volcanita ST 15 mm, 1 cara, juntas listas para pintar', null, 'gypsum'],
-  ['P31', 'revestimientos', 'wall-finish', 'Revestimiento volcanita RH 15 mm (zonas húmedas), 1 cara', null, 'moisture'],
-  ['P32', 'revestimientos', 'wall-finish', 'Revestimiento fibrocemento liso 6 mm, 1 cara', null, 'fiber-cement'],
-  ['P33', 'revestimientos', 'wall-finish', 'Revestimiento terciado estructural 12 mm, 1 cara', null, 'plywood'],
-  ['P34', 'revestimientos', 'wall-finish', 'Revestimiento OSB 9,5 mm, 1 cara', null, 'osb'],
-  ['P35', 'revestimientos', 'wall-finish', 'Revestimiento wall panel PVC lavable (sobre base existente)', null, 'pvc'],
+  ['P30', 'interiores', 'wall-interior-finish', 'Revestimiento volcanita ST 15 mm, 1 cara, juntas listas para pintar', null, 'gypsum'],
+  ['P31', 'interiores', 'wall-interior-finish', 'Revestimiento volcanita RH 15 mm (zonas húmedas), 1 cara', null, 'moisture'],
+  ['P32', 'interiores', 'wall-interior-finish', 'Revestimiento fibrocemento liso 6 mm, 1 cara', null, 'fiber-cement'],
+  ['P33', 'interiores', 'wall-interior-finish', 'Revestimiento terciado estructural 12 mm, 1 cara', null, 'plywood'],
+  ['P34', 'interiores', 'wall-interior-finish', 'Revestimiento OSB 9,5 mm, 1 cara', null, 'osb'],
+  ['P35', 'interiores', 'wall-interior-finish', 'Revestimiento wall panel PVC lavable (sobre base existente)', null, 'pvc'],
 
   ['P40', 'contenedor', 'opening', 'Corte de vano puerta 0,90x2,10 m con marco de refuerzo tubular 50x50x3', [.9, 2.1, .05], 'cut-door'],
   ['P41', 'contenedor', 'opening', 'Corte de vano ventana 1,20x1,00 m con marco de refuerzo tubular 50x50x2', [1.2, 1, .05], 'cut-window'],
   ['P42', 'contenedor', 'opening', 'Corte de vano ventana baño 1,00x0,60 m con marco de refuerzo tubular 50x50x2', [1, .6, .05], 'cut-bath'],
   ['P43', 'contenedor', 'opening', 'Corte de vano ventanal 1,60x2,10 m con refuerzo tubular 50x50x3 (dintel)', [1.6, 2.1, .05], 'cut-glass'],
-  ['P44', 'contenedor', 'wall-finish', 'Preparación de superficie y anticorrosivo (cepillado, convertidor de óxido, 2 manos)', null, 'primer'],
-  ['P45', 'contenedor', 'wall-finish', 'Pintura exterior esmalte poliuretano/sintético, 2 manos, sobre anticorrosivo', null, 'paint-out'],
-  ['P46', 'contenedor', 'wall-finish', 'Pintura interior látex lavable 2 manos sobre volcanita (con sellador)', null, 'paint-in'],
+  ['P44', 'exteriores', 'wall-exterior-finish', 'Preparación de superficie y anticorrosivo (cepillado, convertidor de óxido, 2 manos)', null, 'primer'],
+  ['P45', 'exteriores', 'wall-exterior-finish', 'Pintura exterior esmalte poliuretano/sintético, 2 manos, sobre anticorrosivo', null, 'paint-out'],
+  ['P46', 'interiores', 'wall-interior-finish', 'Pintura interior látex lavable 2 manos sobre volcanita (con sellador)', null, 'paint-in'],
   ['P47', 'contenedor', 'floor', 'Sobrepiso terciado/OSB 18 mm sobre piso original con barrera de humedad', null, 'osb-floor'],
   ['P48', 'contenedor', 'wall-object', 'Aislación poliuretano proyectado 50 mm (subcontrato)', [1.2, 1.5, .05], 'spray-foam'],
 
@@ -54,8 +55,20 @@ const records = [
   ['P17', 'sistemas', 'wall-object', 'Muro interior de contenedor zona húmeda (trasdosado): Metalcon + barrera de vapor + lana 50 mm + volcanita RH 15 mm', [1.6, 2.35, .12], 'wet-lining'],
   ['P15', 'sistemas', 'wall-object', 'Muro de cierre completo (relleno de vano/ampliación): Metalcon + OSB 9,5 + fibrocemento 6 + lana 50 + volcanita ST interior', [1.6, 2.35, .15], 'closure'],
   ['P16', 'sistemas', 'ceiling', 'Cielo falso: estructura Metalcon + lana 50 mm + volcanita ST 15 mm, listo para pintar', null, 'false-ceiling'],
-  ['P36', 'sistemas', 'wall-finish', 'Revestimiento cerámico/porcelanato muro 30x60 (adhesivo y fragüe)', null, 'wall-tile'],
-  ['P37', 'sistemas', 'wall-finish', 'Impermeabilización zona húmeda con membrana líquida elástica 2 manos + banda de refuerzo', null, 'waterproof'],
+  ['P36', 'interiores', 'wall-interior-finish', 'Revestimiento cerámico/porcelanato muro 30x60 (adhesivo y fragüe)', null, 'wall-tile'],
+  ['P37', 'interiores', 'wall-interior-finish', 'Impermeabilización zona húmeda con membrana líquida elástica 2 manos + banda de refuerzo', null, 'waterproof'],
+
+  // Fachadas exteriores: materiales visuales y sistemas de terminación de referencia.
+  ['P50', 'exteriores', 'wall-exterior-finish', 'Pintura exterior poliuretano gris grafito sobre acero preparado', null, 'ext-paint-graphite'],
+  ['P51', 'exteriores', 'wall-exterior-finish', 'Sistema anticorrosivo + imprimante + esmalte exterior terracota', null, 'ext-paint-rust'],
+  ['P52', 'exteriores', 'wall-exterior-finish', 'Siding fibrocemento exterior horizontal gris claro', null, 'ext-fiber-siding'],
+  ['P53', 'exteriores', 'wall-exterior-finish', 'Siding PVC exterior horizontal blanco marfil', null, 'ext-pvc-siding'],
+  ['P54', 'exteriores', 'wall-exterior-finish', 'Revestimiento WPC exterior listonado tono nogal', null, 'ext-wpc'],
+  ['P55', 'exteriores', 'wall-exterior-finish', 'Fachada ventilada metálica prepintada antracita', null, 'ext-metal-facade'],
+  ['P56', 'exteriores', 'wall-exterior-finish', 'Plancha zinc/aluzinc exterior acanalada gris plata', null, 'ext-aluzinc'],
+  ['P57', 'exteriores', 'wall-exterior-finish', 'Placa fibrocemento lisa exterior pintada color arena', null, 'ext-fiber-flat'],
+  ['P58', 'exteriores', 'wall-exterior-finish', 'Enchape exterior decorativo piedra gris natural', null, 'ext-stone'],
+  ['P59', 'exteriores', 'wall-exterior-finish', 'Madera tratada exterior tinglado horizontal tono miel', null, 'ext-wood-siding'],
 
   ['P60', 'sanitarios', 'object', 'Inodoro (WC) two piece instalado, con llave de paso y flexible', [.40, .78, .68], 'toilet'],
   ['P61', 'sanitarios', 'object', 'Lavamanos con pedestal, grifería monomando y sifón instalado', [.55, .86, .48], 'sink'],
@@ -84,7 +97,7 @@ const records = [
   ['P85', 'aberturas', 'opening', 'Ventanal aluminio corredera 150x205 instalado en vano', [1.5, 2.05, .05], 'glazing']
 ];
 
-if (records.length !== 60) throw new Error('El catálogo debe tener exactamente 60 partidas');
+if (records.length !== 70) throw new Error('El catálogo debe tener exactamente 70 partidas');
 const ids = new Set();
 for (const r of records) {
   if (ids.has(r[0])) throw new Error('Código repetido: ' + r[0]);
