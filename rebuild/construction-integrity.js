@@ -829,10 +829,14 @@ export function computeWallTakeoff(state) {
     const shared = sharedAreas.reduce((sum, x) => sum + x.w * x.h, 0);
     const net = Math.max(0, gross - openingArea - shared);
     const finish = state.finishes?.walls?.[face] || null;
+    const interiorFinish = state.finishes?.interiorWalls?.[face] || null;
     walls[face] = {
       face, grossAreaM2: gross, openingsAreaM2: openingArea,
       sharedDeductionM2: shared, netAreaM2: net,
-      liningCode: finish, liningAreaM2: finish ? net : 0
+      // Mantener liningCode para informes existentes; agregar ambos lados explícitos.
+      liningCode: finish, liningAreaM2: finish ? net : 0,
+      exteriorLiningCode: finish, exteriorLiningAreaM2: finish ? net : 0,
+      interiorLiningCode: interiorFinish, interiorLiningAreaM2: interiorFinish ? net : 0
     };
     totalGrossWallAreaM2 += gross;
     totalOpeningsAreaM2 += openingArea;
