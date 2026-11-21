@@ -27,7 +27,8 @@ function fixture() {
     partitions: [], interiorDoors: [], objects: [], services: [], sharedWalls: [], bathFloor: null, floorDirection: 'length',
     electrical: defaultElectricalConfig(),
     finishes: { floor: null, ceiling: null, skirting: null,
-      walls: { A: null, B: null, C: null, D: null } },
+      walls: { A: null, B: null, C: null, D: null },
+      interiorWalls: { A: null, B: null, C: null, D: null } },
     seeInside: true, nextId: 1
   };
   const T = { maritimo: { dims: [6, 2.4, 2.5], color: '#999999', R: .046, T: .004 },
