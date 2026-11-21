@@ -85,5 +85,6 @@ test('guard: preview loads bridge after authorization; public landing stays susp
   assert.match(source,/cells\[3\]\.textContent='No validado'/);
   assert.match(source,/openQuote=function\(\)/);
   assert.match(source,/Sin precios confirmados/);
-  assert.match(landing,/temporalmente no disponible|Acceso suspendido/i);
+  assert.match(landing,/<div id="app-shell"/); // Public demo remains available.
+  assert.doesNotMatch(landing,/BAT_CUBIKEITOR_PREVIEW_CLIENT\s*=/); // Privileged client is preview-only.
 });

@@ -6,19 +6,42 @@
   function buildSeed(){
     const R=window.BAT_EXCEL_APU_R||[],A=window.BAT_EXCEL_APU_A||[];
     if(R.length<123||A.length<60)return null;
-    const resources=Object.fromEntries(R.map(([code,type,name,unit,price])=>{
-      const id=`excel:${code}`;
-      return [id,{id,type,source:'excel',sourceKey:code,code,name,unit,price}];
-    }));
+    // Bundled source is JavaScript arrays, not a live Google Sheets/CSV feed.
+    // Fail closed on malformed cells: a missing price must never become $0.
+    const requiredText=(value,label)=>{
+      if(typeof value!=='string'||!value.trim())throw new Error('Dato APU obligatorio: '+label);
+      return value.trim();
+    };
+    const finite=(value,label,allowZero=true)=>{
+      if(value===null||value===undefined||value==='')throw new Error('Celda APU vacía: '+label);
+      const n=Number(value);
+      if(!Number.isFinite(n)||n<0||(!allowZero&&n===0))throw new Error('Valor APU inválido: '+label);
+      return n;
+    };
+    const resources=Object.create(null);
+    R.forEach(([code,type,name,unit,price],index)=>{
+      const key=requiredText(code,'recurso código '+index);
+      const id=`excel:${key}`;
+      if(resources[id])throw new Error('Recurso APU duplicado: '+key);
+      resources[id]={id,type:requiredText(type,key+' tipo'),source:'excel',sourceKey:key,code:key,
+        name:requiredText(name,key+' nombre'),unit:requiredText(unit,key+' unidad'),price:finite(price,key+' precio')};
+    });
     const apus={},crews={};
-    A.forEach(([code,name,unit,group,yieldPerDay,masters,helpers,role,parts])=>{
-      const id=`excel:${code}`;
-      apus[id]={
-        id,name:`${code} · ${name}`,unit,group,measurement:'manual',
-        components:parts.map(([resourceCode,qty,waste])=>({resourceId:`excel:${resourceCode}`,qty,waste,yield:1})),
-        excelCode:code,source:'APU_Contenedores_Chile_v2.xlsx'
-      };
-      crews[id]={yield:yieldPerDay,masters,helpers,role,unit};
+    A.forEach(([code,name,unit,group,yieldPerDay,masters,helpers,role,parts],index)=>{
+      const key=requiredText(code,'partida código '+index),id=`excel:${key}`;
+      if(apus[id])throw new Error('Partida APU duplicada: '+key);
+      if(!Array.isArray(parts))throw new Error('Partida sin recursos: '+key);
+      const components=parts.map(([resourceCode,qty,waste],i)=>{
+        const resourceId=`excel:${requiredText(resourceCode,key+' recurso '+i)}`;
+        if(!resources[resourceId])throw new Error('Referencia APU desconocida: '+resourceId);
+        return {resourceId,qty:finite(qty,key+' cantidad '+i),waste:finite(waste,key+' merma '+i),yield:1};
+      });
+      apus[id]={id,name:`${key} · ${requiredText(name,key+' nombre')}`,
+        unit:requiredText(unit,key+' unidad'),group:requiredText(group,key+' grupo'),measurement:'manual',
+        components,excelCode:key,source:'APU_Contenedores_Chile_v2.xlsx'};
+      crews[id]={yield:finite(yieldPerDay,key+' rendimiento',false),
+        masters:finite(masters,key+' maestros'),helpers:finite(helpers,key+' ayudantes'),
+        role:requiredText(role,key+' oficio'),unit:requiredText(unit,key+' unidad')};
     });
     return {resources,apus,crews};
   }
@@ -36,7 +59,12 @@
   }
 
   function mergeCatalog(){
-    const seed=buildSeed();
+    let seed;
+    try{seed=buildSeed();}catch(error){
+      console.error('[BAT APU Excel] catálogo rechazado',error);
+      window.BAT_KUBIQUEITOR_EXCEL_APU_CATALOG={version:2,error:error.message,valid:false};
+      return 'invalid';
+    }
     if(!seed||typeof getApuMaster!=='function'||typeof importApuMaster!=='function')return false;
     let current;
     try{current=getApuMaster();}catch(e){return false;}
