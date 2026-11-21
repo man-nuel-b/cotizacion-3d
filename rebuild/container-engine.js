@@ -267,7 +267,7 @@ const state = {
   type: 'maritimo',
   L: 12.03, W: 2.35, H: 2.39, color: '#7d8388',
   openings: [], partitions: [], interiorDoors: [], objects: [], services: [], sharedWalls: [],
-  finishes: { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null } },
+  finishes: { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null }, interiorWalls: { A: null, B: null, C: null, D: null } },
   bathFloor: null, floorDirection: 'length',
   electrical: defaultElectricalConfig(),
   seeInside: false, nextId: 1,
@@ -611,6 +611,24 @@ function build() {
     wmat.side = THREE.DoubleSide;
     const group = wallPanels(lw, totalH, cuts, wmat, seam);
     group.traverse(node => { if (node.isMesh && node.userData.isPanel) node.userData.wallFace = key; });
+    // Acabado interior independiente; conserva los mismos vanos y sigue al muro en raycast/corte.
+    const interiorCode = state.finishes.interiorWalls?.[key];
+    if (interiorCode) {
+      const insideMat = makeFinishMaterial(THREE, interiorCode,
+        material => owned.push(material), texture => ownedTextures.push(texture),
+        Math.max(1, lw / 1.2), Math.max(1, totalH / 1.2));
+      insideMat.side = THREE.DoubleSide;
+      const innerPanels = wallPanels(lw, totalH, cuts, insideMat);
+      innerPanels.position.z = -Math.max(0.016, profileCfg.WALL + 0.012);
+      innerPanels.traverse(node => {
+        if (node.isMesh) {
+          node.userData.isPanel = false; // no interceptar selección de la cara externa
+          node.userData.isInteriorFinish = true;
+          node.castShadow = false;
+        }
+      });
+      group.add(innerPanels);
+    }
     group.rotation.y = Math.atan2(f.n[0], f.n[2]);
     group.position.set(f.n[0] * half, 0, f.n[2] * half);
     root.add(group);
@@ -1010,7 +1028,7 @@ const api = {
     state.type = key; [state.L, state.W, state.H] = c.dims;
     state.color = c.color; state.openings = []; state.partitions = []; state.interiorDoors = []; state.services = []; state.sharedWalls = [];
     state.objects = [];
-    state.finishes = { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null } };
+    state.finishes = { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null }, interiorWalls: { A: null, B: null, C: null, D: null } };
     state.bathFloor = null;
     state.floorDirection = 'length';
     state.electrical = defaultElectricalConfig();
@@ -1210,7 +1228,8 @@ const api = {
     if (!FACES[face]) return { ok: false, error: 'Cara de muro inválida (A, B, C o D)' };
     const item = CATALOG_BY_CODE[code];
     if (!item) return { ok: false, error: 'Partida del catálogo inexistente' };
-    if (item.mode === 'wall-finish') return this.setFinish(code, face);
+    if (item.mode === 'wall-exterior-finish') return this.setFinish(code, face);
+    if (item.mode === 'wall-interior-finish') return this.setInteriorWallFinish(face, code);
     if (item.mode !== 'wall-object' || !['wall-lining', 'wet-lining'].includes(item.visual)) {
       return { ok: false, error: 'La partida seleccionada no es un revestimiento ni un trasdosado de muro' };
     }
@@ -1257,12 +1276,24 @@ const api = {
     if (entry.mode === 'floor') state.finishes.floor = code;
     else if (entry.mode === 'skirting') state.finishes.skirting = code;
     else if (entry.mode === 'ceiling') state.finishes.ceiling = code;
-    else if (entry.mode === 'wall-finish') {
+    else if (entry.mode === 'wall-exterior-finish') {
       if (!FACES[face]) return { ok: false, error: 'Selecciona una cara válida' };
       state.finishes.walls[face] = code;
-    } else return { ok: false, error: 'Esta partida no corresponde a una terminación' };
+    } else return { ok: false, error: 'Esta partida no corresponde a una terminación exterior del muro' };
     build(); return { ok: true, code, face };
   },
+
+  setInteriorWallFinish(face, code) {
+    if (!FACES[face]) return { ok: false, error: 'Cara interior inválida (A, B, C o D)' };
+    if (code !== null && CATALOG_BY_CODE[code]?.mode !== 'wall-interior-finish') {
+      return { ok: false, error: 'Selecciona un revestimiento interior válido' };
+    }
+    state.finishes.interiorWalls[face] = code;
+    build();
+    return { ok: true, face, code };
+  },
+
+  clearInteriorWallFinish(face) { return this.setInteriorWallFinish(face, null); },
 
   clearSurfaceFinish(kind, face = 'A') {
     if (kind === 'roof') state.finishes.ceiling = null;
@@ -1633,11 +1664,33 @@ const api = {
         (TYPES[s.type].R + TYPES[s.type].T));
       if (issueBath) throw Error('Piso de baño inválido: ' + issueBath);
       const finishes = s.finishes || { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null } };
-      if (!finishes.walls || typeof finishes.walls !== 'object') throw Error('Acabados inválidos');
-      const validFinish = (code, modes) => code === null || modes.includes(CATALOG_BY_CODE[code]?.mode);
+      if (!finishes.walls || typeof finishes.walls !== 'object' || Array.isArray(finishes.walls) ||
+          (finishes.interiorWalls !== undefined &&
+           (!finishes.interiorWalls || typeof finishes.interiorWalls !== 'object' || Array.isArray(finishes.interiorWalls)))) {
+        throw Error('Acabados de muros inválidos');
+      }
+      const validFinish = (code, modes) => code == null || modes.includes(CATALOG_BY_CODE[code]?.mode);
       if (!validFinish(finishes.floor, ['floor']) || !validFinish(finishes.ceiling, ['ceiling']) ||
-          !validFinish(finishes.skirting, ['skirting']) || !Object.values(finishes.walls).every(c => validFinish(c, ['wall-finish']))) {
+          !validFinish(finishes.skirting, ['skirting'])) {
         throw Error('Códigos de acabados incompatibles');
+      }
+      const exteriorWalls = {}, interiorWalls = {};
+      for (const face of ['A', 'B', 'C', 'D']) {
+        const prevCode = finishes.walls[face] || null;
+        const innerCode = finishes.interiorWalls?.[face] || null;
+        if (!validFinish(innerCode, ['wall-interior-finish'])) {
+          throw Error('Revestimiento interior inválido en cara ' + face);
+        }
+        if (CATALOG_BY_CODE[prevCode]?.mode === 'wall-interior-finish') {
+          // JSON anterior: antes los interiores se guardaban en finishes.walls.
+          if (innerCode && innerCode !== prevCode) throw Error('Revestimientos interiores incompatibles en cara ' + face);
+          exteriorWalls[face] = null;
+          interiorWalls[face] = innerCode || prevCode;
+        } else {
+          if (!validFinish(prevCode, ['wall-exterior-finish'])) throw Error('Revestimiento exterior inválido en cara ' + face);
+          exteriorWalls[face] = prevCode;
+          interiorWalls[face] = innerCode;
+        }
       }
 
       let maxId = Number.isSafeInteger(s.nextId) && s.nextId > 0 ? s.nextId - 1 : 0;
@@ -1740,10 +1793,8 @@ const api = {
         electrical: cleanElectrical,
         finishes: {
           floor: finishes.floor || null, ceiling: finishes.ceiling || null, skirting: finishes.skirting || null,
-          walls: {
-            A: finishes.walls.A || null, B: finishes.walls.B || null,
-            C: finishes.walls.C || null, D: finishes.walls.D || null
-          }
+          walls: exteriorWalls,
+          interiorWalls
         },
         seeInside: !!s.seeInside, nextId: maxId + 1
       });
@@ -1818,7 +1869,8 @@ document.querySelectorAll('#seg button').forEach(b => {
     if (state.type === b.dataset.t) return;
     const hasWork = state.objects.length || state.openings.length || state.partitions.length ||
       state.services.length || state.sharedWalls.length || state.finishes.floor || state.finishes.ceiling ||
-      state.finishes.skirting || Object.values(state.finishes.walls).some(Boolean);
+      state.finishes.skirting || Object.values(state.finishes.walls).some(Boolean) ||
+      Object.values(state.finishes.interiorWalls).some(Boolean);
     if (hasWork && !window.confirm('Cambiar el tipo de contenedor eliminará los elementos y acabados del diseño actual. ¿Continuar?')) return;
     const result = api.setType(b.dataset.t, { samples: false });
     if (result.ok) { syncPanel(); editor?.clearPending(); }

@@ -196,7 +196,13 @@ const FINISH = {
   P31: ['#a7c6b4', 'plain'], P32: ['#aeb2b1', 'cement'], P33: ['#b69068', 'wood'],
   P34: ['#a68a65', 'osb'], P35: ['#e4e8e8', 'pvc'], P44: ['#ad6954', 'plain'],
   P45: ['#344c62', 'plain'], P46: ['#f0ede5', 'plain'], P36: ['#b9b3a9', 'tile'],
-  P37: ['#418cbb', 'waterproof'], P16: ['#e9e7e1', 'plain']
+  P37: ['#418cbb', 'waterproof'], P16: ['#e9e7e1', 'plain'],
+  // Acabados exteriores con patrón PBR procedimental (texturas referenciales).
+  P50: ['#374653', 'paint'], P51: ['#a35c45', 'paint'],
+  P52: ['#a4a9a7', 'siding'], P53: ['#e2dfd3', 'siding'],
+  P54: ['#86674c', 'wpc'], P55: ['#40464f', 'metal-seam'],
+  P56: ['#abb5bd', 'metal-rib'], P57: ['#beb7a7', 'fiber-panel'],
+  P58: ['#777c76', 'stone'], P59: ['#b28b5e', 'wood-siding']
 };
 
 export function makeFinishMaterial(THREE, code, registerMaterial, registerTexture, repeatX = 5, repeatY = 3) {
@@ -234,6 +240,65 @@ export function makeFinishMaterial(THREE, code, registerMaterial, registerTextur
       n = (n * 1664525 + 1013904223) >>> 0;
       g.fillStyle = i % 2 ? 'rgba(30,30,30,.07)' : 'rgba(255,255,255,.09)';
       g.fillRect(n % 512, (n >>> 9) % 512, 1.4, 1.4);
+    }
+  }
+  // Fachadas: ritmo de juntas y perfiles de cada solución (visuales, no constructivos).
+  if (['siding', 'wood-siding'].includes(pattern)) {
+    const pitch = pattern === 'siding' ? 82 : 64;
+    for (let y = 0; y <= 512; y += pitch) {
+      g.fillStyle = 'rgba(20,28,32,.16)'; g.fillRect(0, y, 512, 5);
+      g.fillStyle = 'rgba(255,255,255,.23)'; g.fillRect(0, y + 5, 512, 3);
+    }
+    if (pattern === 'wood-siding') {
+      for (let x = 24; x < 512; x += 95) {
+        g.fillStyle = 'rgba(75,46,25,.10)'; g.fillRect(x, 0, 2, 512);
+      }
+    }
+  }
+  if (pattern === 'wpc') {
+    for (let x = 0; x < 512; x += 48) {
+      g.fillStyle = 'rgba(28,21,17,.40)'; g.fillRect(x, 0, 6, 512);
+      g.fillStyle = 'rgba(249,229,188,.13)'; g.fillRect(x + 8, 0, 2, 512);
+      g.fillStyle = 'rgba(50,31,20,.13)'; g.fillRect(x + 23, 0, 2, 512);
+    }
+  }
+  if (['metal-seam', 'metal-rib'].includes(pattern)) {
+    const pitch = pattern === 'metal-seam' ? 128 : 46;
+    const raised = pattern === 'metal-seam' ? 9 : 5;
+    for (let x = 0; x < 512; x += pitch) {
+      g.fillStyle = 'rgba(25,33,42,.38)'; g.fillRect(x, 0, raised, 512);
+      g.fillStyle = 'rgba(255,255,255,.32)'; g.fillRect(x + raised, 0, 3, 512);
+      if (pattern === 'metal-rib') {
+        g.fillStyle = 'rgba(255,255,255,.13)'; g.fillRect(x + 16, 0, 8, 512);
+      }
+    }
+  }
+  if (pattern === 'fiber-panel') {
+    g.strokeStyle = 'rgba(60,66,71,.37)'; g.lineWidth = 4;
+    for (let x = 0; x <= 512; x += 256) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 512); g.stroke(); }
+    for (let y = 0; y <= 512; y += 256) { g.beginPath(); g.moveTo(0, y); g.lineTo(512, y); g.stroke(); }
+  }
+  if (pattern === 'stone') {
+    let seed = 941;
+    const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967295; };
+    for (let row = 0; row < 8; row++) {
+      const y = row * 64;
+      let x = row % 2 ? -55 : 0;
+      while (x < 512) {
+        const w = 65 + Math.floor(rand() * 75);
+        const shade = Math.round(102 + rand() * 48);
+        g.fillStyle = 'rgb(' + shade + ',' + (shade + 3) + ',' + Math.max(0, shade - 5) + ')';
+        g.fillRect(x + 2, y + 2, w - 4, 60);
+        g.fillStyle = 'rgba(20,25,27,.16)'; g.fillRect(x + 1, y + 61, w - 1, 3);
+        x += w;
+      }
+    }
+  }
+  if (pattern === 'paint') {
+    g.fillStyle = 'rgba(255,255,255,.025)';
+    for (let i = 0; i < 900; i++) {
+      const x = (i * 107) % 512, y = (i * 311) % 512;
+      g.fillRect(x, y, 1, 1);
     }
   }
   const tex = new THREE.CanvasTexture(canvas);
