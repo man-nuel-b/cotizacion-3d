@@ -12,6 +12,7 @@ import {
   checkJunctionAgainstDoors, resolveMagneticPartitionMove, computeFreePartitionSpan, validateBathFloor, detectRectangularRoomAt
 } from '../construction-integrity.js';
 import { CATALOG, CATALOG_BY_CODE } from '../container-catalog.js';
+import { defaultElectricalConfig, sanitizeElectricalConfig } from '../electrical-project-config.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const source = fs.readFileSync(path.join(root, 'container-engine.js'), 'utf8');
@@ -24,6 +25,7 @@ function fixture() {
   const state = {
     type: 'maritimo', L: 6, W: 2.4, H: 2.5, color: '#999999', openings: [],
     partitions: [], interiorDoors: [], objects: [], services: [], sharedWalls: [], bathFloor: null, floorDirection: 'length',
+    electrical: defaultElectricalConfig(),
     finishes: { floor: null, ceiling: null, skirting: null,
       walls: { A: null, B: null, C: null, D: null } },
     seeInside: true, nextId: 1
@@ -61,7 +63,7 @@ function fixture() {
     validateOpening() { return null; },
     validDimensions(L, W, H) { return L >= 2 && L <= 25 && W >= 1 && W <= 5 && H >= 1.8 && H <= 5; },
     markChanged() { buildCount++; return { ok: true }; },
-    CATALOG, CATALOG_BY_CODE, interiorClearance, resolvePartitionGeometry,
+    CATALOG, CATALOG_BY_CODE, defaultElectricalConfig, sanitizeElectricalConfig, interiorClearance, resolvePartitionGeometry,
     resolveRotatedPartition, validateInteriorDoor, validatePartitionSpecification,
     computeWallTakeoff, validateSharedWallRegion, validateBathFloor, detectRectangularRoomAt, classifyPartitionJunction,
     computePartitionJunctions, checkJunctionAgainstDoors, resolveMagneticPartitionMove, computeFreePartitionSpan,
