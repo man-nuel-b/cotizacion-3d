@@ -5,7 +5,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CATALOG, CATALOG_BY_CODE } from './container-catalog.js';
 import { createObjectModel, makeFinishMaterial } from './container-object-models.js';
 import { installEditor } from './container-editor-ui.js';
-import { installElectricalUI } from './electrical-module.js';
+import { installElectricalUI, defaultElectricalConfig, sanitizeElectricalConfig } from './electrical-module.js';
 import { createDisposalContext, disposeHierarchy, disposeMaterial, disposeTexture } from './resource-disposal.js';
 import {
   interiorClearance, validateObjectInsideContainer, validatePartitionInsideContainer,
@@ -269,6 +269,7 @@ const state = {
   openings: [], partitions: [], interiorDoors: [], objects: [], services: [], sharedWalls: [],
   finishes: { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null } },
   bathFloor: null, floorDirection: 'length',
+  electrical: defaultElectricalConfig(),
   seeInside: false, nextId: 1,
 };
 
@@ -1012,6 +1013,7 @@ const api = {
     state.finishes = { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null } };
     state.bathFloor = null;
     state.floorDirection = 'length';
+    state.electrical = defaultElectricalConfig();
     state.nextId = 1; selectedEntity = null;
     if (samples) for (const x of SAMPLES[key]) {
       const sample = withOpeningReinforcement({ id: state.nextId, bars: false, ...x });
@@ -1024,6 +1026,8 @@ const api = {
     if (!validDimensions(L, W, H)) return { ok: false, error: 'Dimensiones fuera de rango permitido' };
     const next = { L, W, H };
     const nextRef = { ...state, L, W, H };
+    try { sanitizeElectricalConfig(state.electrical, nextRef, state.openings); }
+    catch(error) { return {ok:false,error:'Puntos eléctricos incompatibles con estas dimensiones: '+error.message}; }
     const bathError = validateBathFloor(state.bathFloor, nextRef, profileThicknessFor(nextRef));
     if (bathError) return { ok: false, error: 'Piso de baño incompatible con las nuevas dimensiones: ' + bathError };
     if (state.openings.some(o => validateOpening(o, o.id, nextRef))) {
@@ -1671,6 +1675,8 @@ const api = {
         });
       });
 
+      const cleanElectrical = sanitizeElectricalConfig(s.electrical, s, cleanOpenings);
+
       const cleanObjects = (s.objects || []).map(o => {
         if (!o || typeof o !== 'object' || typeof o.id !== 'string' || !o.id) throw Error('ID de objeto inválido');
         uniqueId(o.id, 'obj');
@@ -1731,6 +1737,7 @@ const api = {
         openings: [], partitions: cleanPartitions, interiorDoors: cleanInteriorDoors,
         objects: cleanObjects, services: cleanServices, sharedWalls: cleanSharedWalls,
         bathFloor: cleanBathFloor, floorDirection,
+        electrical: cleanElectrical,
         finishes: {
           floor: finishes.floor || null, ceiling: finishes.ceiling || null, skirting: finishes.skirting || null,
           walls: {
