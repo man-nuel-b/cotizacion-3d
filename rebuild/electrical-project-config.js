@@ -24,7 +24,7 @@ export function sanitizeElectricalConfig(raw, dims, openings=[]) {
     if(!rawPoint || typeof rawPoint!=='object' || Array.isArray(rawPoint))
       throw Error('Punto eléctrico inválido');
     const {id,type,face,u,v}=rawPoint, size=ELECTRICAL_POINT_SIZES[type];
-    if(typeof id!=='string' || !/^el-[1-9]\\d*$/.test(id) || ids.has(id) ||
+    if(typeof id!=='string' || !/^el-[1-9]\d*$/.test(id) || ids.has(id) ||
        !size || !['A','B','C','D'].includes(face) ||
        !Number.isFinite(u) || !Number.isFinite(v)) throw Error('Identificador o coordenadas eléctricas inválidas');
     ids.add(id);
