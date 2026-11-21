@@ -999,6 +999,7 @@ test('BAT V4.17: inspector muestra solo fachadas en selector exterior y conserva
     let state = await page.evaluate(() => window.Container3D.getState());
     assert.equal(state.finishes.walls.A, 'P54');
 
+    await page.locator('#wall-interior-finish-options summary').click();
     const inside = page.locator('#wall-interior-finish-select');
     await inside.selectOption('P35');
     state = await page.evaluate(() => window.Container3D.getState());
