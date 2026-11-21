@@ -39,6 +39,8 @@ jobs:
           "
       - name: Install isolated test dependencies
         run: npm install --prefix rebuild --no-save --no-package-lock three@0.160.0 playwright@1.58.2
+      - name: Validate persisted electrical projects
+        run: node --experimental-default-type=module --test rebuild/tests/electrical-persistence.mjs
       - name: Validate catalog models
         run: node --experimental-default-type=module --test rebuild/tests/catalog-geometry.mjs
       - name: Install Chromium
