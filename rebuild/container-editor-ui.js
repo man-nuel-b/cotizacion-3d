@@ -560,7 +560,7 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       options.forEach(item=>surfaceMaterialSelect.add(new Option(item.code+' · '+item.name,item.code)));
       surfaceMaterialSelect.value=selectedCode||'';
       surfaceTitle.textContent=roof?'Revestimiento de cielo':'Revestimientos exteriores · fachada';
-      surfaceMaterialLabel.textContent=roof?'Terminación de cielo':'Revestimiento exterior de cara '+face;
+      surfaceMaterialLabel.firstChild.textContent=roof?'Terminación de cielo':'Revestimiento exterior de cara '+face;
       interiorDetails.hidden=roof;
       if (!roof) {
         interiorMaterialSelect.replaceChildren(new Option('Sin revestimiento interior',''));
