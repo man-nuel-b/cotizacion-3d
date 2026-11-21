@@ -426,3 +426,16 @@ test('Baño: suma superficies y remanente de piso sin descontar dos veces', () =
   state.bathFloor = null;
   assert.ok(Math.abs(computeWallTakeoff(state).remainingFloorAreaM2 - 14.4) < 1e-9);
 });
+
+test('Cubicación V4.17 identifica exteriores e interiores sin mezclar códigos', () => {
+  const state = { ...dims, openings: [], partitions: [], interiorDoors: [], sharedWalls: [],
+    finishes: { walls: { A: 'P54', B: null, C: null, D: null },
+      interiorWalls: { A: 'P35', B: null, C: null, D: null } } };
+  const result = computeWallTakeoff(state);
+  assert.equal(result.walls.A.exteriorLiningCode, 'P54');
+  assert.equal(result.walls.A.interiorLiningCode, 'P35');
+  assert.equal(result.walls.A.exteriorLiningAreaM2, state.L * state.H);
+  assert.equal(result.walls.A.interiorLiningAreaM2, state.L * state.H);
+  assert.equal(result.walls.B.exteriorLiningAreaM2, 0);
+  assert.equal(result.walls.B.interiorLiningAreaM2, 0);
+});
