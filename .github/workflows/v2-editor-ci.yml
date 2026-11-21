@@ -2,6 +2,7 @@ name: BAT-CUBIKEITOR V2 editor 3D
 on:
   push:
     branches:
+      - main
       - rebuild/bat-core-v2
     paths:
       - 'rebuild/**'
@@ -25,9 +26,9 @@ jobs:
           node-version: '22'
       - name: Validate project files and module syntax
         run: |
-          for file in rebuild/index.html rebuild/container-engine.js rebuild/container-catalog.js rebuild/container-object-models.js rebuild/container-editor-ui.js rebuild/construction-integrity.js rebuild/resource-disposal.js; do test -s "$file"; done
+          for file in rebuild/index.html rebuild/container-engine.js rebuild/container-catalog.js rebuild/container-object-models.js rebuild/container-editor-ui.js rebuild/electrical-module.js rebuild/construction-integrity.js rebuild/resource-disposal.js; do test -s "$file"; done
           for file in rebuild/container-engine.js rebuild/container-catalog.js rebuild/container-object-models.js rebuild/container-editor-ui.js rebuild/construction-integrity.js rebuild/resource-disposal.js; do node --experimental-default-type=module --check "$file"; done
-          node --experimental-default-type=module --test rebuild/tests/construction-integrity.mjs rebuild/tests/partition-layers-doors.mjs rebuild/tests/partition-api-integration.mjs rebuild/tests/engine-wiring.mjs rebuild/tests/resource-disposal.mjs rebuild/tests/editor-placement-once.mjs rebuild/tests/roof-alignment.mjs
+          node --experimental-default-type=module --test rebuild/tests/construction-integrity.mjs rebuild/tests/partition-layers-doors.mjs rebuild/tests/partition-api-integration.mjs rebuild/tests/engine-wiring.mjs rebuild/tests/resource-disposal.mjs rebuild/tests/editor-placement-once.mjs rebuild/tests/roof-alignment.mjs rebuild/tests/surface-shortcuts.mjs
           node --experimental-default-type=module --input-type=module -e "
           import { CATALOG, CATALOG_BY_CODE, FAMILIES } from './rebuild/container-catalog.js';
           import assert from 'node:assert/strict';
