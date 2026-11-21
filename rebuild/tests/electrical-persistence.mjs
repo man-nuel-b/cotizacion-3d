@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultElectricalConfig, sanitizeElectricalConfig } from '../electrical-module.js';
+import { defaultElectricalConfig, sanitizeElectricalConfig } from '../electrical-project-config.js';
 
 const dims={L:12.03,W:2.35,H:2.39};
 const point={id:'el-3',type:'outlet',face:'A',u:2,v:1.1};
