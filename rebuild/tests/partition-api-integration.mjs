@@ -7,7 +7,7 @@ import path from 'node:path';
 import {
   interiorClearance, resolvePartitionGeometry, resolveRotatedPartition,
   validatePartitionInsideContainer, checkPartitionCollisions,
-  validateInteriorDoor, validatePartitionSpecification, computeWallTakeoff,
+  validateInteriorDoor, validatePartitionSpecification, computeWallTakeoff, withOpeningReinforcement,
   validateSharedWallRegion, classifyPartitionJunction, computePartitionJunctions,
   checkJunctionAgainstDoors, resolveMagneticPartitionMove, computeFreePartitionSpan, validateBathFloor, detectRectangularRoomAt
 } from '../construction-integrity.js';
@@ -69,7 +69,7 @@ function fixture() {
     CATALOG, CATALOG_BY_CODE, defaultElectricalConfig, sanitizeElectricalConfig, validateExteriorZone, sanitizeExteriorZones,
     interiorClearance, resolvePartitionGeometry,
     resolveRotatedPartition, validateInteriorDoor, validatePartitionSpecification,
-    computeWallTakeoff, validateSharedWallRegion, validateBathFloor, detectRectangularRoomAt, classifyPartitionJunction,
+    computeWallTakeoff, withOpeningReinforcement, validateSharedWallRegion, validateBathFloor, detectRectangularRoomAt, classifyPartitionJunction,
     computePartitionJunctions, checkJunctionAgainstDoors, resolveMagneticPartitionMove, computeFreePartitionSpan,
     SAMPLES: { maritimo: [], reefer: [], modular: [] },
     console
