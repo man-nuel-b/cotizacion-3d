@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { CATALOG, CATALOG_BY_CODE } from './container-catalog.js?v=4.17.2';
-import { createObjectModel, makeFinishMaterial } from './container-object-models.js?v=4.17.2';
-import { installEditor } from './container-editor-ui.js?v=4.17.2';
+import { CATALOG, CATALOG_BY_CODE } from './container-catalog.js?v=4.18';
+import { createObjectModel, makeFinishMaterial } from './container-object-models.js?v=4.18';
+import { validateExteriorZone, sanitizeExteriorZones } from './exterior-finish-zones.js?v=4.18';
+import { installEditor } from './container-editor-ui.js?v=4.18';
 import { installElectricalUI, defaultElectricalConfig, sanitizeElectricalConfig } from './electrical-module.js';
 import { createDisposalContext, disposeHierarchy, disposeMaterial, disposeTexture } from './resource-disposal.js';
 import {
@@ -15,7 +16,7 @@ import {
   validateInteriorDoor, validatePartitionSpecification, PARTITION_LINING_THICKNESS_M,
   classifyPartitionJunction, computePartitionJunctions, checkJunctionAgainstDoors, resolveMagneticPartitionMove, computeFreePartitionSpan,
   validateBathFloor, detectRectangularRoomAt
-} from './construction-integrity.js?v=4.17.2';
+} from './construction-integrity.js?v=4.18';
 
 /* ============ Tipos de contenedor ============ */
 const TYPES = {
@@ -267,7 +268,7 @@ const state = {
   type: 'maritimo',
   L: 12.03, W: 2.35, H: 2.39, color: '#7d8388',
   openings: [], partitions: [], interiorDoors: [], objects: [], services: [], sharedWalls: [],
-  finishes: { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null }, interiorWalls: { A: null, B: null, C: null, D: null } },
+  finishes: { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null }, interiorWalls: { A: null, B: null, C: null, D: null }, exteriorZones: [] },
   bathFloor: null, floorDirection: 'length',
   electrical: defaultElectricalConfig(),
   seeInside: false, nextId: 1,
@@ -611,6 +612,31 @@ function build() {
     wmat.side = THREE.DoubleSide;
     const group = wallPanels(lw, totalH, cuts, wmat, seam);
     group.traverse(node => { if (node.isMesh && node.userData.isPanel) node.userData.wallFace = key; });
+    // Paños exteriores parciales: la geometría visible coincide con ancho × alto.
+    for (const zone of state.finishes.exteriorZones || []) {
+      if (zone.face !== key) continue;
+      const zoneMat = makeFinishMaterial(THREE, zone.code,
+        material => owned.push(material), texture => ownedTextures.push(texture),
+        Math.max(.2, zone.width / 1.2), Math.max(.2, zone.height / 1.2));
+      // El WPC P54 ya tiene listones verticales en su textura de origen.
+      // Siding/madera P52/P53/P59 se dibujan horizontales por defecto.
+      const naturallyVertical = ['P54', 'P55', 'P56'].includes(zone.code);
+      const rotatePattern = naturallyVertical
+        ? zone.orientation === 'horizontal' : zone.orientation === 'vertical';
+      if (rotatePattern && zoneMat.map) {
+        zoneMat.map.center.set(.5, .5);
+        zoneMat.map.rotation = Math.PI / 2;
+        zoneMat.map.needsUpdate = true;
+      }
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(zone.width, zone.height), zoneMat);
+      mesh.position.set(zone.u + zone.width / 2 - lw / 2,
+        FLOOR + zone.v + zone.height / 2, Math.max(.02, profileCfg.R + .012));
+      mesh.userData.exteriorZoneId = zone.id;
+      mesh.userData.exteriorOrientation = zone.orientation;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      group.add(mesh);
+    }
     // Acabado interior independiente; conserva los mismos vanos y sigue al muro en raycast/corte.
     const interiorCode = state.finishes.interiorWalls?.[key];
     if (interiorCode) {
@@ -835,6 +861,10 @@ function partitionError(p, ref = state) {
   }
   return null;
 }
+function exteriorZonesError(ref = state) {
+  try { sanitizeExteriorZones(ref.finishes?.exteriorZones || [], ref); return null; }
+  catch (error) { return String(error.message || error); }
+}
 function fittedPartition(p, ref = state) {
   return resolvePartitionGeometry(p, ref, profileThicknessFor(ref));
 }
@@ -1028,7 +1058,7 @@ const api = {
     state.type = key; [state.L, state.W, state.H] = c.dims;
     state.color = c.color; state.openings = []; state.partitions = []; state.interiorDoors = []; state.services = []; state.sharedWalls = [];
     state.objects = [];
-    state.finishes = { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null }, interiorWalls: { A: null, B: null, C: null, D: null } };
+    state.finishes = { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null }, interiorWalls: { A: null, B: null, C: null, D: null }, exteriorZones: [] };
     state.bathFloor = null;
     state.floorDirection = 'length';
     state.electrical = defaultElectricalConfig();
@@ -1054,6 +1084,8 @@ const api = {
     if (state.sharedWalls.some(zone => validateSharedWallRegion(zone, nextRef, zone.id))) {
       return { ok: false, error: 'Alguna zona compartida excedería los nuevos límites' };
     }
+    const exteriorIssue = exteriorZonesError(nextRef);
+    if (exteriorIssue) return { ok: false, error: 'Revestimientos exteriores incompatibles con las dimensiones: ' + exteriorIssue };
     // Proyectar todos los tabiques de autoajuste antes de modificar el estado.
     // Cualquier colisión bloquea el cambio COMPLETO de dimensiones.
     let projectedPartitions;
@@ -1138,6 +1170,8 @@ const api = {
     }
     const o = withOpeningReinforcement({ id: state.nextId, type, face, w, h, u, v, bars, catalogCode });
     const err = validateOpening(o); if (err) return { ok: false, error: err };
+    const zoneIssue = exteriorZonesError({ ...state, openings: [...state.openings, o] });
+    if (zoneIssue) return { ok: false, error: 'El vano invade un revestimiento exterior: ' + zoneIssue };
     state.nextId++; state.openings.push(o); selectedEntity = { kind: 'opening', id: o.id };
     build(); return { ok: true, id: o.id };
   },
@@ -1154,6 +1188,8 @@ const api = {
       return { ok: false, error: 'Tipo o barrotes inválidos' };
     }
     const err = validateOpening(o, id); if (err) return { ok: false, error: err };
+    const zoneIssue = exteriorZonesError({ ...state, openings: state.openings.map(x => x.id === id ? o : x) });
+    if (zoneIssue) return { ok: false, error: 'El vano invade un revestimiento exterior: ' + zoneIssue };
     Object.assign(old, o); selectedEntity = { kind: 'opening', id };
     return markChanged(false);
   },
@@ -1165,7 +1201,8 @@ const api = {
     const span = FACES[old.face].long ? state.L : state.W;
     for (const u of [old.u + old.w + .1, old.u - old.w - .1]) {
       const next = { ...old, id: state.nextId, u };
-      if (u >= 0 && u + old.w <= span && !validateOpening(next)) {
+      if (u >= 0 && u + old.w <= span && !validateOpening(next) &&
+          !exteriorZonesError({ ...state, openings: [...state.openings, next] })) {
         state.nextId++; state.openings.push(next); selectedEntity = { kind: 'opening', id: next.id };
         build(); return { ok: true, id: next.id };
       }
@@ -1259,6 +1296,8 @@ const api = {
     const zone = { id: 'shared-' + state.nextId, face, u, v, w, h };
     const error = validateSharedWallRegion(zone, state);
     if (error) return { ok: false, error };
+    const zoneIssue = exteriorZonesError({ ...state, sharedWalls: [...state.sharedWalls, zone] });
+    if (zoneIssue) return { ok: false, error: 'El contacto invade un paño exterior: ' + zoneIssue };
     state.nextId++;
     state.sharedWalls.push(zone);
     editor?.refresh();
@@ -1271,6 +1310,44 @@ const api = {
     editor?.refresh();
     return { ok: true };
   },
+  addExteriorFinishZone({ face, code, areaM2, width, u = 0, v = 0, orientation = 'horizontal' } = {}) {
+    if ((state.finishes.exteriorZones || []).length >= 100) return { ok: false, error: 'Máximo 100 paños exteriores' };
+    const area = Number(areaM2), w = Number(width);
+    if (!Number.isFinite(area) || !Number.isFinite(w) || area <= 0 || w <= 0) {
+      return { ok: false, error: 'Indica una superficie positiva en m² y un ancho en metros' };
+    }
+    const candidate = { id: 'ext-' + state.nextId, face, code, u: Number(u), v: Number(v),
+      width: w, height: area / w, orientation };
+    const issue = validateExteriorZone(candidate, state);
+    if (issue) return { ok: false, error: issue };
+    state.finishes.exteriorZones.push(candidate);
+    state.nextId++;
+    build();
+    return { ok: true, id: candidate.id, zone: { ...candidate }, areaM2: candidate.width * candidate.height };
+  },
+
+  updateExteriorFinishZone(id, delta = {}) {
+    const old = state.finishes.exteriorZones.find(z => z.id === id);
+    if (!old) return { ok: false, error: 'Paño exterior inexistente' };
+    const candidate = { ...old, ...delta, id, u: Number(delta.u ?? old.u), v: Number(delta.v ?? old.v),
+      width: Number(delta.width ?? old.width), height: Number(delta.height ?? old.height) };
+    if (delta.areaM2 !== undefined) candidate.height = Number(delta.areaM2) / candidate.width;
+    const issue = validateExteriorZone(candidate, state, id);
+    if (issue) return { ok: false, error: issue };
+    Object.assign(old, { id, face: candidate.face, code: candidate.code, u: candidate.u, v: candidate.v,
+      width: candidate.width, height: candidate.height, orientation: candidate.orientation });
+    build();
+    return { ok: true, id, zone: { ...old }, areaM2: old.width * old.height };
+  },
+
+  removeExteriorFinishZone(id) {
+    const zones = state.finishes.exteriorZones;
+    if (!zones.some(z => z.id === id)) return { ok: false, error: 'Paño exterior inexistente' };
+    state.finishes.exteriorZones = zones.filter(z => z.id !== id);
+    build();
+    return { ok: true };
+  },
+
   setFinish(code, face = 'A') {
     const entry = CATALOG_BY_CODE[code]; if (!entry) return { ok: false, error: 'Código inexistente' };
     // Las terminaciones interiores se enrutan a la capa correcta en lugar de
@@ -1698,7 +1775,7 @@ const api = {
 
       let maxId = Number.isSafeInteger(s.nextId) && s.nextId > 0 ? s.nextId - 1 : 0;
       const trackNumId = val => {
-        const n = typeof val === 'number' ? val : Number(String(val).replace(/^(obj|service|partition|idoor|shared)-/, ''));
+        const n = typeof val === 'number' ? val : Number(String(val).replace(/^(obj|service|partition|idoor|shared|ext)-/, ''));
         if (Number.isSafeInteger(n) && n > maxId) maxId = n;
       };
 
@@ -1786,6 +1863,11 @@ const api = {
           v: Number(zone.v), w: Number(zone.w), h: Number(zone.h) };
       });
 
+      const cleanExteriorZones = sanitizeExteriorZones(finishes.exteriorZones || [], {
+        ...s, openings: cleanOpenings, sharedWalls: cleanSharedWalls,
+        finishes: { ...finishes, exteriorZones: [] }
+      });
+      for (const zone of cleanExteriorZones) { uniqueId(zone.id, 'ext'); trackNumId(zone.id); }
       if (!Number.isSafeInteger(maxId + 1)) throw Error('Contador de objetos fuera de rango');
 
       Object.assign(state, {
@@ -1797,7 +1879,7 @@ const api = {
         finishes: {
           floor: finishes.floor || null, ceiling: finishes.ceiling || null, skirting: finishes.skirting || null,
           walls: exteriorWalls,
-          interiorWalls
+          interiorWalls, exteriorZones: cleanExteriorZones
         },
         seeInside: !!s.seeInside, nextId: maxId + 1
       });
@@ -1873,7 +1955,8 @@ document.querySelectorAll('#seg button').forEach(b => {
     const hasWork = state.objects.length || state.openings.length || state.partitions.length ||
       state.services.length || state.sharedWalls.length || state.finishes.floor || state.finishes.ceiling ||
       state.finishes.skirting || Object.values(state.finishes.walls).some(Boolean) ||
-      Object.values(state.finishes.interiorWalls).some(Boolean);
+      Object.values(state.finishes.interiorWalls).some(Boolean) ||
+      state.finishes.exteriorZones.length > 0;
     if (hasWork && !window.confirm('Cambiar el tipo de contenedor eliminará los elementos y acabados del diseño actual. ¿Continuar?')) return;
     const result = api.setType(b.dataset.t, { samples: false });
     if (result.ok) { syncPanel(); editor?.clearPending(); }

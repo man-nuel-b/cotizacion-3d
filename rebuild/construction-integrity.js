@@ -1,4 +1,5 @@
 // Núcleo geométrico puro: sin Three.js ni DOM. Cotas en metros.
+import { exteriorTakeoffForFace } from './exterior-finish-zones.js';
 // Son restricciones preliminares, NO sustituyen cálculo estructural ni planos de taller.
 
 export const OPENING_REINFORCEMENT = Object.freeze({ window: 'P90', door: 'P91' });
@@ -819,6 +820,8 @@ export function computeWallTakeoff(state) {
   let totalOpeningsAreaM2 = 0;
   let sharedDeductionM2 = 0;
   let skirtingLinearM = 0;
+  const exteriorFinishByCodeM2 = {};
+  let totalExteriorFinishedAreaM2 = 0;
 
   for (const face of FACES) {
     const span = face === 'A' || face === 'C' ? state.L : state.W;
@@ -830,12 +833,21 @@ export function computeWallTakeoff(state) {
     const net = Math.max(0, gross - openingArea - shared);
     const finish = state.finishes?.walls?.[face] || null;
     const interiorFinish = state.finishes?.interiorWalls?.[face] || null;
+    const coverage = exteriorTakeoffForFace(state, face, net);
+    for (const [code, area] of Object.entries(coverage.byCodeM2)) {
+      exteriorFinishByCodeM2[code] = (exteriorFinishByCodeM2[code] || 0) + area;
+    }
+    totalExteriorFinishedAreaM2 += coverage.totalCoveredM2;
     walls[face] = {
       face, grossAreaM2: gross, openingsAreaM2: openingArea,
       sharedDeductionM2: shared, netAreaM2: net,
-      // Mantener liningCode para informes existentes; agregar ambos lados explícitos.
-      liningCode: finish, liningAreaM2: finish ? net : 0,
-      exteriorLiningCode: finish, exteriorLiningAreaM2: finish ? net : 0,
+      // liningCode conserva la partida de fondo para integraciones antiguas.
+      liningCode: finish, liningAreaM2: coverage.totalCoveredM2,
+      exteriorLiningCode: finish, exteriorLiningAreaM2: coverage.totalCoveredM2,
+      exteriorBaseAreaM2: coverage.baseAreaM2,
+      exteriorZonesAreaM2: coverage.zonesAreaM2,
+      exteriorByCodeM2: coverage.byCodeM2,
+      exteriorZones: coverage.zones,
       interiorLiningCode: interiorFinish, interiorLiningAreaM2: interiorFinish ? net : 0
     };
     totalGrossWallAreaM2 += gross;
@@ -947,6 +959,7 @@ export function computeWallTakeoff(state) {
     bathFloor, bathFloorAreaM2, remainingFloorAreaM2, floorByCodeM2,
     reinforcement, totalGrossWallAreaM2, totalOpeningsAreaM2,
     sharedDeductionM2, totalNetWallAreaM2,
+    exteriorFinishByCodeM2, totalExteriorFinishedAreaM2,
     status: 'preliminary',
     warning: 'Cubicación geométrica preliminar: superficies netas de placas y aislación de tabiques. Encuentros T/L de cara contra testa sin invasión; requiere definir anclajes y refuerzos en proyecto constructivo. No considera mermas, perfilería, fijaciones, dinteles estructurales, costos ni certificación estructural.'
   };

@@ -7,12 +7,13 @@ import path from 'node:path';
 import {
   interiorClearance, resolvePartitionGeometry, resolveRotatedPartition,
   validatePartitionInsideContainer, checkPartitionCollisions,
-  validateInteriorDoor, validatePartitionSpecification, computeWallTakeoff,
+  validateInteriorDoor, validatePartitionSpecification, computeWallTakeoff, withOpeningReinforcement,
   validateSharedWallRegion, classifyPartitionJunction, computePartitionJunctions,
   checkJunctionAgainstDoors, resolveMagneticPartitionMove, computeFreePartitionSpan, validateBathFloor, detectRectangularRoomAt
 } from '../construction-integrity.js';
 import { CATALOG, CATALOG_BY_CODE } from '../container-catalog.js';
 import { defaultElectricalConfig, sanitizeElectricalConfig } from '../electrical-project-config.js';
+import { validateExteriorZone, sanitizeExteriorZones } from '../exterior-finish-zones.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const source = fs.readFileSync(path.join(root, 'container-engine.js'), 'utf8');
@@ -28,7 +29,7 @@ function fixture() {
     electrical: defaultElectricalConfig(),
     finishes: { floor: null, ceiling: null, skirting: null,
       walls: { A: null, B: null, C: null, D: null },
-      interiorWalls: { A: null, B: null, C: null, D: null } },
+      interiorWalls: { A: null, B: null, C: null, D: null }, exteriorZones: [] },
     seeInside: true, nextId: 1
   };
   const T = { maritimo: { dims: [6, 2.4, 2.5], color: '#999999', R: .046, T: .004 },
@@ -65,9 +66,10 @@ function fixture() {
     validateOpening() { return null; },
     validDimensions(L, W, H) { return L >= 2 && L <= 25 && W >= 1 && W <= 5 && H >= 1.8 && H <= 5; },
     markChanged() { buildCount++; return { ok: true }; },
-    CATALOG, CATALOG_BY_CODE, defaultElectricalConfig, sanitizeElectricalConfig, interiorClearance, resolvePartitionGeometry,
+    CATALOG, CATALOG_BY_CODE, defaultElectricalConfig, sanitizeElectricalConfig, validateExteriorZone, sanitizeExteriorZones,
+    interiorClearance, resolvePartitionGeometry,
     resolveRotatedPartition, validateInteriorDoor, validatePartitionSpecification,
-    computeWallTakeoff, validateSharedWallRegion, validateBathFloor, detectRectangularRoomAt, classifyPartitionJunction,
+    computeWallTakeoff, withOpeningReinforcement, validateSharedWallRegion, validateBathFloor, detectRectangularRoomAt, classifyPartitionJunction,
     computePartitionJunctions, checkJunctionAgainstDoors, resolveMagneticPartitionMove, computeFreePartitionSpan,
     SAMPLES: { maritimo: [], reefer: [], modular: [] },
     console
@@ -76,7 +78,11 @@ function fixture() {
   const helperEnd = source.indexOf('\nfunction partitionSpecificationError(', helperStart);
   assert.ok(helperStart >= 0 && helperEnd > helperStart);
   const helperCode = source.slice(helperStart, helperEnd);
-  vm.runInNewContext(helperCode + '\n' + apiCode + '\n globalThis.testAPI = api;', ctx,
+  const exteriorStart = source.indexOf('function exteriorZonesError(');
+  const exteriorEnd = source.indexOf('\nfunction fittedPartition(', exteriorStart);
+  assert.ok(exteriorStart >= 0 && exteriorEnd > exteriorStart);
+  const exteriorCode = source.slice(exteriorStart, exteriorEnd);
+  vm.runInNewContext(exteriorCode + '\n' + helperCode + '\n' + apiCode + '\n globalThis.testAPI = api;', ctx,
     { filename: 'engine-api-under-test.js' });
   return { api: ctx.testAPI, state, ctx };
 }
@@ -651,4 +657,43 @@ test('API V4.17.2: setFinish acepta revestimientos exteriores e interiores en ca
   assert.equal(state.finishes.walls.B, 'P52');
   const wrong = api.setFinish('P70', 'B');
   assert.equal(wrong.ok, false, 'Una luminaria no debe aceptarse como acabado');
+});
+
+test('API V4.18: agregar 6 m² de madera vertical y medirlos sin duplicar revestimiento base',()=>{
+  const {api}=fixture();
+  good(api.setFinish('P52','A'));
+  const added=api.addExteriorFinishZone({face:'A',code:'P59',areaM2:6,width:3,u:0,v:0,orientation:'vertical'});
+  good(added);
+  assert.equal(added.areaM2,6);
+  assert.equal(added.zone.height,2);
+  assert.equal(api.getState().finishes.exteriorZones[0].orientation,'vertical');
+  const area=api.getConstructionTakeoff().walls.A;
+  assert.equal(area.exteriorZonesAreaM2,6);
+  assert.equal(area.exteriorByCodeM2.P59,6);
+  assert.equal(area.exteriorByCodeM2.P52,6*2.5-6);
+  const collides=api.addExteriorFinishZone({face:'A',code:'P54',areaM2:2,width:1,u:1,v:0});
+  assert.equal(collides.ok,false);
+  const vertical=api.updateExteriorFinishZone(added.id,{orientation:'horizontal'});
+  good(vertical);
+  assert.equal(api.getState().finishes.exteriorZones[0].orientation,'horizontal');
+  const snapshot=api.getState();
+  const copy=fixture();
+  good(copy.api.setState(snapshot));
+  assert.equal(copy.api.getState().finishes.exteriorZones[0].width,3);
+  assert.equal(copy.api.getState().finishes.exteriorZones[0].orientation,'horizontal');
+  good(api.removeExteriorFinishZone(added.id));
+  assert.equal(api.getConstructionTakeoff().walls.A.exteriorZonesAreaM2,0);
+});
+
+test('API V4.18: evita vanos sobre paños exteriores y rechaza JSON inválido',()=>{
+  const {api}=fixture();
+  good(api.addExteriorFinishZone({face:'A',code:'P54',areaM2:6,width:3,u:0,v:0}));
+  const opening=api.addOpening({type:'window',face:'A',w:1,h:1,u:1,v:.5});
+  assert.equal(opening.ok,false);
+  const initial=api.getState();
+  const bad=structuredClone(initial);
+  bad.finishes.exteriorZones[0].width=80;
+  const imported=api.setState(bad);
+  assert.equal(imported.ok,false);
+  assert.deepEqual(api.getState(),initial);
 });

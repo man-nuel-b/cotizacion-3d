@@ -1,4 +1,4 @@
-import { CATALOG, CATALOG_BY_CODE, FAMILIES, findCatalog } from './container-catalog.js?v=4.17.2';
+import { CATALOG, CATALOG_BY_CODE, FAMILIES, findCatalog } from './container-catalog.js?v=4.18';
 
 export function installEditor({ THREE, renderer, camera, controls, root, api, state, FACES, FLOOR, syncPanel }) {
   const $ = id => document.getElementById(id);
@@ -92,7 +92,56 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
   interiorNote.className='tiny';
   interiorNote.textContent='Los acabados interiores se aplican por separado; no sustituyen la fachada exterior.';
   interiorDetails.append(interiorSummary,interiorMaterialLabel,interiorRemove,interiorNote);
-  surfaceCard.append(surfaceTitle,surfaceMaterialLabel,surfaceSize,interiorDetails,surfaceSkirtingLabel,surfaceRemove);
+  // El selector anterior sigue disponible para fachada completa; los paños se agregan aparte.
+  const zoneSection=document.createElement('section');
+  zoneSection.id='exterior-zone-inspector';
+  zoneSection.className='inspector-card';
+  const zoneTitle=document.createElement('h3');zoneTitle.textContent='Agregar paño exterior por m²';
+  const zoneLabel=(label,id,type='number',value='0')=>{
+    const l=document.createElement('label');l.textContent=label;
+    const el=document.createElement('input');el.id=id;el.type=type;el.value=value;
+    el.step=type==='number'?'0.01':'any';
+    if(type==='number')el.min='0';
+    l.appendChild(el);return [l,el];
+  };
+  const zoneMaterialLabel=document.createElement('label');
+  zoneMaterialLabel.textContent='Material del nuevo paño';
+  const zoneMaterialSelect=document.createElement('select');zoneMaterialSelect.id='exterior-zone-material';
+  CATALOG.filter(item=>item.mode==='wall-exterior-finish').forEach(item=>
+    zoneMaterialSelect.add(new Option(item.code+' · '+item.name,item.code)));
+  zoneMaterialSelect.value='P59';
+  zoneMaterialLabel.appendChild(zoneMaterialSelect);
+  const [zoneAreaLabel,zoneAreaInput]=zoneLabel('Superficie a revestir (m²)','exterior-zone-area','number','6');
+  const [zoneWidthLabel,zoneWidthInput]=zoneLabel('Ancho del paño (m)','exterior-zone-width','number','3');
+  const [zoneULabel,zoneUInput]=zoneLabel('Inicio horizontal en la cara (m)','exterior-zone-u','number','0');
+  const [zoneVLabel,zoneVInput]=zoneLabel('Inicio desde el piso (m)','exterior-zone-v','number','0');
+  const zoneDirectionLabel=document.createElement('label');zoneDirectionLabel.textContent='Orientación de listones / madera';
+  const zoneDirectionSelect=document.createElement('select');zoneDirectionSelect.id='exterior-zone-orientation';
+  zoneDirectionSelect.add(new Option('Horizontal (listones a lo largo)','horizontal'));
+  zoneDirectionSelect.add(new Option('Vertical (listones hacia arriba)','vertical'));
+  zoneDirectionLabel.appendChild(zoneDirectionSelect);
+  const zoneHeight=document.createElement('p');zoneHeight.id='exterior-zone-height';zoneHeight.className='tiny';
+  const zoneHint=document.createElement('p');zoneHint.className='tiny';
+  zoneHint.textContent='Ejemplo: 6 m² y 3 m de ancho generan un paño de 2 m de alto. Sin duplicar vanos ni otros paños.';
+  const zoneApply=document.createElement('button');zoneApply.id='exterior-zone-apply';zoneApply.type='button';
+  zoneApply.textContent='Agregar paño de revestimiento';
+  const zoneList=document.createElement('div');zoneList.id='exterior-zone-list';zoneList.className='tiny';
+  const zoneFeedback=document.createElement('p');zoneFeedback.id='exterior-zone-feedback';zoneFeedback.className='tiny';
+  zoneFeedback.setAttribute('role','status');
+  const updateZoneHeight=()=>{
+    const area=Number(zoneAreaInput.value),w=Number(zoneWidthInput.value);
+    zoneHeight.textContent=area>0&&w>0&&Number.isFinite(area/w)
+      ?'Alto calculado: '+(area/w).toFixed(2)+' m · Superficie: '+area.toFixed(2)+' m²'
+      :'Ingresa una superficie y un ancho mayores que cero';
+  };
+  zoneAreaInput.addEventListener('input',updateZoneHeight);
+  zoneWidthInput.addEventListener('input',updateZoneHeight);
+  updateZoneHeight();
+  zoneSection.append(zoneTitle,zoneMaterialLabel,zoneAreaLabel,zoneWidthLabel,
+    zoneULabel,zoneVLabel,zoneDirectionLabel,zoneHeight,zoneHint,zoneApply,zoneFeedback,zoneList);
+  surfaceRemove.textContent='Retirar acabado de fachada completa';
+  surfaceCard.append(surfaceTitle,surfaceMaterialLabel,surfaceSize,surfaceRemove,zoneSection,
+    interiorDetails,surfaceSkirtingLabel);
   $('inspector-body').appendChild(surfaceCard);
   function editSurfaceFinish(code){
     const selected=api.getSelected();
@@ -104,6 +153,48 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     hint('Revestimiento actualizado en el modelo 3D.');
   }
   surfaceMaterialSelect.addEventListener('change',e=>editSurfaceFinish(e.target.value));
+  zoneApply.addEventListener('click',()=>{
+    const selected=api.getSelected();
+    if(selected?.kind!=='wall')return;
+    const result=api.addExteriorFinishZone({
+      face:selected.id,code:zoneMaterialSelect.value,areaM2:Number(zoneAreaInput.value),
+      width:Number(zoneWidthInput.value),u:Number(zoneUInput.value),v:Number(zoneVInput.value),
+      orientation:zoneDirectionSelect.value
+    });
+    if(!result.ok){zoneFeedback.textContent=result.error;hint(result.error,true);return;}
+    zoneFeedback.textContent=result.areaM2.toFixed(2)+' m² incorporados a la cara '+selected.id+'.';
+    hint('Revestimiento aplicado: '+result.areaM2.toFixed(2)+' m² · '+zoneDirectionSelect.value+'.');
+  });
+  function renderExteriorZoneList(face){
+    zoneList.replaceChildren();
+    const zones=(state.finishes.exteriorZones||[]).filter(z=>z.face===face);
+    const title=document.createElement('strong');
+    title.textContent=zones.length?'Paños colocados en cara '+face+':':'Aún no hay paños parciales en esta cara';
+    zoneList.appendChild(title);
+    for(const zone of zones){
+      const row=document.createElement('div');row.className='placed-entry';
+      row.style.display='grid';row.style.gap='5px';
+      const desc=document.createElement('span');
+      desc.textContent=zone.code+' · '+(zone.width*zone.height).toFixed(2)+' m² ('+
+        zone.width.toFixed(2)+' × '+zone.height.toFixed(2)+' m)';
+      const orient=document.createElement('select');
+      orient.setAttribute('aria-label','Orientación del paño '+zone.id);
+      orient.add(new Option('Horizontal','horizontal'));orient.add(new Option('Vertical','vertical'));
+      orient.value=zone.orientation;
+      orient.addEventListener('change',()=>{
+        const result=api.updateExteriorFinishZone(zone.id,{orientation:orient.value});
+        if(!result.ok){zoneFeedback.textContent=result.error;hint(result.error,true);}
+      });
+      const remove=document.createElement('button');remove.type='button';remove.className='alt';
+      remove.textContent='Quitar paño';
+      remove.addEventListener('click',()=>{
+        const result=api.removeExteriorFinishZone(zone.id);
+        if(!result.ok){zoneFeedback.textContent=result.error;hint(result.error,true);}
+        else hint('Paño exterior retirado de la cara '+face+'.');
+      });
+      row.append(desc,orient,remove);zoneList.appendChild(row);
+    }
+  }
   function editInteriorFinish(code) {
     const selected=api.getSelected();
     if (selected?.kind!=='wall') return;
@@ -266,6 +357,18 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     return ['wall-exterior-finish', 'wall-interior-finish'].includes(item?.mode) ||
       (item?.mode === 'wall-object' && ['wall-lining', 'wet-lining'].includes(item.visual));
   }
+  function openExteriorZoneEditor(face, code) {
+    clearPending();
+    const result=api.selectEntity('wall',face);
+    if(!result.ok){hint(result.error,true);return;}
+    inspectorDismissedKey=null;
+    inspector.hidden=false;
+    syncStageLayout();
+    refreshProperties();
+    zoneMaterialSelect.value=code;
+    zoneAreaInput.focus({preventScroll:true});
+    hint('Indica los m², ancho, posición y orientación del revestimiento '+code+' en la cara '+face+'.');
+  }
 
   function arm(code) {
     // Recupera el canvas al escoger otra partida; evita interceptar el clic de colocación.
@@ -283,10 +386,10 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     $('wall-finish-controls').hidden = !isWallApplication(item);
     const isFinish = ['wall-exterior-finish','wall-interior-finish'].includes(item.mode);
     $('apply-wall-finish').textContent = isFinish
-      ? (item.mode === 'wall-exterior-finish' ? 'Aplicar fachada exterior en esta cara' : 'Aplicar revestimiento interior en esta cara')
+      ? (item.mode === 'wall-exterior-finish' ? 'Configurar paño por m² en esta cara' : 'Aplicar revestimiento interior en esta cara')
       : 'Instalar trasdosado en esta cara';
     $('wall-control-explain').textContent = isFinish
-      ? (item.mode === 'wall-exterior-finish' ? 'La fachada se verá por fuera del contenedor.' : 'El acabado quedará en el paramento interior.')
+      ? (item.mode === 'wall-exterior-finish' ? 'Indica m², ancho y orientación; no se cubre todo el muro automáticamente.' : 'El acabado quedará en el paramento interior.')
       : 'P14/P17 se instalará como un panel 3D de 1,60 m en la cara indicada.';
 
     const msg = item.mode === 'floor' || item.mode === 'ceiling' || item.mode === 'skirting' ?
@@ -390,6 +493,10 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       if (!hit) { hint('Gira el contenedor y haz clic directamente sobre una pared.', true); return; }
       const { face, point } = hit;
       if (['wall-exterior-finish', 'wall-interior-finish'].includes(item.mode)) {
+        if (item.mode === 'wall-exterior-finish') {
+          openExteriorZoneEditor(face, code);
+          return;
+        }
         const result = api.setWallLining(face, code);
         if (!result.ok) { hint(result.error, true); return; }
         clearPending(); hint(code + ' aplicado en la cara ' + face + '.'); return;
@@ -499,6 +606,8 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       ['Piso total / Cielo:', `${t.floorAreaM2.toFixed(2)} m² (${(state.floorDirection || 'length') === 'width' ? 'a lo ancho' : 'a lo largo'})`],
       ['Piso baño:', `${t.bathFloorAreaM2.toFixed(2)} m²${t.bathFloor ? ' · ' + t.bathFloor.code : ''}`],
       ['Piso general restante:', `${t.remainingFloorAreaM2.toFixed(2)} m²`],
+      ...Object.entries(t.exteriorFinishByCodeM2 || {}).sort().map(([code, area]) =>
+        ['Fachada exterior '+code+':',area.toFixed(2)+' m²']),
       ...Object.entries(t.floorByCodeM2).sort().map(([code, area]) =>
         [`Piso ${code} asignado:`, `${area.toFixed(2)} m²`]),
       ['Zócalo perimetral:', `${t.skirtingLinearM.toFixed(2)} ml`],
@@ -561,8 +670,10 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       options.forEach(item=>surfaceMaterialSelect.add(new Option(item.code+' · '+item.name,item.code)));
       surfaceMaterialSelect.value=selectedCode||'';
       surfaceTitle.textContent=roof?'Revestimiento de cielo':'Revestimientos exteriores · fachada';
-      surfaceMaterialLabel.firstChild.textContent=roof?'Terminación de cielo':'Revestimiento exterior de cara '+face;
+      surfaceMaterialLabel.firstChild.textContent=roof?'Terminación de cielo':'Acabado de fachada completa (opcional)';
       interiorDetails.hidden=roof;
+      zoneSection.hidden=roof;
+      if(!roof)renderExteriorZoneList(face);
       if (!roof) {
         interiorMaterialSelect.replaceChildren(new Option('Sin revestimiento interior',''));
         CATALOG.filter(item=>item.mode==='wall-interior-finish')
@@ -570,10 +681,12 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
         interiorMaterialSelect.value=state.finishes.interiorWalls?.[face]||'';
       }
       $('properties-title').textContent=roof?'Modificar techo / cielo':'Modificar muro exterior · cara '+face;
-      $('inspector-subtitle').textContent=roof?'Selecciona la terminación del cielo.':'El exterior y el interior se modifican de forma independiente en el modelo 3D.';
+      $('inspector-subtitle').textContent=roof?'Selecciona la terminación del cielo.':'Agrega los m² que necesites por paños y define orientación horizontal o vertical.';
       inspector.dataset.layout='basic';
       const span=face==='A'||face==='C'?state.L:state.W;
-      surfaceSize.textContent=roof?'Superficie bruta de referencia: '+(state.L*state.W).toFixed(2)+' m²':'Superficie bruta de referencia: '+(span*state.H).toFixed(2)+' m², antes de descontar vanos.';
+      surfaceSize.textContent=roof?'Superficie bruta de referencia: '+(state.L*state.W).toFixed(2)+' m²':
+        'Cara '+face+': '+(span*state.H).toFixed(2)+' m² brutos · '+
+        api.getConstructionTakeoff().walls[face].netAreaM2.toFixed(2)+' m² netos (descontados vanos).';
       surfaceSkirtingLabel.hidden=!roof;
       surfaceSkirtingSelect.value=state.finishes.skirting||'';
       $('inspector-actions').hidden=true;
@@ -826,6 +939,10 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       hint('Selecciona primero un revestimiento o trasdosado de muro del catálogo.', true); return;
     }
     const face = $('wall-finish-face').value;
+    if (item.mode === 'wall-exterior-finish') {
+      openExteriorZoneEditor(face, item.code);
+      return;
+    }
     const result = api.setWallLining(face, item.code);
     if (!result.ok) { hint(result.error, true); return; }
     clearPending();
