@@ -1054,3 +1054,55 @@ test('BAT V4.18: paño de madera de 6 m² vertical/horizontal desde el inspector
     assert.deepEqual(errors,[],errors.join('\n'));
   } finally { if(fixture) await close(fixture); }
 });
+
+test('BAT V4.19: editor eléctrico en mm aplica muro, tabique y cielo sin perder datos', {timeout:180000}, async()=>{
+  let fixture;
+  try{
+    fixture=await prepare();
+    const {page,errors}=fixture;
+    await page.locator('#electrical-tools summary').click();
+    await page.locator('#electric-manual-type').selectOption('outlet');
+    await page.locator('#electric-mount').selectOption('wall');
+    await page.locator('#electric-face').selectOption('A');
+    await page.locator('#electric-u-mm').fill('2400');
+    await page.locator('#electric-v-mm').fill('420');
+    await page.locator('#electric-apply-exact').click();
+    let st=await page.evaluate(()=>window.Container3D.getState());
+    assert.equal(st.electrical.points.length,1);
+    assert.equal(st.electrical.points[0].u,2.4);
+    assert.equal(st.electrical.points[0].v,.42);
+
+    await page.locator('#electric-manual-list .entry').first().locator('button').first().click();
+    await page.locator('#electric-u-mm').fill('2601');
+    await page.locator('#electric-apply-exact').click();
+    st=await page.evaluate(()=>window.Container3D.getState());
+    assert.equal(st.electrical.points[0].u,2.601);
+
+    const partition=await page.evaluate(()=>window.Container3D.addPartition({
+      axis:'x',cx:0,cz:0,length:2.5,height:2.2,thickness:.1,autoSpan:false
+    }));
+    assert.equal(partition.ok,true,partition.error);
+    await page.waitForFunction(()=>document.querySelector('#electric-partition option')?.value===''+window.Container3D.getState().partitions[0].id);
+    await page.locator('#electric-mount').selectOption('partition');
+    await page.locator('#electric-manual-type').selectOption('switch');
+    await page.locator('#electric-u-mm').fill('1200');
+    await page.locator('#electric-v-mm').fill('1100');
+    await page.locator('#electric-apply-exact').click();
+    st=await page.evaluate(()=>window.Container3D.getState());
+    assert.equal(st.electrical.points[1].mount,'partition');
+    assert.equal(st.electrical.points[1].partitionId,partition.id);
+
+    await page.locator('#electric-mount').selectOption('ceiling');
+    assert.equal(await page.locator('#electric-manual-type').inputValue(),'light');
+    await page.locator('#electric-u-mm').fill('2000');
+    await page.locator('#electric-v-mm').fill('1000');
+    await page.locator('#electric-apply-exact').click();
+    st=await page.evaluate(()=>window.Container3D.getState());
+    assert.equal(st.electrical.points[2].mount,'ceiling');
+    assert.equal(st.electrical.points[2].face,'roof');
+    const copy=JSON.parse(JSON.stringify(st));
+    assert.equal((await page.evaluate(x=>window.Container3D.setState(x),copy)).ok,true);
+    assert.deepEqual((await page.evaluate(()=>window.Container3D.getState())).electrical.points,copy.electrical.points);
+    assert.deepEqual(errors,[],errors.join('\n'));
+  }finally{if(fixture)await close(fixture);}
+});
