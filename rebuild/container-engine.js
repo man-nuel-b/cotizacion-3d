@@ -618,7 +618,12 @@ function build() {
       const zoneMat = makeFinishMaterial(THREE, zone.code,
         material => owned.push(material), texture => ownedTextures.push(texture),
         Math.max(.2, zone.width / 1.2), Math.max(.2, zone.height / 1.2));
-      if (zone.orientation === 'vertical' && zoneMat.map) {
+      // El WPC P54 ya tiene listones verticales en su textura de origen.
+      // Siding/madera P52/P53/P59 se dibujan horizontales por defecto.
+      const naturallyVertical = ['P54', 'P55', 'P56'].includes(zone.code);
+      const rotatePattern = naturallyVertical
+        ? zone.orientation === 'horizontal' : zone.orientation === 'vertical';
+      if (rotatePattern && zoneMat.map) {
         zoneMat.map.center.set(.5, .5);
         zoneMat.map.rotation = Math.PI / 2;
         zoneMat.map.needsUpdate = true;
