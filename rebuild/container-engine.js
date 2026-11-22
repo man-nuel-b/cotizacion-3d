@@ -6,7 +6,7 @@ import { CATALOG, CATALOG_BY_CODE } from './container-catalog.js?v=4.18';
 import { createObjectModel, makeFinishMaterial } from './container-object-models.js?v=4.18';
 import { validateExteriorZone, sanitizeExteriorZones } from './exterior-finish-zones.js?v=4.18';
 import { installEditor } from './container-editor-ui.js?v=4.18';
-import { installElectricalUI, defaultElectricalConfig, sanitizeElectricalConfig } from './electrical-module.js';
+import { installElectricalUI, defaultElectricalConfig, sanitizeElectricalConfig } from './electrical-module.js?v=4.19';
 import { createDisposalContext, disposeHierarchy, disposeMaterial, disposeTexture } from './resource-disposal.js';
 import {
   interiorClearance, validateObjectInsideContainer, validatePartitionInsideContainer,
@@ -1074,7 +1074,7 @@ const api = {
     if (!validDimensions(L, W, H)) return { ok: false, error: 'Dimensiones fuera de rango permitido' };
     const next = { L, W, H };
     const nextRef = { ...state, L, W, H };
-    try { sanitizeElectricalConfig(state.electrical, nextRef, state.openings); }
+    try { sanitizeElectricalConfig(state.electrical, nextRef, state.openings, state.partitions); }
     catch(error) { return {ok:false,error:'Puntos eléctricos incompatibles con estas dimensiones: '+error.message}; }
     const bathError = validateBathFloor(state.bathFloor, nextRef, profileThicknessFor(nextRef));
     if (bathError) return { ok: false, error: 'Piso de baño incompatible con las nuevas dimensiones: ' + bathError };
@@ -1095,6 +1095,8 @@ const api = {
       return { ok: false, error: String(error.message || error) };
     }
     const projectedRef = { ...nextRef, objects: state.objects, partitions: projectedPartitions };
+    try { sanitizeElectricalConfig(state.electrical, projectedRef, state.openings, projectedPartitions); }
+    catch (error) { return { ok: false, error: 'Puntos eléctricos incompatibles con tabiques ajustados: '+error.message }; }
     if (state.objects.some(o => objectError(o, projectedRef))) {
       return { ok: false, error: 'Algunos objetos no caben o colisionan con tabiques ajustados' };
     }
@@ -1172,6 +1174,8 @@ const api = {
     const err = validateOpening(o); if (err) return { ok: false, error: err };
     const zoneIssue = exteriorZonesError({ ...state, openings: [...state.openings, o] });
     if (zoneIssue) return { ok: false, error: 'El vano invade un revestimiento exterior: ' + zoneIssue };
+    try { sanitizeElectricalConfig(state.electrical, state, [...state.openings, o]); }
+    catch (error) { return { ok: false, error: 'El vano invade un punto eléctrico: '+error.message }; }
     state.nextId++; state.openings.push(o); selectedEntity = { kind: 'opening', id: o.id };
     build(); return { ok: true, id: o.id };
   },
@@ -1190,6 +1194,8 @@ const api = {
     const err = validateOpening(o, id); if (err) return { ok: false, error: err };
     const zoneIssue = exteriorZonesError({ ...state, openings: state.openings.map(x => x.id === id ? o : x) });
     if (zoneIssue) return { ok: false, error: 'El vano invade un revestimiento exterior: ' + zoneIssue };
+    try { sanitizeElectricalConfig(state.electrical, state, state.openings.map(x => x.id === id ? o : x)); }
+    catch (error) { return { ok: false, error: 'El vano invade un punto eléctrico: '+error.message }; }
     Object.assign(old, o); selectedEntity = { kind: 'opening', id };
     return markChanged(false);
   },
@@ -1201,7 +1207,10 @@ const api = {
     const span = FACES[old.face].long ? state.L : state.W;
     for (const u of [old.u + old.w + .1, old.u - old.w - .1]) {
       const next = { ...old, id: state.nextId, u };
-      if (u >= 0 && u + old.w <= span && !validateOpening(next) &&
+      let electricalOK = true;
+      try { sanitizeElectricalConfig(state.electrical, state, [...state.openings, next]); }
+      catch { electricalOK = false; }
+      if (u >= 0 && u + old.w <= span && !validateOpening(next) && electricalOK &&
           !exteriorZonesError({ ...state, openings: [...state.openings, next] })) {
         state.nextId++; state.openings.push(next); selectedEntity = { kind: 'opening', id: next.id };
         build(); return { ok: true, id: next.id };
@@ -1529,6 +1538,12 @@ const api = {
       partitionDoorError(next, proposedDoors);
     if (failure) return { ok: false, error: failure };
     try {
+      sanitizeElectricalConfig(state.electrical, {
+        ...state, partitions: state.partitions.map(q => q.id === id ? next : q),
+        interiorDoors: proposedDoors
+      });
+    } catch (error) { return { ok: false, error: 'Punto eléctrico en tabique incompatible: '+error.message }; }
+    try {
       computePartitionJunctions(state.partitions.map(q => q.id === id ? next : q), proposedDoors);
     } catch (error) {
       return { ok: false, error: String(error.message || error) };
@@ -1557,6 +1572,8 @@ const api = {
     if (!preview.ok) return preview;
     const current = state.partitions.find(p => p.id === id);
     if (!current) return { ok: false, error: 'Tabique no encontrado' };
+    try { sanitizeElectricalConfig(state.electrical, { ...state, partitions: state.partitions.map(p => p.id === id ? preview.candidate : p) }); }
+    catch (error) { return { ok: false, error: 'Punto eléctrico incompatible con movimiento: '+error.message }; }
     Object.assign(current, preview.candidate);
     selectedEntity = { kind: 'partition', id };
     const done = markChanged(false);
@@ -1575,6 +1592,8 @@ const api = {
     catch (error) { return { ok: false, error: String(error.message || error) }; }
     const error = partitionSpecificationError(candidate) || partitionError(candidate) || partitionDoorError(candidate);
     if (error) return { ok: false, error };
+    try { sanitizeElectricalConfig(state.electrical, { ...state, partitions: state.partitions.map(p => p.id === id ? candidate : p) }); }
+    catch (error) { return { ok: false, error: 'Punto eléctrico incompatible con modificación de tabique: '+error.message }; }
     Object.assign(current, candidate);
     selectedEntity = { kind: 'partition', id };
     return markChanged(false);
@@ -1607,6 +1626,8 @@ const api = {
       return { ok: false, code: 'ROTATION_BLOCKED', canFit: false,
         error: `No fue posible girar: ${error}. Prueba otro centro o despeja la zona.` };
     }
+    try { sanitizeElectricalConfig(state.electrical, { ...state, partitions: state.partitions.map(p => p.id === id ? candidate : p) }); }
+    catch (error) { return { ok: false, error: 'Punto eléctrico incompatible con giro: '+error.message }; }
     Object.assign(current, candidate);
     selectedEntity = { kind: 'partition', id };
     build();
@@ -1626,6 +1647,8 @@ const api = {
       checkJunctionAgainstDoors(j, [...state.interiorDoors.filter(d => d.id !== candidate.id), candidate]))
       .find(Boolean);
     if (junctionError) return { ok: false, error: junctionError };
+    try { sanitizeElectricalConfig(state.electrical, { ...state, interiorDoors: [...state.interiorDoors, candidate] }); }
+    catch (error) { return { ok: false, error: 'Puerta invade punto eléctrico: '+error.message }; }
     state.nextId++;
     state.interiorDoors.push(candidate);
     selectedEntity = { kind: 'interiorDoor', id: candidate.id };
@@ -1645,6 +1668,8 @@ const api = {
       checkJunctionAgainstDoors(j, [...state.interiorDoors.filter(d => d.id !== candidate.id), candidate]))
       .find(Boolean);
     if (junctionError) return { ok: false, error: junctionError };
+    try { sanitizeElectricalConfig(state.electrical, { ...state, interiorDoors: state.interiorDoors.map(d => d.id === id ? candidate : d) }); }
+    catch (error) { return { ok: false, error: 'Puerta invade punto eléctrico: '+error.message }; }
     Object.assign(current, candidate);
     selectedEntity = { kind: 'interiorDoor', id };
     return markChanged(false);
@@ -1659,6 +1684,9 @@ const api = {
 
   removePartition(id) {
     if (!state.partitions.some(p => p.id === id)) return { ok: false, error: 'Tabique no encontrado' };
+    if (state.electrical?.points?.some(p => p.mount === 'partition' && p.partitionId === id)) {
+      return { ok: false, error: 'El tabique tiene puntos eléctricos asociados. Muévelos o elimínalos antes de retirarlo.' };
+    }
     state.partitions = state.partitions.filter(p => p.id !== id);
     state.interiorDoors = state.interiorDoors.filter(d => d.partitionId !== id);
     if ((selectedEntity?.kind === 'partition' && selectedEntity.id === id) ||

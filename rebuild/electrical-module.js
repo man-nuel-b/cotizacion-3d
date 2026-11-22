@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { ELECTRICAL_PROFILES, defaultElectricalConfig } from './electrical-project-config.js';
-export { ELECTRICAL_PROFILES, defaultElectricalConfig, sanitizeElectricalConfig } from './electrical-project-config.js';
+import { ELECTRICAL_PROFILES, ELECTRICAL_POINT_SIZES, defaultElectricalConfig,
+  sanitizeElectricalConfig, validateElectricalPoint, electricalPointWorld, snapElectricalCoordinate } from './electrical-project-config.js?v=4.19';
+export { ELECTRICAL_PROFILES, defaultElectricalConfig, sanitizeElectricalConfig } from './electrical-project-config.js?v=4.19';
 
 // Estimador paramétrico preliminar: no sustituye proyecto SEC ni cálculo de cargas.
 export const DEFAULT_ELECTRICAL_PRICES = Object.freeze({
@@ -80,6 +81,9 @@ export function installElectricalUI({scene,state,FLOOR,camera,renderer,controls}
   const profile=$('electric-profile'),rooms=$('electric-rooms'),toggle=$('electric-show');
   const summary=$('electric-summary'),cost=$('electric-cost'),notice=$('electric-notice'),bom=$('electric-bom');
   const manualType=$('electric-manual-type'),place=$('electric-place'),cancel=$('electric-cancel');
+  const mountSelect=$('electric-mount'),faceSelect=$('electric-face'),partitionSelect=$('electric-partition');
+  const uInput=$('electric-u-mm'),vInput=$('electric-v-mm'),snapSelect=$('electric-snap-mm');
+  const exactSave=$('electric-apply-exact'),duplicate=$('electric-duplicate'),cancelEdit=$('electric-cancel-edit');
   const status=$('electric-placement-status'),manualList=$('electric-manual-list'),clear=$('electric-clear-manual');
   const canvas=renderer.domElement;
   const formatter=new Intl.NumberFormat('es-CL',{maximumFractionDigits:0});
@@ -87,7 +91,7 @@ export function installElectricalUI({scene,state,FLOOR,camera,renderer,controls}
   const codes={outlet:'EL-ENCH',switch:'EL-INT',light:'EL-LUMI',board:'EL-TAB'};
   const counter={outlet:'outlets',switch:'switches',light:'lights'};
   const limits={outlet:[.11,.12],switch:[.11,.12],light:[.35,.15],board:[.35,.45]};
-  let signature='',layer=null,manualLayer=null,points=[],nextId=1,active=null,down=null,originalControls=true;
+  let signature='',layer=null,manualLayer=null,points=[],nextId=1,active=null,down=null,originalControls=true,editingId=null,ghost=null;
   let loadedConfig=null;
   function loadConfig() {
     const conf=state.electrical??defaultElectricalConfig();
@@ -97,6 +101,7 @@ export function installElectricalUI({scene,state,FLOOR,camera,renderer,controls}
     toggle.checked=conf.show!==false;
     points=Array.isArray(conf.points)?conf.points.map(p=>({...p})):[];
     nextId=Math.max(0,...points.map(p=>Number(String(p.id).replace(/^el-/,'')).valueOf()||0))+1;
+    if(editingId&&!points.some(p=>p.id===editingId))editingId=null;
     loadedConfig=conf;
     signature='';
   }
@@ -104,135 +109,231 @@ export function installElectricalUI({scene,state,FLOOR,camera,renderer,controls}
     const count=Number(rooms.value);
     if(!Number.isInteger(count)||count<1||count>200)return;
     state.electrical={profile:profile.value,rooms:count,show:toggle.checked,
-      points:points.map(({id,type,face,u,v})=>({id,type,face,u,v}))};
+      points:points.map(p=>({...p}))};
     loadedConfig=state.electrical;
   }
   const params=()=>({width:state.W,length:state.L,wallHeight:state.H,rooms:rooms.value,profile:profile.value,floor:FLOOR});
-  const position=(p)=>{
-    const len=(p.face==='A'||p.face==='C')?state.L:state.W;
-    const along=p.u-len/2, y=FLOOR+p.v;
-    const offset=.095;
-    if(p.face==='A')return [along,y,state.W/2-offset];
-    if(p.face==='B')return [state.L/2-offset,y,-along];
-    if(p.face==='C')return [-along,y,-state.W/2+offset];
-    return [-state.L/2+offset,y,along];
-  };
-  const bounds=(p)=>{
-    const size=limits[p.type],span=(p.face==='A'||p.face==='C')?state.L:state.W;
-    return p.u>=size[0]/2+.15 && p.u<=span-size[0]/2-.15 &&
-      p.v>=size[1]/2+.10 && p.v<=state.H-size[1]/2-.10;
-  };
-  const collisions=(p)=>{
-    const size=limits[p.type], pad=.055;
-    for(const o of state.openings||[]){
-      if(o.face!==p.face)continue;
-      const x=p.u, y=p.v;
-      if(x+size[0]/2+pad>o.u && x-size[0]/2-pad<o.u+o.w &&
-         y+size[1]/2+pad>o.v && y-size[1]/2-pad<o.v+o.h)return true;
-    }
-    for(const q of points){
-      if(q.id===p.id||q.face!==p.face)continue;
-      const a=limits[q.type];
-      if(Math.abs(p.u-q.u)<(size[0]+a[0])/2+.05 &&
-         Math.abs(p.v-q.v)<(size[1]+a[1])/2+.05)return true;
-    }
-    return false;
-  };
+  const position=p=>electricalPointWorld(p,state,FLOOR);
+  const bounds=p=>!validateElectricalPoint(p,state,state.openings||[],
+    state.partitions||[],[],state.interiorDoors||[]);
+  const collisions=p=>Boolean(validateElectricalPoint(p,state,state.openings||[],
+    state.partitions||[],points.filter(q=>q.id!==p.id),state.interiorDoors||[]));
   function addManualLayer() {
     if(manualLayer){scene.remove(manualLayer);disposeElectricalGroup(manualLayer);}
     manualLayer=new THREE.Group();
     manualLayer.name='manual_electrical_layer';
     const colors={outlet:0x38bdf8,switch:0x7dd3a7,light:0xffe08a,board:0xf59e0b};
     for(const p of points){
-      const [w,h]=limits[p.type], depth=.06;
-      const geometry=new THREE.BoxGeometry(w,h,depth);
+      const [w,h]=limits[p.type], depth=.06,ceiling=(p.mount==='ceiling');
+      const geometry=new THREE.BoxGeometry(w,ceiling ? .045 : h,ceiling ? h : depth);
       const material=new THREE.MeshStandardMaterial({color:colors[p.type],emissive:p.type==='light'?0x775500:0,emissiveIntensity:.2});
       const mesh=new THREE.Mesh(geometry,material);
-      mesh.position.set(...position(p));
-      if(p.face==='B'||p.face==='D')mesh.rotation.y=Math.PI/2;
+      const pos=position(p);if(!pos){geometry.dispose();material.dispose();continue;}
+      mesh.position.set(...pos);
+      const host=p.mount==='partition'?(state.partitions||[]).find(x=>x.id===p.partitionId):null;
+      if((p.mount==='wall'||!p.mount)&&(p.face==='B'||p.face==='D')||
+         (p.mount==='partition'&&host?.axis==='z'))mesh.rotation.y=Math.PI/2;
+      mesh.name='electrical_'+p.id;
+      mesh.userData.electricalPointId=p.id;
       manualLayer.add(mesh);
     }
     manualLayer.visible=toggle.checked;
     scene.add(manualLayer);
   }
   function setMode(id=null) {
-    active={id,type:id?points.find(p=>p.id===id)?.type:manualType.value};
+    if(active)leaveMode();
+    if(mountSelect.value==='partition'&&!partitionSelect.value){
+      status.textContent='Primero selecciona un tabique interior.';return;
+    }
+    if(mountSelect.value==='ceiling'&&manualType.value!=='light'){
+      status.textContent='En cielo solo se permiten luminarias.';return;
+    }
+    active={id,type:id?points.find(p=>p.id===id)?.type:manualType.value,mount:mountSelect.value};
     if(!active.type){active=null;return;}
-    originalControls=controls.enabled;
-    controls.enabled=false;
+    originalControls=controls.enabled;controls.enabled=false;
     place.textContent=id?'Mover punto seleccionado':'Ubicando punto…';
     cancel.hidden=false;
-    status.textContent='Haz clic sobre una pared válida del visor 3D. Esc para cancelar.';
+    status.textContent='Haz clic o arrastra sobre la superficie. Vista previa verde: válido; roja: conflicto. Esc cancela.';
     canvas.style.cursor='crosshair';
   }
   function leaveMode() {
     if(!active)return;
-    active=null;controls.enabled=originalControls;
-    place.textContent='Ubicar punto en muro 3D';cancel.hidden=true;
+    active=null;down=null;controls.enabled=originalControls;
+    place.textContent='Ubicar/arrastrar en 3D';cancel.hidden=true;
     canvas.style.cursor='';
+    if(ghost){scene.remove(ghost);ghost.geometry.dispose();ghost.material.dispose();ghost=null;}
   }
-  function rayWall(event) {
+  function syncMountControls(){
+    const mount=mountSelect.value;
+    $('electric-partition-label').hidden=mount!=='partition';
+    $('electric-face-label').hidden=mount==='ceiling';
+    const oldFace=faceSelect.value,faces=mount==='partition'?['A','B']:['A','B','C','D'];
+    faceSelect.replaceChildren(...faces.map(face=>new Option('Cara '+face,face)));
+    if(faces.includes(oldFace))faceSelect.value=oldFace;
+    $('electric-v-label').firstChild.textContent=mount==='ceiling'
+      ?'Distancia V desde el lateral (mm)':'Altura desde el piso terminado (mm)';
+    const oldPartition=partitionSelect.value;
+    partitionSelect.replaceChildren(...(state.partitions||[]).map(p=>
+      new Option(p.id+' · eje '+p.axis.toUpperCase()+' · '+p.length.toFixed(2)+' m',p.id)));
+    if((state.partitions||[]).some(p=>p.id===oldPartition))partitionSelect.value=oldPartition;
+    if(mount==='ceiling'&&manualType.value!=='light'){
+      manualType.value='light';
+      status.textContent='El cielo admite únicamente luminarias.';
+    }
+  }
+  function showPointInForm(p){
+    editingId=p.id;manualType.value=p.type;
+    mountSelect.value=p.mount||'wall';syncMountControls();
+    if(p.mount!=='ceiling')faceSelect.value=p.face;
+    if(p.mount==='partition')partitionSelect.value=p.partitionId;
+    uInput.value=String(Math.round(p.u*1000));vInput.value=String(Math.round(p.v*1000));
+    exactSave.textContent='Guardar cambios de '+p.id;
+    duplicate.disabled=false;cancelEdit.hidden=false;
+    status.textContent='Editando '+labels[p.type]+' '+p.id+'. Ajusta U y V en mm y guarda.';
+  }
+  function stopEdit(){
+    editingId=null;exactSave.textContent='Guardar coordenadas exactas';
+    duplicate.disabled=true;cancelEdit.hidden=true;
+  }
+  function savePoint(candidate,message){
+    const draft=editingId&&candidate.id===editingId
+      ?points.map(p=>p.id===editingId?candidate:p):[...points,candidate];
+    let checked;
+    try{
+      checked=sanitizeElectricalConfig({profile:profile.value,rooms:Number(rooms.value),
+        show:toggle.checked,points:draft},state,state.openings||[],
+        state.partitions||[],state.interiorDoors||[]);
+    }catch(error){status.textContent=error.message;return false;}
+    points=checked.points;
+    nextId=Math.max(nextId,Number(candidate.id.replace(/^el-/,''))+1);
+    stopEdit();saveConfig();signature='';update();status.textContent=message;
+    return true;
+  }
+  function formCandidate(){
+    if(!uInput.value.trim()||!vInput.value.trim())throw Error('Escribe U y V en milímetros.');
+    const mount=mountSelect.value;
+    const point={id:editingId||'el-'+nextId,type:manualType.value,
+      mount,face:mount==='ceiling'?'roof':faceSelect.value,
+      u:Number(uInput.value)/1000,v:Number(vInput.value)/1000};
+    if(mount==='partition')point.partitionId=partitionSelect.value;
+    return point;
+  }
+  function raySurface(event){
     const rect=canvas.getBoundingClientRect();
     if(!rect.width||!rect.height)return null;
     const ndc=new THREE.Vector2(((event.clientX-rect.left)/rect.width)*2-1,
       -((event.clientY-rect.top)/rect.height)*2+1);
-    const raycaster=new THREE.Raycaster();
-    raycaster.setFromCamera(ndc,camera);
-    const ray=raycaster.ray,candidates=[];
-    const faces=[
-      ['A','z',state.W/2-.08],['B','x',state.L/2-.08],
-      ['C','z',-state.W/2+.08],['D','x',-state.L/2+.08]
-    ];
-    for(const [face,axis,value] of faces){
-      const direction=axis==='x'?ray.direction.x:ray.direction.z;
-      if(Math.abs(direction)<1e-8)continue;
-      const t=(value-(axis==='x'?ray.origin.x:ray.origin.z))/direction;
-      if(t<=0)continue;
-      const pt=ray.at(t,new THREE.Vector3());
-      if(pt.y<FLOOR||pt.y>FLOOR+state.H)continue;
-      const along=face==='A'?pt.x:face==='B'?-pt.z:face==='C'?-pt.x:pt.z;
-      const span=(face==='A'||face==='C')?state.L:state.W;
-      if(Math.abs(along)>span/2)continue;
-      candidates.push({face,u:along+span/2,v:pt.y-FLOOR,t});
+    const raycaster=new THREE.Raycaster();raycaster.setFromCamera(ndc,camera);
+    const ray=raycaster.ray,candidates=[],mount=active?.mount||mountSelect.value;
+    const hitPlane=(axis,value,fn)=>{
+      const dir=ray.direction[axis];if(Math.abs(dir)<1e-8)return;
+      const t=(value-ray.origin[axis])/dir;if(t<=0)return;
+      const pt=ray.at(t,new THREE.Vector3()),hit=fn(pt);
+      if(hit)candidates.push({...hit,t});
+    };
+    if(mount==='wall'){
+      for(const [face,axis,value] of [
+        ['A','z',state.W/2-.08],['B','x',state.L/2-.08],
+        ['C','z',-state.W/2+.08],['D','x',-state.L/2+.08]
+      ])hitPlane(axis,value,pt=>{
+        const along=face==='A'?pt.x:face==='B'?-pt.z:face==='C'?-pt.x:pt.z;
+        const span=(face==='A'||face==='C')?state.L:state.W;
+        if(Math.abs(along)>span/2||pt.y<FLOOR||pt.y>FLOOR+state.H)return null;
+        return {mount:'wall',face,u:along+span/2,v:pt.y-FLOOR};
+      });
+    }else if(mount==='partition'){
+      const p=(state.partitions||[]).find(x=>x.id===partitionSelect.value);
+      if(!p)return null;
+      const side=faceSelect.value==='A'?1:-1;
+      const axis=p.axis==='x'?'z':'x',center=p.axis==='x'?p.cz:p.cx;
+      hitPlane(axis,center+side*(p.thickness/2+.02),pt=>{
+        const along=(p.axis==='x'?pt.x-p.cx:pt.z-p.cz)+p.length/2;
+        if(along<0||along>p.length||pt.y<FLOOR||pt.y>FLOOR+p.height)return null;
+        return {mount:'partition',partitionId:p.id,face:faceSelect.value,u:along,v:pt.y-FLOOR};
+      });
+    }else if(mount==='ceiling'){
+      hitPlane('y',FLOOR+state.H-.055,pt=>{
+        if(Math.abs(pt.x)>state.L/2||Math.abs(pt.z)>state.W/2)return null;
+        return {mount:'ceiling',face:'roof',u:pt.x+state.L/2,v:pt.z+state.W/2};
+      });
     }
     candidates.sort((a,b)=>a.t-b.t);
     return candidates[0]||null;
   }
+  function disposePreview(){
+    if(!ghost)return;
+    scene.remove(ghost);ghost.geometry.dispose();ghost.material.dispose();ghost=null;
+  }
+  function pointerCandidate(event){
+    if(!active)return null;
+    const hit=raySurface(event);
+    if(!hit){disposePreview();return null;}
+    const step=Number(snapSelect.value);
+    let point;
+    try{
+      point={id:active.id||'el-'+nextId,type:active.type,mount:hit.mount,face:hit.face,
+        u:snapElectricalCoordinate(hit.u,step),v:snapElectricalCoordinate(hit.v,step)};
+    }catch{return null;}
+    if(hit.partitionId)point.partitionId=hit.partitionId;
+    const issue=validateElectricalPoint(point,state,state.openings||[],state.partitions||[],
+      points.filter(p=>p.id!==point.id),state.interiorDoors||[]);
+    const pos=position(point);
+    if(pos){
+      if(!ghost){
+        ghost=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),
+          new THREE.MeshBasicMaterial({color:0x00b981,transparent:true,opacity:.62,depthTest:false}));
+        ghost.renderOrder=100;ghost.name='electrical_precision_preview';scene.add(ghost);
+      }
+      const [w,h]=limits[point.type],ceiling=point.mount==='ceiling';
+      ghost.scale.set(w,ceiling ? .045 : h,ceiling ? h : .06);
+      ghost.position.set(...pos);ghost.rotation.set(0,0,0);
+      const host=point.mount==='partition'?(state.partitions||[]).find(p=>p.id===point.partitionId):null;
+      if((point.mount==='wall'&&(point.face==='B'||point.face==='D'))||
+         (point.mount==='partition'&&host?.axis==='z'))ghost.rotation.y=Math.PI/2;
+      ghost.material.color.setHex(issue?0xff4757:0x00b981);
+    }
+    return {point,issue};
+  }
   function renderManualList() {
     manualList.replaceChildren();
-    points.forEach(p=>{
+    for(const p of points){
       const div=document.createElement('div');div.className='entry';
       const label=document.createElement('span');
-      label.textContent=labels[p.type]+' · cara '+p.face+' · '+p.u.toFixed(2)+' m / '+p.v.toFixed(2)+' m';
-      const move=document.createElement('button');move.textContent='Mover';move.type='button';
-      move.addEventListener('click',()=>setMode(p.id));
+      const host=p.mount==='partition'?'tabique '+p.partitionId+' lado '+p.face:
+        p.mount==='ceiling'?'cielo':'muro '+p.face;
+      label.textContent=labels[p.type]+' '+p.id+' · '+host+
+        ' · U '+Math.round(p.u*1000)+' mm / V '+Math.round(p.v*1000)+' mm';
+      const edit=document.createElement('button');edit.textContent='Editar';edit.type='button';
+      edit.addEventListener('click',()=>{leaveMode();showPointInForm(p);});
+      const move=document.createElement('button');move.textContent='Mover 3D';move.type='button';
+      move.addEventListener('click',()=>{showPointInForm(p);setMode(p.id);});
       const remove=document.createElement('button');remove.textContent='Quitar';remove.type='button';
       remove.className='alt';
       remove.addEventListener('click',()=>{
         if(active?.id===p.id)leaveMode();
+        if(editingId===p.id)stopEdit();
         points=points.filter(x=>x.id!==p.id);
         saveConfig();signature='';update();
+        status.textContent='Punto '+p.id+' eliminado.';
       });
-      div.append(label,move,remove);manualList.append(div);
-    });
+      div.append(label,edit,move,remove);manualList.append(div);
+    }
   }
   function update(){
     loadConfig();
-    // Revalidate manual placements after changes to the host geometry.
-    const valid=points.filter(p=>bounds(p) && !(state.openings||[]).some(o=>o.face===p.face &&
-      p.u+limits[p.type][0]/2+.055>o.u && p.u-limits[p.type][0]/2-.055<o.u+o.w &&
-      p.v+limits[p.type][1]/2+.055>o.v && p.v-limits[p.type][1]/2-.055<o.v+o.h));
-    if(valid.length!==points.length){
-      points=valid;
-      saveConfig();
-      status.textContent='Se retiraron puntos incompatibles con la geometría o los vanos actuales.';
-    }
-    const current=JSON.stringify([state.L,state.W,state.H,state.type,state.openings,rooms.value,profile.value,points]);
+    // Nunca borrar silenciosamente puntos: el motor impide modificaciones incompatibles.
+    const current=JSON.stringify([state.L,state.W,state.H,state.type,
+      state.openings,state.partitions,state.interiorDoors,rooms.value,profile.value,points]);
     if(current===signature)return;
     signature=current;
+    try{sanitizeElectricalConfig(state.electrical,state,state.openings||[],
+      state.partitions||[],state.interiorDoors||[]);}
+    catch(error){status.textContent='Revisar punto eléctrico: '+error.message;}
+    syncMountControls();
     const data=calculateElectricalTakeoff(params());
     const replacement=buildElectrical3DGroup(params());
-    replacement.visible=toggle.checked;scene.add(replacement);
+    // Al existir puntos precisos, ocultar las sugerencias 3D automáticas para no aparentar ubicaciones contratadas.
+    replacement.visible=toggle.checked&&points.length===0;scene.add(replacement);
     if(layer){scene.remove(layer);disposeElectricalGroup(layer);}
     layer=replacement;
     addManualLayer();
@@ -257,37 +358,84 @@ export function installElectricalUI({scene,state,FLOOR,camera,renderer,controls}
       [item.code,item.name,`${item.qty} ${item.unit}`,`$${formatter.format(item.subtotal)}`].forEach(t=>{const td=document.createElement('td');td.textContent=t;tr.appendChild(td);});
       return tr;
     }));
-    notice.textContent=data.warning+' Los puntos manuales se suman a la base automática; su posición no modifica todavía el metrado de conductores ni canalizaciones.';
+    notice.textContent=data.warning+' Las sugerencias automáticas se ocultan del 3D al colocar puntos precisos, pero permanecen en la estimación base. Los puntos manuales se suman por separado; su ubicación NO calcula rutas reales de cables o ductos. APU sujeto a revisión.';
     renderManualList();
   }
   function onDown(e){
     if(!active||e.button!==0)return;
     down={x:e.clientX,y:e.clientY};
     e.stopImmediatePropagation();e.preventDefault();
+    try{canvas.setPointerCapture(e.pointerId);}catch{}
+    pointerCandidate(e);
+  }
+  function onMove(e){
+    if(!active)return;
+    e.stopImmediatePropagation();
+    const result=pointerCandidate(e);
+    if(down&&result?.issue)status.textContent=result.issue;
   }
   function onUp(e){
     if(!active||e.button!==0)return;
     e.stopImmediatePropagation();e.preventDefault();
-    if(!down||Math.hypot(e.clientX-down.x,e.clientY-down.y)>7){down=null;return;}
+    if(!down)return;
     down=null;
-    const hit=rayWall(e);
-    if(!hit){status.textContent='Apunta a una cara de pared dentro del volumen del contenedor.';return;}
-    const candidate={...hit,type:active.type,id:active.id||'el-'+nextId};
-    if(!bounds(candidate)){status.textContent='Posición fuera de los márgenes seguros del muro.';return;}
-    if(collisions(candidate)){status.textContent='La posición invade una puerta, ventana u otro punto eléctrico.';return;}
-    if(active.id){points=points.map(p=>p.id===active.id?candidate:p);}
-    else{points.push(candidate);nextId++;}
-    leaveMode();status.textContent='Punto ubicado correctamente. El modelo y BOM están actualizados.';
-    saveConfig();signature='';update();
+    const result=pointerCandidate(e);
+    if(!result){status.textContent='Apunta a una superficie válida del montaje seleccionado.';return;}
+    if(result.issue){status.textContent=result.issue;return;}
+    const p=result.point;
+    if(savePoint(p,'Punto '+p.id+' ubicado correctamente: U '+Math.round(p.u*1000)+
+      ' mm, V '+Math.round(p.v*1000)+' mm.')){
+      if(p.mount==='wall')faceSelect.value=p.face;
+      leaveMode();
+    }
   }
   function onKey(e){if(e.key==='Escape'&&active){leaveMode();status.textContent='Ubicación cancelada.';}}
-  place.addEventListener('click',()=>{leaveMode();setMode();});
+  mountSelect.addEventListener('change',()=>{
+    leaveMode();syncMountControls();
+    if(mountSelect.value==='ceiling')vInput.value=String(Math.round(state.W*500));
+  });
+  manualType.addEventListener('change',()=>{
+    if(mountSelect.value==='ceiling'&&manualType.value!=='light'){
+      mountSelect.value='wall';syncMountControls();
+      status.textContent='El elemento seleccionado se instalará en un muro. Solo luminarias van al cielo.';
+    }
+  });
+  exactSave.addEventListener('click',()=>{
+    leaveMode();
+    try{
+      const p=formCandidate();
+      savePoint(p,'Coordenadas exactas guardadas: U '+Math.round(p.u*1000)+
+        ' mm, V '+Math.round(p.v*1000)+' mm.');
+    }catch(error){status.textContent=error.message;}
+  });
+  duplicate.addEventListener('click',()=>{
+    const original=points.find(p=>p.id===editingId);if(!original)return;
+    const id='el-'+nextId;
+    for(const offset of [.30,-.30,.50,-.50]){
+      const p={...original,id,u:snapElectricalCoordinate(original.u+offset,1)};
+      const issue=validateElectricalPoint(p,state,state.openings||[],state.partitions||[],points,state.interiorDoors||[]);
+      if(!issue){savePoint(p,'Punto duplicado '+id+' a U '+Math.round(p.u*1000)+' mm.');return;}
+    }
+    status.textContent='No hay espacio libre cerca para duplicar este punto.';
+  });
+  cancelEdit.addEventListener('click',()=>{
+    leaveMode();stopEdit();status.textContent='Edición finalizada.';
+  });
+  place.addEventListener('click',()=>setMode(editingId));
   cancel.addEventListener('click',()=>{leaveMode();status.textContent='Ubicación cancelada.';});
-  clear.addEventListener('click',()=>{leaveMode();points=[];saveConfig();signature='';update();status.textContent='Puntos manuales eliminados.';});
+  clear.addEventListener('click',()=>{
+    leaveMode();stopEdit();points=[];saveConfig();signature='';update();
+    status.textContent='Puntos manuales eliminados.';
+  });
   profile.addEventListener('change',()=>{saveConfig();signature='';update();});
   rooms.addEventListener('input',()=>{saveConfig();signature='';update();});
-  toggle.addEventListener('change',()=>{saveConfig();if(layer)layer.visible=toggle.checked;if(manualLayer)manualLayer.visible=toggle.checked;});
+  toggle.addEventListener('change',()=>{
+    saveConfig();
+    if(layer)layer.visible=toggle.checked&&points.length===0;
+    if(manualLayer)manualLayer.visible=toggle.checked;
+  });
   canvas.addEventListener('pointerdown',onDown,true);
+  canvas.addEventListener('pointermove',onMove,true);
   canvas.addEventListener('pointerup',onUp,true);
   document.addEventListener('keydown',onKey);
   update();

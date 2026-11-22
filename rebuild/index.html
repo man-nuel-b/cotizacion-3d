@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BAT-CUBIKEITOR V4.18 | Editor modular 3D</title>
+<title>BAT-CUBIKEITOR V4.19 | Editor modular 3D</title>
 <style>
 html, body{margin:0;height:100%;background:#dfe3e8;font-family:system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden}
 #view{position:fixed;inset:0}
@@ -245,7 +245,7 @@ body.inspector-docked #scene-hint{left:calc((100% - min(486px,40vw))/2);max-widt
 #electric-cost{font-size:11px;line-height:1.5;color:#244967}
 #electric-notice{line-height:1.4}
 
-.electric-manual-list{display:grid;gap:4px}.electric-manual-list .entry{display:flex;align-items:center;gap:4px;font-size:10px;padding:5px;border:1px solid #dbe4ea;border-radius:6px;background:white}.electric-manual-list .entry span{flex:1}.electric-manual-list .entry button{width:auto;font-size:10px;padding:5px 7px}
+.electric-precision-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.electric-precision-grid label{min-width:0}.electric-precision-grid input,.electric-precision-grid select{width:100%}.electric-point-actions{display:flex;flex-wrap:wrap;gap:6px}.electric-point-actions button{flex:1 1 110px}@media(max-width:640px){.electric-precision-grid{grid-template-columns:1fr}}.electric-manual-list{display:grid;gap:4px}.electric-manual-list .entry{display:flex;align-items:center;gap:4px;font-size:10px;padding:5px;border:1px solid #dbe4ea;border-radius:6px;background:white}.electric-manual-list .entry span{flex:1}.electric-manual-list .entry button{width:auto;font-size:10px;padding:5px 7px}
 </style>
 <script type="importmap">
 {
@@ -260,7 +260,7 @@ body.inspector-docked #scene-hint{left:calc((100% - min(486px,40vw))/2);max-widt
 <div id="view"></div>
 <aside id="catalog-panel" aria-label="Catálogo técnico 3D">
   <div class="catalog-heading">
-    <strong>BAT-CUBIKEITOR <span style="color:#d78d12">V4.18</span></strong>
+    <strong>BAT-CUBIKEITOR <span style="color:#d78d12">V4.19</span></strong>
     <p>Catálogo de 70 partidas · selecciona un elemento y haz clic en el contenedor</p>
   </div>
   <div class="catalog-fields">
@@ -458,12 +458,46 @@ body.inspector-docked #scene-hint{left:calc((100% - min(486px,40vw))/2);max-widt
           <option value="board">Tablero</option>
         </select>
       </label>
-      <button id="electric-place" type="button">Ubicar punto en muro 3D</button>
-      <button id="electric-cancel" type="button" class="alt" hidden>Cancelar ubicación</button>
-      <small id="electric-placement-status" class="tiny" role="status">Selecciona el elemento y luego una pared en el visor.</small>
+      <div class="electric-precision-grid" id="electric-precision-controls">
+        <label>Superficie anfitriona
+          <select id="electric-mount">
+            <option value="wall">Muro exterior (cara A/B/C/D)</option>
+            <option value="partition">Tabique interior (cara A/B)</option>
+            <option value="ceiling">Cielo / techo interior (solo luminaria)</option>
+          </select>
+        </label>
+        <label id="electric-face-label">Cara del muro
+          <select id="electric-face"><option>A</option><option>B</option><option>C</option><option>D</option></select>
+        </label>
+        <label id="electric-partition-label" hidden>Tabique
+          <select id="electric-partition"></select>
+        </label>
+        <label>Distancia U desde el extremo (mm)
+          <input id="electric-u-mm" type="number" value="500" step="1" min="0" inputmode="numeric">
+        </label>
+        <label id="electric-v-label">Altura desde el piso terminado (mm)
+          <input id="electric-v-mm" type="number" value="400" step="1" min="0" inputmode="numeric">
+        </label>
+        <label>Ajuste magnético al ubicar/arrastrar
+          <select id="electric-snap-mm">
+            <option value="1">1 mm (precisión máxima)</option>
+            <option value="10" selected>10 mm</option>
+            <option value="50">50 mm</option>
+            <option value="100">100 mm</option>
+          </select>
+        </label>
+      </div>
+      <div class="electric-point-actions">
+        <button id="electric-place" type="button">Ubicar/arrastrar en 3D</button>
+        <button id="electric-apply-exact" type="button">Guardar coordenadas exactas</button>
+        <button id="electric-duplicate" type="button" class="alt" disabled>Duplicar punto</button>
+        <button id="electric-cancel" type="button" class="alt" hidden>Cancelar ubicación</button>
+        <button id="electric-cancel-edit" type="button" class="alt" hidden>Terminar edición</button>
+      </div>
+      <small id="electric-placement-status" class="tiny" role="status">Elige el tipo y la superficie. Haz clic o arrastra en 3D, o introduce las coordenadas exactas en mm.</small>
       <div id="electric-manual-list" class="electric-manual-list"></div>
       <button id="electric-clear-manual" type="button" class="alt">Quitar puntos manuales</button>
-      <small class="tiny">Los puntos manuales son adicionales a la estimación automática. Pulsa «Mover» para reubicarlos o «Quitar» para eliminarlos.</small>
+      <small class="tiny">Selecciona «Editar» en la lista para ajustar su ubicación milimétrica. U se mide desde un extremo del muro o tabique; V es altura desde piso. En cielo, U sigue el largo y V sigue el ancho. La cubicación distingue puntos manuales de la estimación automática.</small>
       <label>Especificación
         <select id="electric-profile">
           <option value="basico">Básico</option>
@@ -552,6 +586,6 @@ body.inspector-docked #scene-hint{left:calc((100% - min(486px,40vw))/2);max-widt
     <div id="inspector-actions"></div>
   </footer>
 </aside>
-<script type="module" src="./container-engine.js?v=4.18"></script>
+<script type="module" src="./container-engine.js?v=4.19"></script>
 </body>
 </html>

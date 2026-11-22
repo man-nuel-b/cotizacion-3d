@@ -1,0 +1,36 @@
+name: BAT-CUBIKEITOR V4.19 electrical precision
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'rebuild/**'
+      - '.github/workflows/v419-electrical-precision-ci.yml'
+  workflow_dispatch:
+
+jobs:
+  electrical-precision:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check electrical geometry and JSON compatibility
+        run: |
+          node --check rebuild/electrical-project-config.js
+          node --check rebuild/electrical-module.js
+          node --test rebuild/tests/electrical-persistence.mjs
+      - name: Install browser dependencies
+        run: |
+          npm install --prefix rebuild --no-save --no-package-lock three@0.160.0 playwright@1.58.2
+          rebuild/node_modules/.bin/playwright install --with-deps chromium
+      - name: Electrical precision targeted browser E2E
+        run: node --test --test-name-pattern='BAT V4.19' rebuild/tests/editor-smoke.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bat-v419-electrical-preview
+          path: /tmp/bat-v2-editor-*.png
+          if-no-files-found: ignore
