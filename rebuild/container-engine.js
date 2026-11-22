@@ -1079,6 +1079,8 @@ const api = {
     if (state.sharedWalls.some(zone => validateSharedWallRegion(zone, nextRef, zone.id))) {
       return { ok: false, error: 'Alguna zona compartida excedería los nuevos límites' };
     }
+    const exteriorIssue = exteriorZonesError(nextRef);
+    if (exteriorIssue) return { ok: false, error: 'Revestimientos exteriores incompatibles con las dimensiones: ' + exteriorIssue };
     // Proyectar todos los tabiques de autoajuste antes de modificar el estado.
     // Cualquier colisión bloquea el cambio COMPLETO de dimensiones.
     let projectedPartitions;
@@ -1163,6 +1165,8 @@ const api = {
     }
     const o = withOpeningReinforcement({ id: state.nextId, type, face, w, h, u, v, bars, catalogCode });
     const err = validateOpening(o); if (err) return { ok: false, error: err };
+    const zoneIssue = exteriorZonesError({ ...state, openings: [...state.openings, o] });
+    if (zoneIssue) return { ok: false, error: 'El vano invade un revestimiento exterior: ' + zoneIssue };
     state.nextId++; state.openings.push(o); selectedEntity = { kind: 'opening', id: o.id };
     build(); return { ok: true, id: o.id };
   },
@@ -1179,6 +1183,8 @@ const api = {
       return { ok: false, error: 'Tipo o barrotes inválidos' };
     }
     const err = validateOpening(o, id); if (err) return { ok: false, error: err };
+    const zoneIssue = exteriorZonesError({ ...state, openings: state.openings.map(x => x.id === id ? o : x) });
+    if (zoneIssue) return { ok: false, error: 'El vano invade un revestimiento exterior: ' + zoneIssue };
     Object.assign(old, o); selectedEntity = { kind: 'opening', id };
     return markChanged(false);
   },
@@ -1190,7 +1196,8 @@ const api = {
     const span = FACES[old.face].long ? state.L : state.W;
     for (const u of [old.u + old.w + .1, old.u - old.w - .1]) {
       const next = { ...old, id: state.nextId, u };
-      if (u >= 0 && u + old.w <= span && !validateOpening(next)) {
+      if (u >= 0 && u + old.w <= span && !validateOpening(next) &&
+          !exteriorZonesError({ ...state, openings: [...state.openings, next] })) {
         state.nextId++; state.openings.push(next); selectedEntity = { kind: 'opening', id: next.id };
         build(); return { ok: true, id: next.id };
       }
@@ -1284,6 +1291,8 @@ const api = {
     const zone = { id: 'shared-' + state.nextId, face, u, v, w, h };
     const error = validateSharedWallRegion(zone, state);
     if (error) return { ok: false, error };
+    const zoneIssue = exteriorZonesError({ ...state, sharedWalls: [...state.sharedWalls, zone] });
+    if (zoneIssue) return { ok: false, error: 'El contacto invade un paño exterior: ' + zoneIssue };
     state.nextId++;
     state.sharedWalls.push(zone);
     editor?.refresh();
