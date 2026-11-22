@@ -40,3 +40,28 @@ El catálogo a la izquierda también permite elegir un revestimiento y la cara. 
 ## Límites
 
 Los patrones, colores, texturas y representaciones 3D son referenciales, no fichas técnicas homologadas de fabricantes. No se han añadido precios, APU, pesos propios, fijaciones, subestructuras ni tolerancias de montaje. Deben validarse antes de utilizar la cubicación como especificación constructiva o presupuesto definitivo.
+
+## V4.18 — Revestimientos exteriores por paños y orientación
+
+El revestimiento ya no exige cubrir la fachada completa: el cliente puede contratar exactamente **6 m²**, por ejemplo, de madera tratada P59, instalada **vertical u horizontalmente**. El sistema almacena cada paño por ubicación y medidas reales en su cara A/B/C/D.
+
+### Flujo recomendado en el editor
+
+1. Selecciona el muro o escoge P59/P54 en el catálogo y señala la cara.
+2. En «Agregar paño exterior por m²» indica **superficie 6**, **ancho 3**, **inicio horizontal 0** y **altura de inicio 0**.
+3. El sistema calcula **alto 2 m** (6 m² / 3 m).
+4. Selecciona orientación **Vertical** u **Horizontal** y presiona «Agregar paño de revestimiento».
+5. Puedes agregar otro paño en el espacio libre, cambiar la orientación del existente o retirarlo.
+
+Las partidas de fachada P44, P45 y P50–P59 admiten la misma lógica. El selector «Acabado de fachada completa (opcional)» queda disponible para proyectos donde corresponde cubrir el muro entero.
+
+### API y JSON
+
+- `finishes.exteriorZones`: array de paños `{ id, face, code, u, v, width, height, orientation }`.
+- `Container3D.addExteriorFinishZone({face,code,areaM2,width,u,v,orientation})`: calcula `height=areaM2/width`.
+- `updateExteriorFinishZone(id,delta)` y `removeExteriorFinishZone(id)`.
+- El área de cada paño se deriva de `width*height`, evitando una segunda cifra susceptible de desincronización.
+- `getConstructionTakeoff().exteriorFinishByCodeM2` consolida m² exteriores por código. Si hay un revestimiento de fondo para todo el muro, el área de los paños se resta del fondo para impedir doble conteo.
+- Las validaciones bloquean paños superpuestos entre sí o que invadan puertas, ventanas, contactos compartidos y límites de la fachada. También impiden añadir un vano posteriormente en medio de un paño sin editarlo antes.
+
+**Advertencia:** los m² representan superficie geométrica instalada, sin porcentajes de merma, fijaciones ni subestructura; el APU debe permanecer como módulo separado y sumar rendimiento/desperdicio según el sistema elegido. La orientación es visual y descriptiva, todavía no produce un plano de despiece optimizado.
