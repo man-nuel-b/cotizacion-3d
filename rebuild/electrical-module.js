@@ -124,32 +124,44 @@ export function installElectricalUI({scene,state,FLOOR,camera,renderer,controls}
     manualLayer.name='manual_electrical_layer';
     const colors={outlet:0x38bdf8,switch:0x7dd3a7,light:0xffe08a,board:0xf59e0b};
     for(const p of points){
-      const [w,h]=limits[p.type], depth=.06;
-      const geometry=new THREE.BoxGeometry(w,h,depth);
+      const [w,h]=limits[p.type], depth=.06,ceiling=(p.mount==='ceiling');
+      const geometry=new THREE.BoxGeometry(w,ceiling ? .045 : h,ceiling ? h : depth);
       const material=new THREE.MeshStandardMaterial({color:colors[p.type],emissive:p.type==='light'?0x775500:0,emissiveIntensity:.2});
       const mesh=new THREE.Mesh(geometry,material);
-      mesh.position.set(...position(p));
-      if(p.face==='B'||p.face==='D')mesh.rotation.y=Math.PI/2;
+      const pos=position(p);if(!pos){geometry.dispose();material.dispose();continue;}
+      mesh.position.set(...pos);
+      const host=p.mount==='partition'?(state.partitions||[]).find(x=>x.id===p.partitionId):null;
+      if((p.mount==='wall'||!p.mount)&&(p.face==='B'||p.face==='D')||
+         (p.mount==='partition'&&host?.axis==='z'))mesh.rotation.y=Math.PI/2;
+      mesh.name='electrical_'+p.id;
+      mesh.userData.electricalPointId=p.id;
       manualLayer.add(mesh);
     }
     manualLayer.visible=toggle.checked;
     scene.add(manualLayer);
   }
   function setMode(id=null) {
-    active={id,type:id?points.find(p=>p.id===id)?.type:manualType.value};
+    if(active)leaveMode();
+    if(mountSelect.value==='partition'&&!partitionSelect.value){
+      status.textContent='Primero selecciona un tabique interior.';return;
+    }
+    if(mountSelect.value==='ceiling'&&manualType.value!=='light'){
+      status.textContent='En cielo solo se permiten luminarias.';return;
+    }
+    active={id,type:id?points.find(p=>p.id===id)?.type:manualType.value,mount:mountSelect.value};
     if(!active.type){active=null;return;}
-    originalControls=controls.enabled;
-    controls.enabled=false;
+    originalControls=controls.enabled;controls.enabled=false;
     place.textContent=id?'Mover punto seleccionado':'Ubicando punto…';
     cancel.hidden=false;
-    status.textContent='Haz clic sobre una pared válida del visor 3D. Esc para cancelar.';
+    status.textContent='Haz clic o arrastra sobre la superficie. Vista previa verde: válido; roja: conflicto. Esc cancela.';
     canvas.style.cursor='crosshair';
   }
   function leaveMode() {
     if(!active)return;
-    active=null;controls.enabled=originalControls;
-    place.textContent='Ubicar punto en muro 3D';cancel.hidden=true;
+    active=null;down=null;controls.enabled=originalControls;
+    place.textContent='Ubicar/arrastrar en 3D';cancel.hidden=true;
     canvas.style.cursor='';
+    if(ghost){scene.remove(ghost);ghost.geometry.dispose();ghost.material.dispose();ghost=null;}
   }
   function rayWall(event) {
     const rect=canvas.getBoundingClientRect();
