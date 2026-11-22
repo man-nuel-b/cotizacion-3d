@@ -1305,6 +1305,44 @@ const api = {
     editor?.refresh();
     return { ok: true };
   },
+  addExteriorFinishZone({ face, code, areaM2, width, u = 0, v = 0, orientation = 'horizontal' } = {}) {
+    if ((state.finishes.exteriorZones || []).length >= 100) return { ok: false, error: 'Máximo 100 paños exteriores' };
+    const area = Number(areaM2), w = Number(width);
+    if (!Number.isFinite(area) || !Number.isFinite(w) || area <= 0 || w <= 0) {
+      return { ok: false, error: 'Indica una superficie positiva en m² y un ancho en metros' };
+    }
+    const candidate = { id: 'ext-' + state.nextId, face, code, u: Number(u), v: Number(v),
+      width: w, height: area / w, orientation };
+    const issue = validateExteriorZone(candidate, state);
+    if (issue) return { ok: false, error: issue };
+    state.finishes.exteriorZones.push(candidate);
+    state.nextId++;
+    build();
+    return { ok: true, id: candidate.id, zone: { ...candidate }, areaM2: candidate.width * candidate.height };
+  },
+
+  updateExteriorFinishZone(id, delta = {}) {
+    const old = state.finishes.exteriorZones.find(z => z.id === id);
+    if (!old) return { ok: false, error: 'Paño exterior inexistente' };
+    const candidate = { ...old, ...delta, id, u: Number(delta.u ?? old.u), v: Number(delta.v ?? old.v),
+      width: Number(delta.width ?? old.width), height: Number(delta.height ?? old.height) };
+    if (delta.areaM2 !== undefined) candidate.height = Number(delta.areaM2) / candidate.width;
+    const issue = validateExteriorZone(candidate, state, id);
+    if (issue) return { ok: false, error: issue };
+    Object.assign(old, { id, face: candidate.face, code: candidate.code, u: candidate.u, v: candidate.v,
+      width: candidate.width, height: candidate.height, orientation: candidate.orientation });
+    build();
+    return { ok: true, id, zone: { ...old }, areaM2: old.width * old.height };
+  },
+
+  removeExteriorFinishZone(id) {
+    const zones = state.finishes.exteriorZones;
+    if (!zones.some(z => z.id === id)) return { ok: false, error: 'Paño exterior inexistente' };
+    state.finishes.exteriorZones = zones.filter(z => z.id !== id);
+    build();
+    return { ok: true };
+  },
+
   setFinish(code, face = 'A') {
     const entry = CATALOG_BY_CODE[code]; if (!entry) return { ok: false, error: 'Código inexistente' };
     // Las terminaciones interiores se enrutan a la capa correcta en lugar de
