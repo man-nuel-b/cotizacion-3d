@@ -296,36 +296,40 @@ export function installElectricalUI({scene,state,FLOOR,camera,renderer,controls}
   }
   function renderManualList() {
     manualList.replaceChildren();
-    points.forEach(p=>{
+    for(const p of points){
       const div=document.createElement('div');div.className='entry';
       const label=document.createElement('span');
-      label.textContent=labels[p.type]+' · cara '+p.face+' · '+p.u.toFixed(2)+' m / '+p.v.toFixed(2)+' m';
-      const move=document.createElement('button');move.textContent='Mover';move.type='button';
-      move.addEventListener('click',()=>setMode(p.id));
+      const host=p.mount==='partition'?'tabique '+p.partitionId+' lado '+p.face:
+        p.mount==='ceiling'?'cielo':'muro '+p.face;
+      label.textContent=labels[p.type]+' '+p.id+' · '+host+
+        ' · U '+Math.round(p.u*1000)+' mm / V '+Math.round(p.v*1000)+' mm';
+      const edit=document.createElement('button');edit.textContent='Editar';edit.type='button';
+      edit.addEventListener('click',()=>{leaveMode();showPointInForm(p);});
+      const move=document.createElement('button');move.textContent='Mover 3D';move.type='button';
+      move.addEventListener('click',()=>{showPointInForm(p);setMode(p.id);});
       const remove=document.createElement('button');remove.textContent='Quitar';remove.type='button';
       remove.className='alt';
       remove.addEventListener('click',()=>{
         if(active?.id===p.id)leaveMode();
+        if(editingId===p.id)stopEdit();
         points=points.filter(x=>x.id!==p.id);
         saveConfig();signature='';update();
+        status.textContent='Punto '+p.id+' eliminado.';
       });
-      div.append(label,move,remove);manualList.append(div);
-    });
+      div.append(label,edit,move,remove);manualList.append(div);
+    }
   }
   function update(){
     loadConfig();
-    // Revalidate manual placements after changes to the host geometry.
-    const valid=points.filter(p=>bounds(p) && !(state.openings||[]).some(o=>o.face===p.face &&
-      p.u+limits[p.type][0]/2+.055>o.u && p.u-limits[p.type][0]/2-.055<o.u+o.w &&
-      p.v+limits[p.type][1]/2+.055>o.v && p.v-limits[p.type][1]/2-.055<o.v+o.h));
-    if(valid.length!==points.length){
-      points=valid;
-      saveConfig();
-      status.textContent='Se retiraron puntos incompatibles con la geometría o los vanos actuales.';
-    }
-    const current=JSON.stringify([state.L,state.W,state.H,state.type,state.openings,rooms.value,profile.value,points]);
+    // Nunca borrar silenciosamente puntos: el motor impide modificaciones incompatibles.
+    const current=JSON.stringify([state.L,state.W,state.H,state.type,
+      state.openings,state.partitions,state.interiorDoors,rooms.value,profile.value,points]);
     if(current===signature)return;
     signature=current;
+    try{sanitizeElectricalConfig(state.electrical,state,state.openings||[],
+      state.partitions||[],state.interiorDoors||[]);}
+    catch(error){status.textContent='Revisar punto eléctrico: '+error.message;}
+    syncMountControls();
     const data=calculateElectricalTakeoff(params());
     const replacement=buildElectrical3DGroup(params());
     replacement.visible=toggle.checked;scene.add(replacement);
@@ -353,7 +357,7 @@ export function installElectricalUI({scene,state,FLOOR,camera,renderer,controls}
       [item.code,item.name,`${item.qty} ${item.unit}`,`$${formatter.format(item.subtotal)}`].forEach(t=>{const td=document.createElement('td');td.textContent=t;tr.appendChild(td);});
       return tr;
     }));
-    notice.textContent=data.warning+' Los puntos manuales se suman a la base automática; su posición no modifica todavía el metrado de conductores ni canalizaciones.';
+    notice.textContent=data.warning+' Los puntos manuales se suman a la base automática. La ubicación exacta NO calcula aún recorridos reales de cables o ductos; APU separado y sujeto a revisión.';
     renderManualList();
   }
   function onDown(e){
