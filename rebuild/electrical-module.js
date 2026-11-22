@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { ELECTRICAL_PROFILES, defaultElectricalConfig } from './electrical-project-config.js';
-export { ELECTRICAL_PROFILES, defaultElectricalConfig, sanitizeElectricalConfig } from './electrical-project-config.js';
+import { ELECTRICAL_PROFILES, ELECTRICAL_POINT_SIZES, defaultElectricalConfig,
+  sanitizeElectricalConfig, validateElectricalPoint, electricalPointWorld, snapElectricalCoordinate } from './electrical-project-config.js?v=4.19';
+export { ELECTRICAL_PROFILES, defaultElectricalConfig, sanitizeElectricalConfig } from './electrical-project-config.js?v=4.19';
 
 // Estimador paramétrico preliminar: no sustituye proyecto SEC ni cálculo de cargas.
 export const DEFAULT_ELECTRICAL_PRICES = Object.freeze({
@@ -80,6 +81,9 @@ export function installElectricalUI({scene,state,FLOOR,camera,renderer,controls}
   const profile=$('electric-profile'),rooms=$('electric-rooms'),toggle=$('electric-show');
   const summary=$('electric-summary'),cost=$('electric-cost'),notice=$('electric-notice'),bom=$('electric-bom');
   const manualType=$('electric-manual-type'),place=$('electric-place'),cancel=$('electric-cancel');
+  const mountSelect=$('electric-mount'),faceSelect=$('electric-face'),partitionSelect=$('electric-partition');
+  const uInput=$('electric-u-mm'),vInput=$('electric-v-mm'),snapSelect=$('electric-snap-mm');
+  const exactSave=$('electric-apply-exact'),duplicate=$('electric-duplicate'),cancelEdit=$('electric-cancel-edit');
   const status=$('electric-placement-status'),manualList=$('electric-manual-list'),clear=$('electric-clear-manual');
   const canvas=renderer.domElement;
   const formatter=new Intl.NumberFormat('es-CL',{maximumFractionDigits:0});
@@ -87,7 +91,7 @@ export function installElectricalUI({scene,state,FLOOR,camera,renderer,controls}
   const codes={outlet:'EL-ENCH',switch:'EL-INT',light:'EL-LUMI',board:'EL-TAB'};
   const counter={outlet:'outlets',switch:'switches',light:'lights'};
   const limits={outlet:[.11,.12],switch:[.11,.12],light:[.35,.15],board:[.35,.45]};
-  let signature='',layer=null,manualLayer=null,points=[],nextId=1,active=null,down=null,originalControls=true;
+  let signature='',layer=null,manualLayer=null,points=[],nextId=1,active=null,down=null,originalControls=true,editingId=null,ghost=null;
   let loadedConfig=null;
   function loadConfig() {
     const conf=state.electrical??defaultElectricalConfig();
@@ -97,6 +101,7 @@ export function installElectricalUI({scene,state,FLOOR,camera,renderer,controls}
     toggle.checked=conf.show!==false;
     points=Array.isArray(conf.points)?conf.points.map(p=>({...p})):[];
     nextId=Math.max(0,...points.map(p=>Number(String(p.id).replace(/^el-/,'')).valueOf()||0))+1;
+    if(editingId&&!points.some(p=>p.id===editingId))editingId=null;
     loadedConfig=conf;
     signature='';
   }
@@ -104,40 +109,15 @@ export function installElectricalUI({scene,state,FLOOR,camera,renderer,controls}
     const count=Number(rooms.value);
     if(!Number.isInteger(count)||count<1||count>200)return;
     state.electrical={profile:profile.value,rooms:count,show:toggle.checked,
-      points:points.map(({id,type,face,u,v})=>({id,type,face,u,v}))};
+      points:points.map(p=>({...p}))};
     loadedConfig=state.electrical;
   }
   const params=()=>({width:state.W,length:state.L,wallHeight:state.H,rooms:rooms.value,profile:profile.value,floor:FLOOR});
-  const position=(p)=>{
-    const len=(p.face==='A'||p.face==='C')?state.L:state.W;
-    const along=p.u-len/2, y=FLOOR+p.v;
-    const offset=.095;
-    if(p.face==='A')return [along,y,state.W/2-offset];
-    if(p.face==='B')return [state.L/2-offset,y,-along];
-    if(p.face==='C')return [-along,y,-state.W/2+offset];
-    return [-state.L/2+offset,y,along];
-  };
-  const bounds=(p)=>{
-    const size=limits[p.type],span=(p.face==='A'||p.face==='C')?state.L:state.W;
-    return p.u>=size[0]/2+.15 && p.u<=span-size[0]/2-.15 &&
-      p.v>=size[1]/2+.10 && p.v<=state.H-size[1]/2-.10;
-  };
-  const collisions=(p)=>{
-    const size=limits[p.type], pad=.055;
-    for(const o of state.openings||[]){
-      if(o.face!==p.face)continue;
-      const x=p.u, y=p.v;
-      if(x+size[0]/2+pad>o.u && x-size[0]/2-pad<o.u+o.w &&
-         y+size[1]/2+pad>o.v && y-size[1]/2-pad<o.v+o.h)return true;
-    }
-    for(const q of points){
-      if(q.id===p.id||q.face!==p.face)continue;
-      const a=limits[q.type];
-      if(Math.abs(p.u-q.u)<(size[0]+a[0])/2+.05 &&
-         Math.abs(p.v-q.v)<(size[1]+a[1])/2+.05)return true;
-    }
-    return false;
-  };
+  const position=p=>electricalPointWorld(p,state,FLOOR);
+  const bounds=p=>!validateElectricalPoint(p,state,state.openings||[],
+    state.partitions||[],[],state.interiorDoors||[]);
+  const collisions=p=>Boolean(validateElectricalPoint(p,state,state.openings||[],
+    state.partitions||[],points.filter(q=>q.id!==p.id),state.interiorDoors||[]));
   function addManualLayer() {
     if(manualLayer){scene.remove(manualLayer);disposeElectricalGroup(manualLayer);}
     manualLayer=new THREE.Group();
