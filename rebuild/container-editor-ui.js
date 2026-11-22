@@ -357,6 +357,18 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     return ['wall-exterior-finish', 'wall-interior-finish'].includes(item?.mode) ||
       (item?.mode === 'wall-object' && ['wall-lining', 'wet-lining'].includes(item.visual));
   }
+  function openExteriorZoneEditor(face, code) {
+    clearPending();
+    const result=api.selectEntity('wall',face);
+    if(!result.ok){hint(result.error,true);return;}
+    inspectorDismissedKey=null;
+    inspector.hidden=false;
+    syncStageLayout();
+    refreshProperties();
+    zoneMaterialSelect.value=code;
+    zoneAreaInput.focus({preventScroll:true});
+    hint('Indica los m², ancho, posición y orientación del revestimiento '+code+' en la cara '+face+'.');
+  }
 
   function arm(code) {
     // Recupera el canvas al escoger otra partida; evita interceptar el clic de colocación.
@@ -374,10 +386,10 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
     $('wall-finish-controls').hidden = !isWallApplication(item);
     const isFinish = ['wall-exterior-finish','wall-interior-finish'].includes(item.mode);
     $('apply-wall-finish').textContent = isFinish
-      ? (item.mode === 'wall-exterior-finish' ? 'Aplicar fachada exterior en esta cara' : 'Aplicar revestimiento interior en esta cara')
+      ? (item.mode === 'wall-exterior-finish' ? 'Configurar paño por m² en esta cara' : 'Aplicar revestimiento interior en esta cara')
       : 'Instalar trasdosado en esta cara';
     $('wall-control-explain').textContent = isFinish
-      ? (item.mode === 'wall-exterior-finish' ? 'La fachada se verá por fuera del contenedor.' : 'El acabado quedará en el paramento interior.')
+      ? (item.mode === 'wall-exterior-finish' ? 'Indica m², ancho y orientación; no se cubre todo el muro automáticamente.' : 'El acabado quedará en el paramento interior.')
       : 'P14/P17 se instalará como un panel 3D de 1,60 m en la cara indicada.';
 
     const msg = item.mode === 'floor' || item.mode === 'ceiling' || item.mode === 'skirting' ?
@@ -481,6 +493,10 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       if (!hit) { hint('Gira el contenedor y haz clic directamente sobre una pared.', true); return; }
       const { face, point } = hit;
       if (['wall-exterior-finish', 'wall-interior-finish'].includes(item.mode)) {
+        if (item.mode === 'wall-exterior-finish') {
+          openExteriorZoneEditor(face, code);
+          return;
+        }
         const result = api.setWallLining(face, code);
         if (!result.ok) { hint(result.error, true); return; }
         clearPending(); hint(code + ' aplicado en la cara ' + face + '.'); return;
@@ -923,6 +939,10 @@ export function installEditor({ THREE, renderer, camera, controls, root, api, st
       hint('Selecciona primero un revestimiento o trasdosado de muro del catálogo.', true); return;
     }
     const face = $('wall-finish-face').value;
+    if (item.mode === 'wall-exterior-finish') {
+      openExteriorZoneEditor(face, item.code);
+      return;
+    }
     const result = api.setWallLining(face, item.code);
     if (!result.ok) { hint(result.error, true); return; }
     clearPending();
