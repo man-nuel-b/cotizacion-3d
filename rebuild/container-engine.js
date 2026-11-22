@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { CATALOG, CATALOG_BY_CODE } from './container-catalog.js?v=4.17.2';
-import { createObjectModel, makeFinishMaterial } from './container-object-models.js?v=4.17.2';
-import { installEditor } from './container-editor-ui.js?v=4.17.2';
+import { CATALOG, CATALOG_BY_CODE } from './container-catalog.js?v=4.18';
+import { createObjectModel, makeFinishMaterial } from './container-object-models.js?v=4.18';
+import { validateExteriorZone, sanitizeExteriorZones } from './exterior-finish-zones.js?v=4.18';
+import { installEditor } from './container-editor-ui.js?v=4.18';
 import { installElectricalUI, defaultElectricalConfig, sanitizeElectricalConfig } from './electrical-module.js';
 import { createDisposalContext, disposeHierarchy, disposeMaterial, disposeTexture } from './resource-disposal.js';
 import {
@@ -15,7 +16,7 @@ import {
   validateInteriorDoor, validatePartitionSpecification, PARTITION_LINING_THICKNESS_M,
   classifyPartitionJunction, computePartitionJunctions, checkJunctionAgainstDoors, resolveMagneticPartitionMove, computeFreePartitionSpan,
   validateBathFloor, detectRectangularRoomAt
-} from './construction-integrity.js?v=4.17.2';
+} from './construction-integrity.js?v=4.18';
 
 /* ============ Tipos de contenedor ============ */
 const TYPES = {
@@ -267,7 +268,7 @@ const state = {
   type: 'maritimo',
   L: 12.03, W: 2.35, H: 2.39, color: '#7d8388',
   openings: [], partitions: [], interiorDoors: [], objects: [], services: [], sharedWalls: [],
-  finishes: { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null }, interiorWalls: { A: null, B: null, C: null, D: null } },
+  finishes: { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null }, interiorWalls: { A: null, B: null, C: null, D: null }, exteriorZones: [] },
   bathFloor: null, floorDirection: 'length',
   electrical: defaultElectricalConfig(),
   seeInside: false, nextId: 1,
@@ -611,6 +612,26 @@ function build() {
     wmat.side = THREE.DoubleSide;
     const group = wallPanels(lw, totalH, cuts, wmat, seam);
     group.traverse(node => { if (node.isMesh && node.userData.isPanel) node.userData.wallFace = key; });
+    // Paños exteriores parciales: la geometría visible coincide con ancho × alto.
+    for (const zone of state.finishes.exteriorZones || []) {
+      if (zone.face !== key) continue;
+      const zoneMat = makeFinishMaterial(THREE, zone.code,
+        material => owned.push(material), texture => ownedTextures.push(texture),
+        Math.max(.2, zone.width / 1.2), Math.max(.2, zone.height / 1.2));
+      if (zone.orientation === 'vertical' && zoneMat.map) {
+        zoneMat.map.center.set(.5, .5);
+        zoneMat.map.rotation = Math.PI / 2;
+        zoneMat.map.needsUpdate = true;
+      }
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(zone.width, zone.height), zoneMat);
+      mesh.position.set(zone.u + zone.width / 2 - lw / 2,
+        FLOOR + zone.v + zone.height / 2, Math.max(.02, profileCfg.R + .012));
+      mesh.userData.exteriorZoneId = zone.id;
+      mesh.userData.exteriorOrientation = zone.orientation;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      group.add(mesh);
+    }
     // Acabado interior independiente; conserva los mismos vanos y sigue al muro en raycast/corte.
     const interiorCode = state.finishes.interiorWalls?.[key];
     if (interiorCode) {
@@ -835,6 +856,10 @@ function partitionError(p, ref = state) {
   }
   return null;
 }
+function exteriorZonesError(ref = state) {
+  try { sanitizeExteriorZones(ref.finishes?.exteriorZones || [], ref); return null; }
+  catch (error) { return String(error.message || error); }
+}
 function fittedPartition(p, ref = state) {
   return resolvePartitionGeometry(p, ref, profileThicknessFor(ref));
 }
@@ -1028,7 +1053,7 @@ const api = {
     state.type = key; [state.L, state.W, state.H] = c.dims;
     state.color = c.color; state.openings = []; state.partitions = []; state.interiorDoors = []; state.services = []; state.sharedWalls = [];
     state.objects = [];
-    state.finishes = { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null }, interiorWalls: { A: null, B: null, C: null, D: null } };
+    state.finishes = { floor: null, ceiling: null, skirting: null, walls: { A: null, B: null, C: null, D: null }, interiorWalls: { A: null, B: null, C: null, D: null }, exteriorZones: [] };
     state.bathFloor = null;
     state.floorDirection = 'length';
     state.electrical = defaultElectricalConfig();
