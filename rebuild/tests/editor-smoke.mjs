@@ -1082,6 +1082,8 @@ test('BAT V4.19: editor eléctrico en mm aplica muro, tabique y cielo sin perder
       axis:'x',cx:0,cz:0,length:2.5,height:2.2,thickness:.1,autoSpan:false
     }));
     assert.equal(partition.ok,true,partition.error);
+    // La ficha contextual del tabique se abre al seleccionarlo: cerrarla para seguir en el panel eléctrico.
+    if(await page.locator('#selection-inspector').isVisible())await page.locator('#close-inspector').click();
     await page.waitForFunction(()=>document.querySelector('#electric-partition option')?.value===''+window.Container3D.getState().partitions[0].id);
     await page.locator('#electric-mount').selectOption('partition');
     await page.locator('#electric-manual-type').selectOption('switch');
