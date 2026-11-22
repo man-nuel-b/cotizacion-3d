@@ -332,7 +332,8 @@ export function installElectricalUI({scene,state,FLOOR,camera,renderer,controls}
     syncMountControls();
     const data=calculateElectricalTakeoff(params());
     const replacement=buildElectrical3DGroup(params());
-    replacement.visible=toggle.checked;scene.add(replacement);
+    // Al existir puntos precisos, ocultar las sugerencias 3D automáticas para no aparentar ubicaciones contratadas.
+    replacement.visible=toggle.checked&&points.length===0;scene.add(replacement);
     if(layer){scene.remove(layer);disposeElectricalGroup(layer);}
     layer=replacement;
     addManualLayer();
@@ -357,7 +358,7 @@ export function installElectricalUI({scene,state,FLOOR,camera,renderer,controls}
       [item.code,item.name,`${item.qty} ${item.unit}`,`$${formatter.format(item.subtotal)}`].forEach(t=>{const td=document.createElement('td');td.textContent=t;tr.appendChild(td);});
       return tr;
     }));
-    notice.textContent=data.warning+' Los puntos manuales se suman a la base automática. La ubicación exacta NO calcula aún recorridos reales de cables o ductos; APU separado y sujeto a revisión.';
+    notice.textContent=data.warning+' Las sugerencias automáticas se ocultan del 3D al colocar puntos precisos, pero permanecen en la estimación base. Los puntos manuales se suman por separado; su ubicación NO calcula rutas reales de cables o ductos. APU sujeto a revisión.';
     renderManualList();
   }
   function onDown(e){
@@ -430,7 +431,7 @@ export function installElectricalUI({scene,state,FLOOR,camera,renderer,controls}
   rooms.addEventListener('input',()=>{saveConfig();signature='';update();});
   toggle.addEventListener('change',()=>{
     saveConfig();
-    if(layer)layer.visible=toggle.checked;
+    if(layer)layer.visible=toggle.checked&&points.length===0;
     if(manualLayer)manualLayer.visible=toggle.checked;
   });
   canvas.addEventListener('pointerdown',onDown,true);
