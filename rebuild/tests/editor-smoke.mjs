@@ -1019,3 +1019,38 @@ test('BAT V4.17: inspector muestra solo fachadas en selector exterior y conserva
     assert.deepEqual(errors, [], errors.join('\n'));
   } finally { if (fixture) await close(fixture); }
 });
+
+test('BAT V4.18: paño de madera de 6 m² vertical/horizontal desde el inspector 3D', { timeout: 180000 }, async () => {
+  let fixture;
+  try {
+    fixture=await prepare();
+    const {page,errors}=fixture;
+    await page.locator('[data-edit-surface="wall:A"]').click();
+    const card=page.locator('#exterior-zone-inspector');
+    await card.waitFor({state:'visible'});
+    await page.locator('#exterior-zone-material').selectOption('P59');
+    await page.locator('#exterior-zone-area').fill('6');
+    await page.locator('#exterior-zone-width').fill('3');
+    await page.locator('#exterior-zone-u').fill('0');
+    await page.locator('#exterior-zone-v').fill('0');
+    await page.locator('#exterior-zone-orientation').selectOption('vertical');
+    assert.match(await page.locator('#exterior-zone-height').innerText(),/2.00 m/);
+    await page.locator('#exterior-zone-apply').click();
+    let data=await page.evaluate(()=>({
+      zones:window.Container3D.getState().finishes.exteriorZones,
+      takeoff:window.Container3D.getConstructionTakeoff()
+    }));
+    assert.equal(data.zones.length,1);
+    assert.equal(data.zones[0].orientation,'vertical');
+    assert.equal(data.zones[0].width,3);
+    assert.equal(data.zones[0].height,2);
+    assert.equal(data.takeoff.walls.A.exteriorByCodeM2.P59,6);
+    await page.locator('#exterior-zone-list select').selectOption('horizontal');
+    data=await page.evaluate(()=>window.Container3D.getState().finishes.exteriorZones);
+    assert.equal(data[0].orientation,'horizontal');
+    await page.locator('#exterior-zone-list button').click();
+    data=await page.evaluate(()=>window.Container3D.getState().finishes.exteriorZones);
+    assert.equal(data.length,0);
+    assert.deepEqual(errors,[],errors.join('\n'));
+  } finally { if(fixture) await close(fixture); }
+});
