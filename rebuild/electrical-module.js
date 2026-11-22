@@ -163,32 +163,136 @@ export function installElectricalUI({scene,state,FLOOR,camera,renderer,controls}
     canvas.style.cursor='';
     if(ghost){scene.remove(ghost);ghost.geometry.dispose();ghost.material.dispose();ghost=null;}
   }
-  function rayWall(event) {
+  function syncMountControls(){
+    const mount=mountSelect.value;
+    $('electric-partition-label').hidden=mount!=='partition';
+    $('electric-face-label').hidden=mount==='ceiling';
+    const oldFace=faceSelect.value,faces=mount==='partition'?['A','B']:['A','B','C','D'];
+    faceSelect.replaceChildren(...faces.map(face=>new Option('Cara '+face,face)));
+    if(faces.includes(oldFace))faceSelect.value=oldFace;
+    $('electric-v-label').firstChild.textContent=mount==='ceiling'
+      ?'Distancia V desde el lateral (mm)':'Altura desde el piso terminado (mm)';
+    const oldPartition=partitionSelect.value;
+    partitionSelect.replaceChildren(...(state.partitions||[]).map(p=>
+      new Option(p.id+' · eje '+p.axis.toUpperCase()+' · '+p.length.toFixed(2)+' m',p.id)));
+    if((state.partitions||[]).some(p=>p.id===oldPartition))partitionSelect.value=oldPartition;
+    if(mount==='ceiling'&&manualType.value!=='light'){
+      manualType.value='light';
+      status.textContent='El cielo admite únicamente luminarias.';
+    }
+  }
+  function showPointInForm(p){
+    editingId=p.id;manualType.value=p.type;
+    mountSelect.value=p.mount||'wall';syncMountControls();
+    if(p.mount!=='ceiling')faceSelect.value=p.face;
+    if(p.mount==='partition')partitionSelect.value=p.partitionId;
+    uInput.value=String(Math.round(p.u*1000));vInput.value=String(Math.round(p.v*1000));
+    exactSave.textContent='Guardar cambios de '+p.id;
+    duplicate.disabled=false;cancelEdit.hidden=false;
+    status.textContent='Editando '+labels[p.type]+' '+p.id+'. Ajusta U y V en mm y guarda.';
+  }
+  function stopEdit(){
+    editingId=null;exactSave.textContent='Guardar coordenadas exactas';
+    duplicate.disabled=true;cancelEdit.hidden=true;
+  }
+  function savePoint(candidate,message){
+    const draft=editingId&&candidate.id===editingId
+      ?points.map(p=>p.id===editingId?candidate:p):[...points,candidate];
+    let checked;
+    try{
+      checked=sanitizeElectricalConfig({profile:profile.value,rooms:Number(rooms.value),
+        show:toggle.checked,points:draft},state,state.openings||[],
+        state.partitions||[],state.interiorDoors||[]);
+    }catch(error){status.textContent=error.message;return false;}
+    points=checked.points;
+    nextId=Math.max(nextId,Number(candidate.id.replace(/^el-/,''))+1);
+    stopEdit();saveConfig();signature='';update();status.textContent=message;
+    return true;
+  }
+  function formCandidate(){
+    if(!uInput.value.trim()||!vInput.value.trim())throw Error('Escribe U y V en milímetros.');
+    const mount=mountSelect.value;
+    const point={id:editingId||'el-'+nextId,type:manualType.value,
+      mount,face:mount==='ceiling'?'roof':faceSelect.value,
+      u:Number(uInput.value)/1000,v:Number(vInput.value)/1000};
+    if(mount==='partition')point.partitionId=partitionSelect.value;
+    return point;
+  }
+  function raySurface(event){
     const rect=canvas.getBoundingClientRect();
     if(!rect.width||!rect.height)return null;
     const ndc=new THREE.Vector2(((event.clientX-rect.left)/rect.width)*2-1,
       -((event.clientY-rect.top)/rect.height)*2+1);
-    const raycaster=new THREE.Raycaster();
-    raycaster.setFromCamera(ndc,camera);
-    const ray=raycaster.ray,candidates=[];
-    const faces=[
-      ['A','z',state.W/2-.08],['B','x',state.L/2-.08],
-      ['C','z',-state.W/2+.08],['D','x',-state.L/2+.08]
-    ];
-    for(const [face,axis,value] of faces){
-      const direction=axis==='x'?ray.direction.x:ray.direction.z;
-      if(Math.abs(direction)<1e-8)continue;
-      const t=(value-(axis==='x'?ray.origin.x:ray.origin.z))/direction;
-      if(t<=0)continue;
-      const pt=ray.at(t,new THREE.Vector3());
-      if(pt.y<FLOOR||pt.y>FLOOR+state.H)continue;
-      const along=face==='A'?pt.x:face==='B'?-pt.z:face==='C'?-pt.x:pt.z;
-      const span=(face==='A'||face==='C')?state.L:state.W;
-      if(Math.abs(along)>span/2)continue;
-      candidates.push({face,u:along+span/2,v:pt.y-FLOOR,t});
+    const raycaster=new THREE.Raycaster();raycaster.setFromCamera(ndc,camera);
+    const ray=raycaster.ray,candidates=[],mount=active?.mount||mountSelect.value;
+    const hitPlane=(axis,value,fn)=>{
+      const dir=ray.direction[axis];if(Math.abs(dir)<1e-8)return;
+      const t=(value-ray.origin[axis])/dir;if(t<=0)return;
+      const pt=ray.at(t,new THREE.Vector3()),hit=fn(pt);
+      if(hit)candidates.push({...hit,t});
+    };
+    if(mount==='wall'){
+      for(const [face,axis,value] of [
+        ['A','z',state.W/2-.08],['B','x',state.L/2-.08],
+        ['C','z',-state.W/2+.08],['D','x',-state.L/2+.08]
+      ])hitPlane(axis,value,pt=>{
+        const along=face==='A'?pt.x:face==='B'?-pt.z:face==='C'?-pt.x:pt.z;
+        const span=(face==='A'||face==='C')?state.L:state.W;
+        if(Math.abs(along)>span/2||pt.y<FLOOR||pt.y>FLOOR+state.H)return null;
+        return {mount:'wall',face,u:along+span/2,v:pt.y-FLOOR};
+      });
+    }else if(mount==='partition'){
+      const p=(state.partitions||[]).find(x=>x.id===partitionSelect.value);
+      if(!p)return null;
+      const side=faceSelect.value==='A'?1:-1;
+      const axis=p.axis==='x'?'z':'x',center=p.axis==='x'?p.cz:p.cx;
+      hitPlane(axis,center+side*(p.thickness/2+.02),pt=>{
+        const along=(p.axis==='x'?pt.x-p.cx:pt.z-p.cz)+p.length/2;
+        if(along<0||along>p.length||pt.y<FLOOR||pt.y>FLOOR+p.height)return null;
+        return {mount:'partition',partitionId:p.id,face:faceSelect.value,u:along,v:pt.y-FLOOR};
+      });
+    }else if(mount==='ceiling'){
+      hitPlane('y',FLOOR+state.H-.055,pt=>{
+        if(Math.abs(pt.x)>state.L/2||Math.abs(pt.z)>state.W/2)return null;
+        return {mount:'ceiling',face:'roof',u:pt.x+state.L/2,v:pt.z+state.W/2};
+      });
     }
     candidates.sort((a,b)=>a.t-b.t);
     return candidates[0]||null;
+  }
+  function disposePreview(){
+    if(!ghost)return;
+    scene.remove(ghost);ghost.geometry.dispose();ghost.material.dispose();ghost=null;
+  }
+  function pointerCandidate(event){
+    if(!active)return null;
+    const hit=raySurface(event);
+    if(!hit){disposePreview();return null;}
+    const step=Number(snapSelect.value);
+    let point;
+    try{
+      point={id:active.id||'el-'+nextId,type:active.type,mount:hit.mount,face:hit.face,
+        u:snapElectricalCoordinate(hit.u,step),v:snapElectricalCoordinate(hit.v,step)};
+    }catch{return null;}
+    if(hit.partitionId)point.partitionId=hit.partitionId;
+    const issue=validateElectricalPoint(point,state,state.openings||[],state.partitions||[],
+      points.filter(p=>p.id!==point.id),state.interiorDoors||[]);
+    const pos=position(point);
+    if(pos){
+      if(!ghost){
+        ghost=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),
+          new THREE.MeshBasicMaterial({color:0x00b981,transparent:true,opacity:.62,depthTest:false}));
+        ghost.renderOrder=100;ghost.name='electrical_precision_preview';scene.add(ghost);
+      }
+      const [w,h]=limits[point.type],ceiling=point.mount==='ceiling';
+      ghost.scale.set(w,ceiling ? .045 : h,ceiling ? h : .06);
+      ghost.position.set(...pos);ghost.rotation.set(0,0,0);
+      const host=point.mount==='partition'?(state.partitions||[]).find(p=>p.id===point.partitionId):null;
+      if((point.mount==='wall'&&(point.face==='B'||point.face==='D'))||
+         (point.mount==='partition'&&host?.axis==='z'))ghost.rotation.y=Math.PI/2;
+      ghost.material.color.setHex(issue?0xff4757:0x00b981);
+    }
+    return {point,issue};
   }
   function renderManualList() {
     manualList.replaceChildren();
