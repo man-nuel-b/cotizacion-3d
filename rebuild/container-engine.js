@@ -1770,7 +1770,7 @@ const api = {
 
       let maxId = Number.isSafeInteger(s.nextId) && s.nextId > 0 ? s.nextId - 1 : 0;
       const trackNumId = val => {
-        const n = typeof val === 'number' ? val : Number(String(val).replace(/^(obj|service|partition|idoor|shared)-/, ''));
+        const n = typeof val === 'number' ? val : Number(String(val).replace(/^(obj|service|partition|idoor|shared|ext)-/, ''));
         if (Number.isSafeInteger(n) && n > maxId) maxId = n;
       };
 
@@ -1858,6 +1858,11 @@ const api = {
           v: Number(zone.v), w: Number(zone.w), h: Number(zone.h) };
       });
 
+      const cleanExteriorZones = sanitizeExteriorZones(finishes.exteriorZones || [], {
+        ...s, openings: cleanOpenings, sharedWalls: cleanSharedWalls,
+        finishes: { ...finishes, exteriorZones: [] }
+      });
+      for (const zone of cleanExteriorZones) { uniqueId(zone.id, 'ext'); trackNumId(zone.id); }
       if (!Number.isSafeInteger(maxId + 1)) throw Error('Contador de objetos fuera de rango');
 
       Object.assign(state, {
@@ -1869,7 +1874,7 @@ const api = {
         finishes: {
           floor: finishes.floor || null, ceiling: finishes.ceiling || null, skirting: finishes.skirting || null,
           walls: exteriorWalls,
-          interiorWalls
+          interiorWalls, exteriorZones: cleanExteriorZones
         },
         seeInside: !!s.seeInside, nextId: maxId + 1
       });
@@ -1945,7 +1950,8 @@ document.querySelectorAll('#seg button').forEach(b => {
     const hasWork = state.objects.length || state.openings.length || state.partitions.length ||
       state.services.length || state.sharedWalls.length || state.finishes.floor || state.finishes.ceiling ||
       state.finishes.skirting || Object.values(state.finishes.walls).some(Boolean) ||
-      Object.values(state.finishes.interiorWalls).some(Boolean);
+      Object.values(state.finishes.interiorWalls).some(Boolean) ||
+      state.finishes.exteriorZones.length > 0;
     if (hasWork && !window.confirm('Cambiar el tipo de contenedor eliminará los elementos y acabados del diseño actual. ¿Continuar?')) return;
     const result = api.setType(b.dataset.t, { samples: false });
     if (result.ok) { syncPanel(); editor?.clearPending(); }
