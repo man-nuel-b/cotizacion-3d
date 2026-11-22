@@ -364,30 +364,77 @@ export function installElectricalUI({scene,state,FLOOR,camera,renderer,controls}
     if(!active||e.button!==0)return;
     down={x:e.clientX,y:e.clientY};
     e.stopImmediatePropagation();e.preventDefault();
+    try{canvas.setPointerCapture(e.pointerId);}catch{}
+    pointerCandidate(e);
+  }
+  function onMove(e){
+    if(!active)return;
+    e.stopImmediatePropagation();
+    const result=pointerCandidate(e);
+    if(down&&result?.issue)status.textContent=result.issue;
   }
   function onUp(e){
     if(!active||e.button!==0)return;
     e.stopImmediatePropagation();e.preventDefault();
-    if(!down||Math.hypot(e.clientX-down.x,e.clientY-down.y)>7){down=null;return;}
+    if(!down)return;
     down=null;
-    const hit=rayWall(e);
-    if(!hit){status.textContent='Apunta a una cara de pared dentro del volumen del contenedor.';return;}
-    const candidate={...hit,type:active.type,id:active.id||'el-'+nextId};
-    if(!bounds(candidate)){status.textContent='Posición fuera de los márgenes seguros del muro.';return;}
-    if(collisions(candidate)){status.textContent='La posición invade una puerta, ventana u otro punto eléctrico.';return;}
-    if(active.id){points=points.map(p=>p.id===active.id?candidate:p);}
-    else{points.push(candidate);nextId++;}
-    leaveMode();status.textContent='Punto ubicado correctamente. El modelo y BOM están actualizados.';
-    saveConfig();signature='';update();
+    const result=pointerCandidate(e);
+    if(!result){status.textContent='Apunta a una superficie válida del montaje seleccionado.';return;}
+    if(result.issue){status.textContent=result.issue;return;}
+    const p=result.point;
+    if(savePoint(p,'Punto '+p.id+' ubicado correctamente: U '+Math.round(p.u*1000)+
+      ' mm, V '+Math.round(p.v*1000)+' mm.')){
+      if(p.mount==='wall')faceSelect.value=p.face;
+      leaveMode();
+    }
   }
   function onKey(e){if(e.key==='Escape'&&active){leaveMode();status.textContent='Ubicación cancelada.';}}
-  place.addEventListener('click',()=>{leaveMode();setMode();});
+  mountSelect.addEventListener('change',()=>{
+    leaveMode();syncMountControls();
+    if(mountSelect.value==='ceiling')vInput.value=String(Math.round(state.W*500));
+  });
+  manualType.addEventListener('change',()=>{
+    if(mountSelect.value==='ceiling'&&manualType.value!=='light'){
+      mountSelect.value='wall';syncMountControls();
+      status.textContent='El elemento seleccionado se instalará en un muro. Solo luminarias van al cielo.';
+    }
+  });
+  exactSave.addEventListener('click',()=>{
+    leaveMode();
+    try{
+      const p=formCandidate();
+      savePoint(p,'Coordenadas exactas guardadas: U '+Math.round(p.u*1000)+
+        ' mm, V '+Math.round(p.v*1000)+' mm.');
+    }catch(error){status.textContent=error.message;}
+  });
+  duplicate.addEventListener('click',()=>{
+    const original=points.find(p=>p.id===editingId);if(!original)return;
+    const id='el-'+nextId;
+    for(const offset of [.30,-.30,.50,-.50]){
+      const p={...original,id,u:snapElectricalCoordinate(original.u+offset,1)};
+      const issue=validateElectricalPoint(p,state,state.openings||[],state.partitions||[],points,state.interiorDoors||[]);
+      if(!issue){savePoint(p,'Punto duplicado '+id+' a U '+Math.round(p.u*1000)+' mm.');return;}
+    }
+    status.textContent='No hay espacio libre cerca para duplicar este punto.';
+  });
+  cancelEdit.addEventListener('click',()=>{
+    leaveMode();stopEdit();status.textContent='Edición finalizada.';
+  });
+  place.addEventListener('click',()=>setMode(editingId));
   cancel.addEventListener('click',()=>{leaveMode();status.textContent='Ubicación cancelada.';});
-  clear.addEventListener('click',()=>{leaveMode();points=[];saveConfig();signature='';update();status.textContent='Puntos manuales eliminados.';});
+  clear.addEventListener('click',()=>{
+    leaveMode();stopEdit();points=[];saveConfig();signature='';update();
+    status.textContent='Puntos manuales eliminados.';
+  });
   profile.addEventListener('change',()=>{saveConfig();signature='';update();});
   rooms.addEventListener('input',()=>{saveConfig();signature='';update();});
-  toggle.addEventListener('change',()=>{saveConfig();if(layer)layer.visible=toggle.checked;if(manualLayer)manualLayer.visible=toggle.checked;});
+  toggle.addEventListener('change',()=>{
+    saveConfig();
+    if(layer)layer.visible=toggle.checked;
+    if(manualLayer)manualLayer.visible=toggle.checked;
+  });
   canvas.addEventListener('pointerdown',onDown,true);
+  canvas.addEventListener('pointermove',onMove,true);
   canvas.addEventListener('pointerup',onUp,true);
   document.addEventListener('keydown',onKey);
   update();
