@@ -94,3 +94,5 @@ jobs:
           name: BAT-KUBIQUEITOR-Codigo-Fuente-Completo
           path: BAT_KUBIQUEITOR_Codigo_Fuente_Completo.pdf
           retention-days: 30
+
+# Generacion solicitada: 2026-11-23 - exportacion completa actualizada
